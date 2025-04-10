@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tiny Healer - RPG Healer Combat Game</title>
+    <style>
+        /* Basic body styling */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(to bottom right, #1e3c72, #2a5298);
+            color: #ffd100;
+        }
+
+        /* Main game container */
+        #game-container {
+            width: 800px;
+            height: 600px;
+            border: none;
+            padding: 20px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), rgba(50, 50, 50, 0.9));
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            display: none; /* Hidden by default, shown after Start is clicked */
+        }
+
+        /* Welcome screen */
+        #welcome-screen {
+            width: 800px;
+            height: 600px;
+            border: none;
+            padding: 20px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), rgba(50, 50, 50, 0.9));
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #welcome-screen h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        #start-button {
+            font-size: 24px;
+            padding: 10px 20px;
+            background: linear-gradient(to bottom, #ffd100, #ffb800);
+            color: #000;
+            border: none;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+        }
+
+        #start-button:hover {
+            background: linear-gradient(to bottom, #ffea00, #ffdd00);
+        }
+
+        /* Combat window containing allies and boss */
+        #combat-window {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        /* Allies section */
+        #allies {
+            width: 45%;
+        }
+
+        /* Boss section */
+        #boss {
+            width: 45%;
+        }
+
+        /* Health bar styling */
+        .health-bar {
+            height: 30px;
+            background: linear-gradient(to right, #232526, #414345);
+            margin-bottom: 10px;
+            position: relative;
+            cursor: pointer;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.7);
+        }
+
+        .health-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(to right, #32cd32, #228b22);
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        /* Selected ally health bar */
+        .health-bar.selected::before {
+            background: linear-gradient(to right, #00bfff, #1e90ff);
+        }
+
+        /* Dead ally health bar */
+        .health-bar.dead::before {
+            background: linear-gradient(to right, #696969, #808080);
+        }
+
+        /* Bleeding ally health bar */
+        .health-bar.bleeding::before {
+            background-image: linear-gradient(45deg, #32cd32 25%, #ff4500 25%, #ff4500 50%, #32cd32 50%, #32cd32 75%, #ff4500 75%, #ff4500 100%);
+            background-size: 50px 50px;
+            animation: bleed-animation 1s linear infinite;
+        }
+
+        @keyframes bleed-animation {
+            0% {
+                background-position: 0 0;
+            }
+            100% {
+                background-position: 50px 0;
+            }
+        }
+
+        /* Health bar text */
+        .health-bar-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 30px;
+            z-index: 1;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+            color: #fff;
+        }
+
+        /* Boss health bar */
+        #boss-health-bar {
+            height: 50px;
+        }
+
+        #boss-health-bar::before {
+            background: linear-gradient(to right, #ff4500, #b22222);
+        }
+
+        /* Spell buttons container */
+        #spell-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        /* Individual spell button */
+        .spell-button {
+            width: 18%;
+            height: 50px;
+            background: linear-gradient(to bottom, #4a4a4a, #2e2e2e);
+            border: 1px solid #ffd100;
+            color: #ffd100;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .spell-button:hover {
+            background: linear-gradient(to bottom, #666, #444);
+        }
+
+        /* Disabled spell button */
+        .spell-button:disabled {
+            background: linear-gradient(to bottom, #333, #111);
+            border-color: #666;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        /* Cooldown progress bar on spell buttons */
+        .cooldown-progress {
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 100%;
+            width: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            transition: width 0.1s linear;
+        }
+
+        /* Mana bar container */
+        #mana-bar {
+            width: 100%;
+            height: 20px;
+            background: linear-gradient(to right, #141414, #282828);
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Mana bar fill */
+        #mana-bar-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(to right, #1e90ff, #4169e1);
+            transition: width 0.5s;
+            border-radius: 10px;
+        }
+
+        /* Mana text */
+        #mana-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 20px;
+            color: #fff;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Reset button */
+        #reset-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            padding: 10px 20px;
+            background: linear-gradient(to bottom, #ffd100, #ffb800);
+            color: #000;
+            border: none;
+            cursor: pointer;
+            display: none;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+        }
+
+        #reset-button:hover {
+            background: linear-gradient(to bottom, #ffea00, #ffdd00);
+        }
+
+        /* Game over and victory messages */
+        #game-over, #victory {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            display: none;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
+        }
+
+        #game-over {
+            color: #ff4500;
+        }
+
+        #victory {
+            color: #32cd32;
+        }
+
+        /* Accordion styles */
+        .accordion {
+            background: linear-gradient(to right, #333, #444);
+            color: #ffd100;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            text-align: left;
+            border: none;
+            outline: none;
+            transition: 0.4s;
+            font-size: 16px;
+            border-radius: 10px;
+            margin-top: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .accordion:hover {
+            background: linear-gradient(to right, #444, #555);
+        }
+
+        .panel {
+            padding: 0 18px;
+            background: linear-gradient(to bottom, #1a1a1a, #222);
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+            border-radius: 0 0 10px 10px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Markdown styles */
+        .markdown {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #ccc;
+        }
+
+        .markdown h1, .markdown h2, .markdown h3 {
+            color: #ffd100;
+        }
+
+        .markdown code {
+            background-color: #333;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .markdown pre {
+            background-color: #333;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- Welcome screen -->
+    <div id="welcome-screen">
+        <h1>Welcome to Tiny Healer</h1>
+        <button id="start-button">Start Game</button>
+    </div>
+
+    <!-- Main game container -->
+    <div id="game-container">
+        <!-- Combat window containing allies and boss -->
+        <div id="combat-window">
+            <!-- Allies section -->
+            <div id="allies"></div>
+            <!-- Boss section -->
+            <div id="boss">
+                <!-- Boss health bar -->
+                <div id="boss-health-bar" class="health-bar">
+                    <div class="health-bar-text">Boss HP: 5000/5000</div>
+                </div>
+            </div>
+        </div>
+        <!-- Spell buttons container -->
+        <div id="spell-buttons"></div>
+        <!-- Mana bar -->
+        <div id="mana-bar">
+            <div id="mana-bar-fill"></div>
+            <div id="mana-text">Mana: 100/100</div>
+        </div>
+        <!-- Game over message -->
+        <div id="game-over">GAME OVER</div>
+        <!-- Victory message -->
+        <div id="victory">VICTORY!</div>
+        <!-- Reset button -->
+        <button id="reset-button">RESET</button>
+
+        <!-- Spellbook Accordion -->
+        <button class="accordion">Spellbook</button>
+        <div class="panel">
+            <div id="spellbook"></div>
+        </div>
+
+        <!-- Info Accordion -->
+        <button class="accordion">Info</button>
+        <div class="panel">
+            <div id="info" class="markdown">
+                <h1>Tiny Healer</h1>
+
+                <h2>TL;DR</h2>
+                <p>Tiny Healer is made with the gameplay loop of a healer in World of Warcraft in mind. Healing in a dungeon minus the game.</p>
+
+                <h2>Rules</h2>
+                <ul>
+                    <li>You are a healer, you cannot die yourself.</li>
+                    <li>Target your allies and cast spells to heal them (keybinds are 1-5).</li>
+                    <li>Allies automatically attack the boss.</li>
+                    <li>Game Over when all allies are dead.</li>
+                    <li>Victory when the boss is dead.</li>
+                </ul>
+
+                <h2>Mechanics</h2>
+                <ul>
+                    <li>The boss deals damage to a random ally every second.</li>
+                    <li>The boss periodically applies a Bleed to a random ally.</li>
+                    <li>You regenerate Mana passively.</li>
+                    <li>The Global Cooldown is 1.5 sec.</li>
+                </ul>
+
+                <h2>Usage</h2>
+                <p>It's only a few hundred lines of Pygame! The idea is to have a structure to tweak/tune mechanics and create your own boss encounters.</p>
+            </div>
+        </div>
+
+    <script>
+        // Array to store ally objects
+        const allies = [];
+        // Boss object
+        let boss = { hp: 5000, maxHp: 5000 };
+        // Currently selected ally
+        let selectedAlly = null;
+        // Global cooldown flag
+        let globalCooldown = false;
+        // Game active flag
+        let gameActive = true;
+        // Player's current mana
+        let playerMana = 100;
+        // Maximum mana
+        const maxMana = 100;
+        // Boss bleed ability cooldown
+        let bossBleedCooldown = 0;
+
+        // Spell definitions
+        const spells = [
+            { name: "Quick Heal", cooldown: 0, heal: 5, manaCost: 3, description: "A fast, low-cost heal that restores 5 HP." },
+            { name: "Strong Heal", cooldown: 15, heal: 30, manaCost: 5, description: "A powerful heal that restores 30 HP, but has a longer cooldown." },
+            { name: "Healing Stream", cooldown: 45, heal: 3, duration: 10, interval: 0.5, manaCost: 6, description: "Heals the target for 3 HP every 0.5 seconds for 10 seconds." },
+            { name: "Chain Heal", cooldown: 15, heal: 10, targets: 3, manaCost: 10, description: "Heals 3 random allies for 10 HP each." },
+            { name: "Team Heal", cooldown: 120, heal: 30, manaCost: 20, description: "Heals all allies for 30 HP, but has a very long cooldown." }
+        ];
+
+        // Function to create an ally object
+        function createAlly(id) {
+            const allyTypes = [
+                { type: "Tank", maxHp: 300 }, // First ally is a Tank
+                { type: "Rogue", maxHp: 100 }, // Second ally is a Rogue
+                { type: "Rogue", maxHp: 100 }, // Third ally is a Rogue
+                { type: "Mage", maxHp: 100 }, // Fourth ally is a Mage
+                { type: "Mage", maxHp: 100 }, // Fifth ally is a Mage
+            ];
+            const ally = allyTypes[id];
+            return { id, type: ally.type, hp: ally.maxHp, maxHp: ally.maxHp, alive: true, bleeding: false };
+        }
+
+        // Function to update health bars
+        function updateHealthBar(entity, barElement) {
+            const percentage = (entity.hp / entity.maxHp) * 100;
+            barElement.style.width = `${percentage}%`;
+            barElement.querySelector('.health-bar-text').textContent = `${entity.type} HP: ${entity.hp}/${entity.maxHp}`;
+            if (entity.hp <= 0) {
+                barElement.classList.add('dead');
+            }
+            if (entity.bleeding) {
+                barElement.classList.add('bleeding');
+            } else {
+                barElement.classList.remove('bleeding');
+            }
+        }
+
+        // Function to update the mana bar
+        function updateManaBar() {
+            const manaBarFill = document.getElementById('mana-bar-fill');
+            const manaText = document.getElementById('mana-text');
+            const percentage = (playerMana / maxMana) * 100;
+            manaBarFill.style.width = `${percentage}%`;
+            manaText.textContent = `Mana: ${playerMana}/${maxMana}`;
+        }
+
+        // Function to create ally health bars
+        function createAllies() {
+            const alliesContainer = document.getElementById('allies');
+            alliesContainer.innerHTML = '';
+            allies.length = 0;
+            for (let i = 0; i < 5; i++) {
+                const ally = createAlly(i);
+                allies.push(ally);
+                const healthBar = document.createElement('div');
+                healthBar.className = 'health-bar';
+                healthBar.innerHTML = `<div class="health-bar-text">${ally.type} HP: ${ally.hp}/${ally.maxHp}</div>`;
+                healthBar.onclick = () => selectAlly(i);
+                alliesContainer.appendChild(healthBar);
+                updateHealthBar(ally, healthBar);
+            }
+        }
+
+        // Function to select an ally
+        function selectAlly(index) {
+            if (!allies[index].alive) return;
+            const healthBars = document.querySelectorAll('#allies .health-bar');
+            healthBars.forEach(bar => bar.classList.remove('selected'));
+            healthBars[index].classList.add('selected');
+            selectedAlly = allies[index];
+            updateSpellButtons();
+        }
+
+        // Function to create spell buttons
+        function createSpellButtons() {
+            const spellButtonsContainer = document.getElementById('spell-buttons');
+            spellButtonsContainer.innerHTML = '';
+            spells.forEach((spell, index) => {
+                const button = document.createElement('button');
+                button.className = 'spell-button';
+                button.innerHTML = `${spell.name}<br>(${spell.manaCost} Mana)<div class="cooldown-progress"></div>`;
+                button.onclick = () => castSpell(index);
+                button.disabled = true;
+                spellButtonsContainer.appendChild(button);
+            });
+        }
+
+        // Function to update spell button states
+        function updateSpellButtons() {
+            const spellButtons = document.querySelectorAll('.spell-button');
+            spellButtons.forEach((button, index) => {
+                button.disabled = !selectedAlly || !selectedAlly.alive || globalCooldown || button.classList.contains('on-cooldown') || !gameActive || playerMana < spells[index].manaCost;
+            });
+        }
+
+        // Function to cast a spell
+        function castSpell(spellIndex) {
+            const spell = spells[spellIndex];
+            if (selectedAlly && selectedAlly.alive && !globalCooldown && !document.querySelectorAll('.spell-button')[spellIndex].classList.contains('on-cooldown') && gameActive && playerMana >= spell.manaCost) {
+                playerMana -= spell.manaCost;
+                updateManaBar();
+                switch (spellIndex) {
+                    case 0:
+                    case 1:
+                        healAlly(selectedAlly, spell.heal);
+                        break;
+                    case 2:
+                        startHealingStream(selectedAlly, spell);
+                        break;
+                    case 3:
+                        chainHeal(spell);
+                        break;
+                    case 4:
+                        teamHeal(spell);
+                        break;
+                }
+                startSpellCooldown(spellIndex);
+                startGlobalCooldown();
+            }
+        }
+
+        // Function to heal an ally
+        function healAlly(ally, amount) {
+            if (ally.alive) {
+                ally.hp = Math.min(ally.hp + amount, ally.maxHp);
+                updateHealthBar(ally, document.querySelectorAll('.health-bar')[ally.id]);
+            }
+        }
+
+        // Function to start a healing stream
+        function startHealingStream(ally, spell) {
+            let ticks = spell.duration / spell.interval;
+            function tick() {
+                if (ticks > 0 && ally.alive && gameActive) {
+                    healAlly(ally, spell.heal);
+                    ticks--;
+                    setTimeout(tick, spell.interval * 1000);
+                }
+            }
+            tick();
+        }
+
+        // Function to perform chain heal
+        function chainHeal(spell) {
+            const livingAllies = allies.filter(ally => ally.alive);
+            const targets = livingAllies.sort(() => 0.5 - Math.random()).slice(0, spell.targets);
+            targets.forEach(ally => healAlly(ally, spell.heal));
+        }
+
+        // Function to heal all allies
+        function teamHeal(spell) {
+            allies.forEach(ally => healAlly(ally, spell.heal));
+        }
+
+        // Function to start spell cooldown
+        function startSpellCooldown(spellIndex) {
+            const button = document.querySelectorAll('.spell-button')[spellIndex];
+            const progressBar = button.querySelector('.cooldown-progress');
+            button.classList.add('on-cooldown');
+
+            progressBar.style.transition = 'width 0.1s linear';
+            progressBar.style.width = '100%';
+
+            setTimeout(() => {
+                progressBar.style.transition = `width ${spells[spellIndex].cooldown}s linear`;
+                progressBar.style.width = '0';
+            }, 100);
+
+            setTimeout(() => {
+                button.classList.remove('on-cooldown');
+                updateSpellButtons();
+            }, spells[spellIndex].cooldown * 1000);
+        }
+
+        // Function to start global cooldown
+        function startGlobalCooldown() {
+            globalCooldown = true;
+            updateSpellButtons();
+            setTimeout(() => {
+                globalCooldown = false;
+                updateSpellButtons();
+            }, 750); // GCD is 0.75 seconds
+        }
+
+        // Function for boss to damage allies
+        function bossDamage() {
+            if (!gameActive) return;
+            const damageAmount = 5;
+            const livingAllies = allies.filter(ally => ally.alive);
+            if (livingAllies.length === 0) {
+                endGame();
+                return;
+            }
+            const targetAlly = livingAllies[Math.floor(Math.random() * livingAllies.length)];
+            targetAlly.hp = Math.max(targetAlly.hp - damageAmount, 0);
+            if (targetAlly.hp === 0) {
+                targetAlly.alive = false;
+            }
+            updateHealthBar(targetAlly, document.querySelectorAll('.health-bar')[targetAlly.id]);
+            if (allies.every(ally => !ally.alive)) {
+                endGame();
+            }
+        }
+
+        // Function for boss bleed ability
+        function bossBleedAbility() {
+            if (!gameActive) return;
+            bossBleedCooldown--;
+            if (bossBleedCooldown <= 0) {
+                const livingAllies = allies.filter(ally => ally.alive);
+                if (livingAllies.length > 0) {
+                    const targetAlly = livingAllies[Math.floor(Math.random() * livingAllies.length)];
+                    targetAlly.bleeding = true;
+                    updateHealthBar(targetAlly, document.querySelectorAll('.health-bar')[targetAlly.id]);
+                    let bleedTicks = 4;
+                    function bleedTick() {
+                        if (bleedTicks > 0 && targetAlly.alive && gameActive) {
+                            targetAlly.hp = Math.max(targetAlly.hp - 10, 0);
+                            updateHealthBar(targetAlly, document.querySelectorAll('.health-bar')[targetAlly.id]);
+                            bleedTicks--;
+                            if (bleedTicks === 0) {
+                                targetAlly.bleeding = false;
+                                updateHealthBar(targetAlly, document.querySelectorAll('.health-bar')[targetAlly.id]);
+                            } else {
+                                setTimeout(bleedTick, 1000);
+                            }
+                        }
+                    }
+                    bleedTick();
+                }
+                bossBleedCooldown = 15;
+            }
+        }
+
+        // Function for allies to attack boss
+        function alliesAttack() {
+            if (!gameActive) return;
+            const damagePerAlly = 5;
+            const livingAllies = allies.filter(ally => ally.alive);
+            const totalDamage = livingAllies.length * damagePerAlly;
+            boss.hp = Math.max(boss.hp - totalDamage, 0);
+            updateHealthBar(boss, document.getElementById('boss-health-bar'));
+            if (boss.hp <= 0) {
+                victory();
+            }
+        }
+
+        // Function to regenerate mana
+        function regenerateMana() {
+            if (gameActive && playerMana < maxMana) {
+                playerMana = Math.min(playerMana + 1, maxMana);
+                updateManaBar();
+            }
+        }
+
+        // Function to end the game (loss)
+        function endGame() {
+            gameActive = false;
+            document.getElementById('game-over').style.display = 'block';
+            document.getElementById('reset-button').style.display = 'block';
+            updateSpellButtons();
+        }
+
+        // Function to end the game (victory)
+        function victory() {
+            gameActive = false;
+            document.getElementById('victory').style.display = 'block';
+            document.getElementById('reset-button').style.display = 'block';
+            updateSpellButtons();
+        }
+
+        // Function to reset the game and return to the welcome screen
+        function resetGame() {
+            document.getElementById('game-container').style.display = 'none';
+            document.getElementById('welcome-screen').style.display = 'flex';
+            gameActive = true;
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('victory').style.display = 'none';
+            document.getElementById('reset-button').style.display = 'none';
+            createAllies();
+            createSpellButtons();
+            boss = { hp: 5000, maxHp: 5000 };
+            updateHealthBar(boss, document.getElementById('boss-health-bar'));
+            selectedAlly = null;
+            globalCooldown = false;
+            playerMana = maxMana;
+            bossBleedCooldown = 15;
+            updateManaBar();
+            updateSpellButtons();
+        }
+
+        // Main game loop
+        function gameLoop() {
+            if (gameActive) {
+                bossDamage();
+                bossBleedAbility();
+                alliesAttack();
+                setTimeout(gameLoop, 1000);
+            }
+        }
+
+        // Function to populate the spellbook
+        function populateSpellbook() {
+            const spellbookContainer = document.getElementById('spellbook');
+            spellbookContainer.innerHTML = '';
+            spells.forEach(spell => {
+                const spellInfo = document.createElement('div');
+                spellInfo.innerHTML = `<h3>${spell.name}</h3>
+                                       <p>${spell.description}</p>
+                                       <p>Mana Cost: ${spell.manaCost}</p>
+                                       <p>Cooldown: ${spell.cooldown} seconds</p>`;
+                spellbookContainer.appendChild(spellInfo);
+            });
+        }
+
+        // Set up mana regeneration interval
+        setInterval(regenerateMana, 2000);
+
+        // Event listener for keyboard input
+        document.addEventListener('keydown', (event) => {
+            const key = event.key;
+            if (key >= '1' && key <= '5') {
+                castSpell(parseInt(key) - 1);
+            }
+        });
+
+        // Event listener for reset button
+        document.getElementById('reset-button').addEventListener('click', resetGame);
+
+        // Event listener for start button
+        document.getElementById('start-button').addEventListener('click', () => {
+            document.getElementById('welcome-screen').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            gameLoop(); // Start the game loop
+        });
+
+        // Event listeners for accordions
+        const accordions = document.getElementsByClassName("accordion");
+        for (let i = 0; i < accordions.length; i++) {
+            accordions[i].addEventListener("click", function() {
+                this.classList.toggle("active");
+                const panel = this.nextElementSibling;
+                if (panel.style.maxHeight) {
+                    panel.style.maxHeight = null;
+                } else {
+                    panel.style.maxHeight = panel.scrollHeight + "px";
+                }
+            });
+        }
+
+        // Initial game setup
+        createAllies();
+        createSpellButtons();
+        updateHealthBar(boss, document.getElementById('boss-health-bar'));
+        updateManaBar();
+        populateSpellbook();
+    </script>
+</body>
+</html>

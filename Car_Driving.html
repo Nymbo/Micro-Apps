@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple 3D Car Driving Game - Three.js (with Acceleration)</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden; /* Prevent scrollbars */
+      font-family: sans-serif;
+      background-color: #000; /* Ensure no white flash */
+    }
+    canvas {
+      display: block; /* Remove default inline spacing */
+      width: 100%;   /* Make canvas fill width */
+      height: 100%;  /* Make canvas fill height */
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 14px;
+      z-index: 10; /* Ensure info is above the canvas */
+    }
+     #speedometer {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 5px;
+        font-size: 16px;
+        z-index: 10; /* Ensure speedometer is above the canvas */
+        min-width: 100px; /* Give it some base width */
+        text-align: center;
+     }
+  </style>
+</head>
+<body>
+  <div id="info">Use WASD to drive the car.</div>
+  <div id="speedometer">Speed: 0</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    // --- Global Variables ---
+    let scene, camera, renderer, car;
+    let clock = new THREE.Clock(); // For delta time calculation
+    let speedometerElement; // To display speed
+
+    // Movement state object to track key presses
+    const keysPressed = {
+        w: false,
+        a: false,
+        s: false,
+        d: false
+    };
+
+    // --- Car Physics Parameters ---
+    let currentSpeed = 0; // The car's current speed
+    const maxSpeed = 100; // Maximum forward speed (CHANGED FROM 40 to 100)
+    const maxReverseSpeed = -15; // Maximum reverse speed
+    const acceleration = 15; // Acceleration rate when W is pressed
+    const deceleration = 20; // Natural deceleration/friction when no keys are pressed
+    const brakeDeceleration = 35; // Deceleration rate when S is pressed (braking)
+    const turnSpeed = Math.PI * 0.8; // Base turn speed in radians per second
+    const turnSpeedFactor = 0.5; // How much speed affects turning radius (lower = sharper turns at low speed)
+
+    // Camera settings
+    const cameraOffset = new THREE.Vector3(0, 6, -12); // Camera position relative to the car
+
+    // --- Initialization Function ---
+    function init() {
+      // Get speedometer DOM element
+      speedometerElement = document.getElementById('speedometer');
+
+      // Scene setup
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87CEEB); // Sky blue background
+      scene.fog = new THREE.Fog(0x87CEEB, 50, 200); // Add fog for distance effect
+
+      // Camera setup (Perspective)
+      camera = new THREE.PerspectiveCamera(
+        75, // Field of view (degrees)
+        window.innerWidth / window.innerHeight, // Aspect ratio
+        0.1, // Near clipping plane
+        1000 // Far clipping plane
+      );
+      // Initial camera position and look direction
+      camera.position.set(0, 10, 15);
+      camera.lookAt(0, 0, 0);
+
+      // Renderer setup (WebGL)
+      renderer = new THREE.WebGLRenderer({ antialias: true }); // Enable anti-aliasing
+      renderer.setSize(window.innerWidth, window.innerHeight); // Set size to window dimensions
+      renderer.shadowMap.enabled = true; // Enable shadows
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadow type
+      document.body.appendChild(renderer.domElement); // Add canvas to the HTML body
+
+      // Lighting setup
+      // Ambient light (provides general illumination)
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+      // Directional light (simulates sunlight, casts shadows)
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(20, 30, 15); // Position the light source
+      directionalLight.castShadow = true; // Allow this light to cast shadows
+      // Configure shadow properties for quality and performance
+      directionalLight.shadow.mapSize.width = 1024;
+      directionalLight.shadow.mapSize.height = 1024;
+      directionalLight.shadow.camera.near = 0.5;
+      directionalLight.shadow.camera.far = 100;
+      directionalLight.shadow.camera.left = -50;
+      directionalLight.shadow.camera.right = 50;
+      directionalLight.shadow.camera.top = 50;
+      directionalLight.shadow.camera.bottom = -50;
+      scene.add(directionalLight);
+      // Optional: Add a helper to visualize the shadow camera
+      // const shadowHelper = new THREE.CameraHelper(directionalLight.shadow.camera);
+      // scene.add(shadowHelper);
+
+      // Ground plane setup
+      const groundGeometry = new THREE.PlaneGeometry(250, 250); // Large ground plane
+      const groundMaterial = new THREE.MeshStandardMaterial({
+          color: 0x556B2F, // Dark olive green
+          roughness: 0.9,
+          metalness: 0.1
+      });
+      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+      ground.receiveShadow = true; // Allow ground to receive shadows
+      scene.add(ground);
+
+      // Road plane setup
+      const roadGeometry = new THREE.PlaneGeometry(10, 250); // Long, straight road
+      const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8 });
+      const road = new THREE.Mesh(roadGeometry, roadMaterial);
+      road.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+      road.position.y = 0.01; // Place slightly above the ground to prevent z-fighting
+      road.receiveShadow = true; // Allow road to receive shadows
+      scene.add(road);
+
+       // Road Markings setup
+       const markingMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF }); // White markings
+       const markingGeometry = new THREE.BoxGeometry(0.2, 0.02, 2); // Small, flat box for marking
+       const markingSpacing = 5; // Distance between markings
+       // Loop to create markings along the road length
+       for (let z = -123; z < 125; z += markingSpacing) {
+           const marking = new THREE.Mesh(markingGeometry, markingMaterial);
+           marking.position.set(0, 0.02, z); // Position along the center, slightly above the road
+           marking.receiveShadow = true;
+           scene.add(marking);
+       }
+
+      // Create the Car model
+      createCar();
+
+      // Create Scenery elements (buildings, trees)
+      createScenery();
+
+      // Event Listeners for user input and window resize
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keyup', handleKeyUp);
+      window.addEventListener('resize', onWindowResize);
+
+      // Start the main animation loop
+      animate();
+    }
+
+    // --- Object Creation Functions ---
+
+    // Function to create the car object
+    function createCar() {
+      // Car group to hold all parts
+      car = new THREE.Group();
+      car.position.set(0, 0.5, 0); // Initial position slightly above ground
+
+      // Car Body (main block)
+      const bodyGeometry = new THREE.BoxGeometry(2, 1, 4); // Width, Height, Length
+      const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.5, metalness: 0.3 });
+      const carBody = new THREE.Mesh(bodyGeometry, bodyMaterial);
+      carBody.castShadow = true; // Car body casts shadows
+      carBody.receiveShadow = true; // Car body receives shadows
+      car.add(carBody);
+
+      // Car Cabin (smaller block on top)
+      const cabinGeometry = new THREE.BoxGeometry(1.8, 0.8, 2);
+      const cabinMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.6, metalness: 0.2 });
+      const carCabin = new THREE.Mesh(cabinGeometry, cabinMaterial);
+      carCabin.position.set(0, 0.9, -0.5); // Position relative to the body center
+      carCabin.castShadow = true;
+      carCabin.receiveShadow = true;
+      car.add(carCabin);
+
+      // Wheels (cylinders)
+      const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.5, 16); // RadiusTop, RadiusBottom, Height, Segments
+      const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+      // Positions for the four wheels
+      const wheelPositions = [
+        { x: 1.1, y: -0.1, z: 1.3 }, { x: -1.1, y: -0.1, z: 1.3 }, // Front wheels
+        { x: 1.1, y: -0.1, z: -1.3 }, { x: -1.1, y: -0.1, z: -1.3 } // Rear wheels
+      ];
+      // Create and position each wheel
+      wheelPositions.forEach(pos => {
+        const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+        wheel.position.set(pos.x, pos.y, pos.z); // Position relative to car center
+        wheel.rotation.z = Math.PI / 2; // Rotate cylinder to lie flat
+        wheel.castShadow = true;
+        car.add(wheel);
+      });
+
+      // Add the complete car group to the scene
+      scene.add(car);
+    }
+
+    // Function to create scenery elements
+    function createScenery() {
+        // Buildings (simple boxes)
+        const buildingMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.8, metalness: 0.1 });
+        // Array defining building positions and dimensions
+        const buildingPositions = [
+            { x: -25, z: -40, w: 8, h: 15, d: 8 }, { x: 25, z: -50, w: 10, h: 20, d: 10 },
+            { x: -30, z: 20, w: 6, h: 12, d: 6 }, { x: 35, z: 35, w: 12, h: 18, d: 9 },
+            { x: -20, z: 60, w: 7, h: 10, d: 7 }, { x: 28, z: 70, w: 9, h: 22, d: 9 },
+            { x: -35, z: -80, w: 10, h: 16, d: 10 }, { x: 30, z: -90, w: 8, h: 14, d: 8 },
+            { x: -40, z: 100, w: 11, h: 25, d: 11}, { x: 45, z: 0, w: 9, h: 17, d: 9 }
+        ];
+        // Create and position each building
+        buildingPositions.forEach(b => {
+            const buildingGeom = new THREE.BoxGeometry(b.w, b.h, b.d); // Width, Height, Depth
+            const building = new THREE.Mesh(buildingGeom, buildingMaterial);
+            // Position based on center, adjusting Y for height
+            building.position.set(b.x, b.h / 2, b.z);
+            building.castShadow = true;
+            building.receiveShadow = true;
+            scene.add(building);
+        });
+
+        // Trees (cylinder trunk + cone leaves)
+        const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.9 }); // Brown
+        const leavesMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22, roughness: 0.8 }); // Forest green
+        const trunkGeom = new THREE.CylinderGeometry(0.3, 0.4, 3, 8); // Trunk shape
+        const leavesGeom = new THREE.ConeGeometry(1.5, 4, 8); // Leaves shape
+        // Array defining tree positions
+        const treePositions = [
+            { x: 18, z: 25 }, { x: -19, z: 30 }, { x: 22, z: -20 },
+            { x: -25, z: -15 }, { x: 30, z: 55 }, { x: -28, z: 40 },
+            { x: 32, z: -35 }, { x: -38, z: -25 }, { x: 20, z: 80 },
+            { x: -22, z: -60 }, { x: 38, z: 95 }, { x: -42, z: 75 }
+        ];
+        // Create and position each tree
+        treePositions.forEach(t => {
+            const tree = new THREE.Group(); // Group trunk and leaves
+            const trunk = new THREE.Mesh(trunkGeom, trunkMaterial);
+            trunk.position.y = 1.5; // Position trunk base at ground level
+            trunk.castShadow = true; trunk.receiveShadow = true;
+            tree.add(trunk);
+            const leaves = new THREE.Mesh(leavesGeom, leavesMaterial);
+            leaves.position.y = 3 + 2; // Position leaves on top of trunk
+            leaves.castShadow = true; leaves.receiveShadow = true;
+            tree.add(leaves);
+            tree.position.set(t.x, 0, t.z); // Set overall tree position
+            scene.add(tree);
+        });
+    }
+
+    // --- Event Handlers ---
+
+    // Handle key down events
+    function handleKeyDown(event) {
+      const key = event.key.toLowerCase(); // Get lowercase key name
+      if (key in keysPressed) { // Check if it's one of the control keys
+        keysPressed[key] = true; // Mark the key as pressed
+      }
+    }
+
+    // Handle key up events
+    function handleKeyUp(event) {
+      const key = event.key.toLowerCase();
+      if (key in keysPressed) {
+        keysPressed[key] = false; // Mark the key as released
+      }
+    }
+
+    // Handle window resize events
+    function onWindowResize() {
+      // Update camera aspect ratio
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix(); // Apply the changes
+      // Update renderer size
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // --- Animation Loop ---
+    function animate() {
+      requestAnimationFrame(animate); // Request the next frame for smooth animation
+
+      const deltaTime = clock.getDelta(); // Get time elapsed since the last frame
+
+      // --- Update Car Speed ---
+      let appliedAcceleration = 0; // Acceleration to apply in this frame
+
+      if (keysPressed.w) {
+          // Accelerate forward if 'W' is pressed
+          appliedAcceleration = acceleration;
+      } else if (keysPressed.s) {
+          // Brake if moving forward, reverse if moving backward or stopped
+          if (currentSpeed > 0.1) {
+              // Apply braking deceleration if moving forward
+              appliedAcceleration = -brakeDeceleration;
+          } else {
+              // Accelerate in reverse if stopped or moving backward
+              appliedAcceleration = -acceleration;
+          }
+      } else {
+          // Apply natural deceleration (friction) if no W/S keys are pressed
+          if (Math.abs(currentSpeed) > 0.1) {
+              // Apply deceleration opposite to the direction of movement
+              appliedAcceleration = -Math.sign(currentSpeed) * deceleration;
+          } else {
+              // Snap to zero if speed is very low and no keys are pressed
+              currentSpeed = 0;
+          }
+      }
+
+      // Update speed based on applied acceleration and time delta
+      currentSpeed += appliedAcceleration * deltaTime;
+
+      // Clamp speed to maximum forward and reverse limits
+      currentSpeed = Math.max(maxReverseSpeed, Math.min(maxSpeed, currentSpeed));
+
+      // Stop the car immediately if speed is very close to zero and no acceleration keys are pressed
+       if (!keysPressed.w && !keysPressed.s && Math.abs(currentSpeed) < 0.1) {
+           currentSpeed = 0;
+       }
+
+
+      // --- Update Car Position and Rotation ---
+      const moveDistance = currentSpeed * deltaTime; // Distance to move this frame
+
+      // Turning (Rotation around Y-axis)
+      // Allow turning only when the car is actually moving
+      if (Math.abs(currentSpeed) > 0.1) {
+          // Calculate turn speed, scaling it based on current speed
+          // This makes turning less sensitive at higher speeds
+          const currentTurnSpeed = turnSpeed * Math.pow(Math.abs(currentSpeed / maxSpeed), turnSpeedFactor);
+          const turnAngle = currentTurnSpeed * deltaTime; // Angle to turn this frame
+
+          if (keysPressed.a) {
+              // Turn left (positive rotation around Y)
+              car.rotation.y += turnAngle;
+          }
+          if (keysPressed.d) {
+              // Turn right (negative rotation around Y)
+              car.rotation.y -= turnAngle;
+          }
+      }
+
+      // Move the car forward/backward based on its current orientation and speed
+      const forward = new THREE.Vector3();
+      car.getWorldDirection(forward); // Get the vector pointing in the car's forward direction
+      // Add the scaled forward vector to the car's position
+      car.position.addScaledVector(forward, moveDistance);
+
+      // --- Update Camera ---
+      // Calculate the target camera position based on the car's position and rotation
+      const targetCameraPosition = new THREE.Vector3();
+      targetCameraPosition.copy(cameraOffset); // Start with the base offset
+      targetCameraPosition.applyQuaternion(car.quaternion); // Rotate the offset based on car's rotation
+      targetCameraPosition.add(car.position); // Add the car's current position
+
+      // Smoothly interpolate the camera's position towards the target position (Lerp)
+      // The 0.1 factor controls the smoothness (lower = smoother, slower follow)
+      camera.position.lerp(targetCameraPosition, 0.1);
+
+      // Make the camera look slightly ahead of the car
+      const lookAtTarget = new THREE.Vector3();
+      // Start at car position, add scaled forward vector to look ahead
+      lookAtTarget.copy(car.position).addScaledVector(forward, 5.0);
+      lookAtTarget.y += 1.0; // Look slightly upwards
+      camera.lookAt(lookAtTarget); // Point the camera at the calculated target
+
+      // --- Update Speedometer ---
+      if (speedometerElement) {
+          // Display speed rounded to one decimal place
+          speedometerElement.innerText = `Speed: ${currentSpeed.toFixed(1)}`;
+      }
+
+      // Render the scene from the camera's perspective
+      renderer.render(scene, camera);
+    }
+
+    // --- Start ---
+    // Check if Three.js loaded correctly
+    if (typeof THREE === 'undefined') {
+        console.error('Three.js not loaded!');
+        document.getElementById('info').innerText = 'Error: Three.js failed to load.';
+    } else {
+        // Use window.onload to ensure the DOM (especially UI elements) is fully loaded before starting
+        window.onload = function() {
+             init(); // Initialize and start the game
+        }
+    }
+
+  </script>
+</body>
+</html>
