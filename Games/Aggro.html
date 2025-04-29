@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D RPG Game - Three.js (Immunity & Collision)</title>
+    <style>
+        /* Basic styling */
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #000; }
+        canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+        /* Info text container */
+        .info-container { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 8px 12px; border-radius: 5px; font-size: 14px; z-index: 100; }
+        #ability-info { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.2); }
+        #ability-info h4 { margin: 0 0 5px 0; font-size: 1.1em; font-weight: bold; }
+        #ability-info p { margin: 2px 0; font-size: 0.95em; }
+
+        /* Ability bar */
+        #ability-bar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(0, 0, 0, 0.6); padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); z-index: 100; }
+        /* Ability buttons */
+        .ability-button { width: 50px; height: 50px; background-color: #333; border: 2px solid #555; border-radius: 5px; color: white; font-size: 16px; font-weight: bold; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: background-color 0.2s, border-color 0.2s, opacity 0.1s; position: relative; }
+        .ability-button:hover { background-color: #444; border-color: #777; }
+        .ability-button:active { background-color: #222; border-color: #444; }
+        .keybind { position: absolute; top: 2px; left: 4px; font-size: 10px; color: rgba(255, 255, 255, 0.7); }
+        .ability-text { font-size: 18px; }
+
+        /* Cooldown Style */
+        .ability-button.on-cooldown { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+        .ability-button.on-cooldown:hover { background-color: #333; border-color: #555; }
+
+        /* HP labels */
+        .hp-label { position: absolute; background-color: rgba(0, 0, 0, 0.6); color: white; padding: 2px 5px; border-radius: 3px; font-size: 12px; white-space: nowrap; pointer-events: none; transform: translateX(-50%); z-index: 99; display: none; }
+        /* Game Over screen */
+        #game-over { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.85); color: #ff4444; font-size: 48px; font-weight: bold; display: flex; justify-content: center; align-items: center; text-align: center; z-index: 300; display: none; cursor: default; }
+        /* Combat Log Style */
+        #combat-log { position: absolute; bottom: 20px; left: 20px; width: 250px; height: 100px; background-color: rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 5px; color: white; font-size: 12px; padding: 5px; overflow-y: scroll; z-index: 100; display: flex; flex-direction: column-reverse; }
+        #combat-log p { margin: 1px 0; line-height: 1.2; }
+    </style>
+</head>
+<body>
+    <div class="info-container">
+        <div id="movement-info">WASD: Move, Space: Jump, Drag Mouse: Rotate, Click: Target.</div>
+        <div id="ability-info">
+            <h4>Abilities (1s GCD):</h4>
+            <p>1 (⚔️): Attack (10 Dmg)</p>
+            <p>2 (🛡️): Defend (5s Immunity)</p> <p>3 (🔥): Fireball (15 Dmg)</p>
+            <p>4 (❄️): Frost Nova (30 Dmg AoE)</p>
+            <p>5 (✨): Heal (20 HP)</p>
+        </div>
+    </div>
+
+    <div id="player-hp-label" class="hp-label"></div>
+    <div id="ability-bar">
+        <button class="ability-button" id="ability-1"><span class="keybind">1</span><span class="ability-text">⚔️</span></button>
+        <button class="ability-button" id="ability-2"><span class="keybind">2</span><span class="ability-text">🛡️</span></button>
+        <button class="ability-button" id="ability-3"><span class="keybind">3</span><span class="ability-text">🔥</span></button>
+        <button class="ability-button" id="ability-4"><span class="keybind">4</span><span class="ability-text">❄️</span></button>
+        <button class="ability-button" id="ability-5"><span class="keybind">5</span><span class="ability-text">✨</span></button>
+    </div>
+
+    <div id="combat-log"></div>
+    <div id="game-over">YOU DIED</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- Core Three.js Variables ---
+        let scene, camera, renderer;
+        let player;
+        let enemies = [];
+        let environmentObjects = []; // Holds meshes/groups for collision detection
+        let environmentBoundingBoxes = []; // Pre-calculated bounding boxes for static environment
+        let clock = new THREE.Clock();
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+        let activeVisualEffects = [];
+
+        // --- Player Constants ---
+        const playerHeight = 1.8;
+        const playerRadius = 0.4;
+        const playerGroundY = playerHeight / 2;
+        let playerBoundingBox = new THREE.Box3(); // Player's bounding box for collision
+
+        // --- Physics Variables (Player) ---
+        const gravity = 20.0;
+        const jumpStrength = 8.0;
+        let playerVelocityY = 0;
+        let isGrounded = true;
+
+        // --- Player State ---
+        let playerMaxHP = 100;
+        let playerCurrentHP = playerMaxHP;
+        let isPlayerDead = false;
+        let isPlayerImmune = false; // NEW: Immunity flag
+        let playerImmunityEndTime = 0; // NEW: Immunity end timestamp
+        let immunityVisual = null; // NEW: Reference to the shield visual
+
+        // --- Targeting ---
+        let currentTarget = null;
+        const targetHighlightColor = 0x00ff00;
+
+        // --- UI Element References ---
+        let playerHpLabel, combatLogElement, gameOverScreen;
+        let abilityButtons = [];
+
+        // --- Movement Variables ---
+        const moveSpeed = 5.0;
+        const keysPressed = { w: false, a: false, s: false, d: false, space: false };
+
+        // --- Camera Control Variables ---
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let cameraTarget = new THREE.Vector3();
+        let cameraPhi = Math.PI / 4;
+        let cameraTheta = 0;
+        const cameraRadius = 15;
+        const cameraSensitivity = 0.005;
+
+        // --- Combat Constants ---
+        const attackRange = 15;
+        const globalCooldownDuration = 1000;
+        let globalCooldownEndTime = 0;
+        const enemyCollisionDamage = 5;
+        const enemyDamageCooldown = 1000;
+        const frostNovaRadius = 5;
+        const frostNovaDamage = 30;
+        const immunityDuration = 5000; // NEW: 5 seconds immunity
+
+        // --- AI Constants ---
+        const enemyMoveSpeed = moveSpeed * 0.8;
+        const enemyAggroRadius = 30;
+        const enemyCollisionRadius = playerRadius + 0.5;
+
+        // --- World Constants ---
+        const worldSize = 500;
+        const fogNear = worldSize * 0.1;
+        const fogFar = worldSize * 0.6;
+
+        // --- Initialization Function ---
+        function init() {
+            // Get UI elements
+            playerHpLabel = document.getElementById('player-hp-label');
+            combatLogElement = document.getElementById('combat-log');
+            gameOverScreen = document.getElementById('game-over');
+            for (let i = 1; i <= 5; i++) {
+                abilityButtons.push(document.getElementById(`ability-${i}`));
+            }
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x5080a0);
+            scene.fog = new THREE.Fog(0x5080a0, fogNear, fogFar);
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // Setup scene components
+            setupLighting();
+            setupGround();
+            setupEnvironment(); // Creates trees/buildings AND calculates their bounding boxes
+            setupPlayer();
+            setupEnemies();
+
+            // Setup interaction listeners
+            setupEventListeners();
+
+            // Initial camera positioning
+            cameraTarget.copy(player.position);
+            cameraTarget.y += playerHeight * 0.4;
+            updateCameraPosition();
+            camera.lookAt(cameraTarget);
+
+            // Initial UI updates
+            updateHpLabels();
+            logCombatMessage("Welcome! Click an enemy to target.");
+
+            // Start the game loop
+            animate();
+        }
+
+        // --- Setup Functions ---
+
+        function setupLighting() { /* ... (Identical) ... */
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            directionalLight.position.set(50, 100, 75);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.near = 10;
+            directionalLight.shadow.camera.far = 300;
+            directionalLight.shadow.camera.left = -worldSize / 4;
+            directionalLight.shadow.camera.right = worldSize / 4;
+            directionalLight.shadow.camera.top = worldSize / 4;
+            directionalLight.shadow.camera.bottom = -worldSize / 4;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            scene.add(directionalLight);
+         }
+        function setupGround() { /* ... (Identical) ... */
+            const groundGeometry = new THREE.PlaneGeometry(worldSize, worldSize);
+            const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x6B8E23, roughness: 0.9, metalness: 0.1 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            ground.position.y = -0.01;
+            scene.add(ground);
+        }
+        function setupPlayer() { /* ... (Identical) ... */
+            const playerGeometry = new THREE.CylinderGeometry(playerRadius, playerRadius, playerHeight, 16);
+            const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x4682B4, roughness: 0.5, metalness: 0.3 });
+            player = new THREE.Mesh(playerGeometry, playerMaterial);
+            player.position.set(0, playerGroundY, 0);
+            player.castShadow = true;
+            player.userData = { hpLabel: playerHpLabel, hpOffsetY: playerHeight + 0.5 };
+            scene.add(player);
+            // Initialize player bounding box
+            playerBoundingBox.setFromObject(player);
+        }
+        function setupEnemies() { /* ... (Identical) ... */
+            const enemyPositions = [
+                { x: 10, y: 0.5, z: -8 }, { x: -12, y: 0.5, z: -15 }, { x: 15, y: 0.5, z: 5 },
+                { x: -8, y: 0.5, z: 18 }, { x: 20, y: 0.5, z: -20 }
+            ];
+            const enemyMaxHP = 50;
+            enemyPositions.forEach((pos, index) => {
+                const enemy = createEnemy(pos, enemyMaxHP, index);
+                scene.add(enemy);
+                enemies.push(enemy);
+            });
+        }
+        function createEnemy(position, maxHP, index) { /* ... (Identical) ... */
+            const enemyGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const enemyMaterial = new THREE.MeshStandardMaterial({ color: 0xff4444 });
+            const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+            enemy.position.set(position.x, position.y, position.z);
+            enemy.castShadow = true;
+            enemy.receiveShadow = true;
+            enemy.name = `enemy-${index}`;
+
+            const enemyHpLabel = document.createElement('div');
+            enemyHpLabel.id = `enemy-hp-label-${index}`;
+            enemyHpLabel.className = 'hp-label';
+            document.body.appendChild(enemyHpLabel);
+
+            enemy.userData = {
+                id: `Enemy ${index}`, hpLabel: enemyHpLabel, hpOffsetY: 1.5,
+                maxHP: maxHP, currentHP: maxHP, isDead: false,
+                baseColor: enemyMaterial.color.getHex(), baseEmissive: enemyMaterial.emissive.getHex(),
+                lastDamageTime: 0
+            };
+            return enemy;
+        }
+        // MODIFIED: Setup environment and pre-calculate bounding boxes
+        function setupEnvironment() {
+            const treeCount = 100;
+            const buildingCount = 20;
+            const placementBounds = worldSize * 0.45;
+
+            environmentBoundingBoxes = []; // Clear existing boxes
+
+            // Create Trees
+            for (let i = 0; i < treeCount; i++) {
+                const x = THREE.MathUtils.randFloatSpread(placementBounds * 2);
+                const z = THREE.MathUtils.randFloatSpread(placementBounds * 2);
+                if (Math.abs(x) < 5 && Math.abs(z) < 5) continue;
+                const tree = createTree(new THREE.Vector3(x, 0, z));
+                scene.add(tree);
+                environmentObjects.push(tree); // Keep track of the object itself
+                // Calculate and store bounding box (slightly expanded for better collision feel)
+                const box = new THREE.Box3().setFromObject(tree);
+                box.expandByScalar(0.1); // Expand slightly
+                environmentBoundingBoxes.push(box);
+            }
+
+            // Create Buildings
+            for (let i = 0; i < buildingCount; i++) {
+                 const x = THREE.MathUtils.randFloatSpread(placementBounds * 2);
+                 const z = THREE.MathUtils.randFloatSpread(placementBounds * 2);
+                 if (Math.abs(x) < 10 && Math.abs(z) < 10) continue;
+                 const size = new THREE.Vector3( THREE.MathUtils.randFloat(5, 15), THREE.MathUtils.randFloat(8, 25), THREE.MathUtils.randFloat(5, 15) );
+                 const building = createBuilding(new THREE.Vector3(x, size.y / 2, z), size);
+                 scene.add(building);
+                 environmentObjects.push(building);
+                 // Calculate and store bounding box
+                 const box = new THREE.Box3().setFromObject(building);
+                  box.expandByScalar(0.1); // Expand slightly
+                 environmentBoundingBoxes.push(box);
+            }
+        }
+        function createTree(position) { /* ... (Identical) ... */
+            const trunkHeight = THREE.MathUtils.randFloat(3, 6);
+            const trunkRadius = trunkHeight * 0.1;
+            const foliageHeight = trunkHeight * THREE.MathUtils.randFloat(1.5, 2.5);
+            const foliageRadius = trunkHeight * THREE.MathUtils.randFloat(0.6, 1.0);
+
+            const trunkGeo = new THREE.CylinderGeometry(trunkRadius * 0.7, trunkRadius, trunkHeight, 8);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+            trunk.castShadow = true;
+            trunk.receiveShadow = true;
+
+            const foliageGeo = new THREE.ConeGeometry(foliageRadius, foliageHeight, 12);
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+            const foliage = new THREE.Mesh(foliageGeo, foliageMat);
+            foliage.castShadow = true;
+            foliage.receiveShadow = true;
+
+            const treeGroup = new THREE.Group();
+            treeGroup.add(trunk);
+            treeGroup.add(foliage);
+            treeGroup.position.copy(position);
+            trunk.position.set(0, trunkHeight / 2, 0);
+            foliage.position.set(0, trunkHeight + foliageHeight * 0.4, 0);
+
+            return treeGroup;
+         }
+         function createBuilding(position, size) { /* ... (Identical) ... */
+            const buildingGeo = new THREE.BoxGeometry(size.x, size.y, size.z);
+            const greyShade = THREE.MathUtils.randFloat(0.3, 0.7);
+            const buildingMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(greyShade, greyShade, greyShade), roughness: 0.8 });
+            const building = new THREE.Mesh(buildingGeo, buildingMat);
+            building.position.copy(position);
+            building.castShadow = true;
+            building.receiveShadow = true;
+            return building;
+         }
+        function setupEventListeners() { /* ... (Identical) ... */
+            window.addEventListener("resize", onWindowResize);
+            window.addEventListener("keydown", onKeyDown);
+            window.addEventListener("keyup", onKeyUp);
+            renderer.domElement.addEventListener("mousedown", onMouseDown);
+            window.addEventListener("mousemove", onMouseMove);
+            window.addEventListener("mouseup", onMouseUp);
+            renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
+            renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
+            renderer.domElement.addEventListener('touchend', onTouchEnd);
+            abilityButtons.forEach((button, index) => {
+                 button.addEventListener('click', () => useAbility(index + 1));
+            });
+        }
+
+        // --- Event Handler Functions --- (Identical)
+
+        function onWindowResize() { /* ... */ camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        function onKeyDown(event) { /* ... */ if (isPlayerDead) return; switch (event.code) { case 'KeyW': keysPressed.w = true; break; case 'KeyA': keysPressed.a = true; break; case 'KeyS': keysPressed.s = true; break; case 'KeyD': keysPressed.d = true; break; case 'Space': if (isGrounded) { playerVelocityY = jumpStrength; isGrounded = false; } keysPressed.space = true; break; case 'Digit1': useAbility(1); break; case 'Digit2': useAbility(2); break; case 'Digit3': useAbility(3); break; case 'Digit4': useAbility(4); break; case 'Digit5': useAbility(5); break; } }
+        function onKeyUp(event) { /* ... */ switch (event.code) { case 'KeyW': keysPressed.w = false; break; case 'KeyA': keysPressed.a = false; break; case 'KeyS': keysPressed.s = false; break; case 'KeyD': keysPressed.d = false; break; case 'Space': keysPressed.space = false; break; } }
+        function onMouseDown(event) { /* ... */ mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1; mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1; raycaster.setFromCamera(mouse, camera); const intersects = raycaster.intersectObjects(enemies, false); if (intersects.length > 0) { const firstIntersected = intersects[0].object; if (firstIntersected.userData && !firstIntersected.userData.isDead) { setTarget(firstIntersected); } } if (!isPlayerDead && event.button === 0) { isDragging = true; previousMousePosition.x = event.clientX; previousMousePosition.y = event.clientY; renderer.domElement.style.cursor = 'grabbing'; } }
+        function onMouseMove(event) { /* ... */ if (!isDragging || isPlayerDead) return; const deltaX = event.clientX - previousMousePosition.x; const deltaY = event.clientY - previousMousePosition.y; cameraTheta -= deltaX * cameraSensitivity; cameraPhi -= deltaY * cameraSensitivity; cameraPhi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraPhi)); previousMousePosition.x = event.clientX; previousMousePosition.y = event.clientY; }
+        function onMouseUp(event) { /* ... */ if (event.button === 0) { if (isDragging) { isDragging = false; if (!isPlayerDead) { renderer.domElement.style.cursor = 'crosshair'; } else { renderer.domElement.style.cursor = 'default'; } } } }
+        function onTouchStart(event) { /* ... */ if (event.touches.length === 1) { event.preventDefault(); mouse.x = (event.touches[0].clientX / renderer.domElement.clientWidth) * 2 - 1; mouse.y = -(event.touches[0].clientY / renderer.domElement.clientHeight) * 2 + 1; raycaster.setFromCamera(mouse, camera); const intersects = raycaster.intersectObjects(enemies, false); if (intersects.length > 0) { const firstIntersected = intersects[0].object; if (firstIntersected.userData && !firstIntersected.userData.isDead) { setTarget(firstIntersected); } } if (!isPlayerDead) { isDragging = true; previousMousePosition.x = event.touches[0].clientX; previousMousePosition.y = event.touches[0].clientY; } } }
+        function onTouchMove(event) { /* ... */ if (!isDragging || event.touches.length !== 1 || isPlayerDead) return; event.preventDefault(); const deltaX = event.touches[0].clientX - previousMousePosition.x; const deltaY = event.touches[0].clientY - previousMousePosition.y; cameraTheta -= deltaX * cameraSensitivity * 1.5; cameraPhi -= deltaY * cameraSensitivity * 1.5; cameraPhi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraPhi)); previousMousePosition.x = event.touches[0].clientX; previousMousePosition.y = event.touches[0].clientY; }
+        function onTouchEnd(event) { /* ... */ if (isDragging) { isDragging = false; } }
+
+        // --- Game Logic Functions ---
+
+        // MODIFIED: Added collision detection
+        function updatePlayerMovementAndPhysics(deltaTime) {
+            if (isPlayerDead) return;
+
+            // --- Horizontal Movement Calculation ---
+            const moveDirection = new THREE.Vector3(0, 0, 0);
+            if (keysPressed.w) moveDirection.z = -1;
+            if (keysPressed.s) moveDirection.z = 1;
+            if (keysPressed.a) moveDirection.x = -1;
+            if (keysPressed.d) moveDirection.x = 1;
+
+            let finalMove = new THREE.Vector3(0, 0, 0); // Initialize final move vector
+            let horizontalMoveAmount = 0; // How much to move this frame
+
+            if (moveDirection.x !== 0 || moveDirection.z !== 0) {
+                moveDirection.normalize();
+                const cameraDirection = new THREE.Vector3();
+                camera.getWorldDirection(cameraDirection);
+                cameraDirection.y = 0;
+                cameraDirection.normalize();
+                const cameraLeft = new THREE.Vector3();
+                cameraLeft.crossVectors(camera.up, cameraDirection).normalize();
+
+                finalMove.addScaledVector(cameraDirection, -moveDirection.z);
+                finalMove.addScaledVector(cameraLeft, -moveDirection.x);
+                finalMove.normalize(); // This is the intended direction vector
+
+                horizontalMoveAmount = moveSpeed * deltaTime; // Calculate potential distance
+
+                // --- Collision Detection ---
+                // Calculate potential next position
+                const potentialPosition = player.position.clone().addScaledVector(finalMove, horizontalMoveAmount);
+                // Update player's bounding box based on potential position
+                // We approximate the cylinder with a box for simplicity
+                playerBoundingBox.setFromCenterAndSize(
+                    potentialPosition,
+                    new THREE.Vector3(playerRadius * 2, playerHeight, playerRadius * 2)
+                );
+
+                let collisionDetected = false;
+                for (const envBox of environmentBoundingBoxes) {
+                    if (playerBoundingBox.intersectsBox(envBox)) {
+                        collisionDetected = true;
+                        break; // Stop checking once a collision is found
+                    }
+                }
+
+                // If collision, prevent horizontal movement
+                if (collisionDetected) {
+                    horizontalMoveAmount = 0; // Set move amount to zero
+                    // Optional: Log collision for debugging
+                    // console.log("Collision detected!");
+                }
+                // --- End Collision Detection ---
+
+                // Apply horizontal movement (only if horizontalMoveAmount > 0)
+                if (horizontalMoveAmount > 0) {
+                    player.position.addScaledVector(finalMove, horizontalMoveAmount);
+                }
+
+                // Player Rotation (always rotate to face intended direction, even if stopped by collision)
+                 if (finalMove.lengthSq() > 0.001) { // Check finalMove, not moveDirection
+                    const targetQuaternion = new THREE.Quaternion();
+                    const lookAtMatrix = new THREE.Matrix4();
+                    const targetLookAtPos = player.position.clone().add(finalMove); // Look in the intended direction
+                    targetLookAtPos.y = player.position.y;
+                    lookAtMatrix.lookAt(player.position, targetLookAtPos, player.up);
+                    targetQuaternion.setFromRotationMatrix(lookAtMatrix);
+                    player.quaternion.slerp(targetQuaternion, 0.15);
+                }
+            }
+
+            // --- Vertical Movement (Jump & Gravity) ---
+            playerVelocityY -= gravity * deltaTime;
+            player.position.y += playerVelocityY * deltaTime;
+
+            if (player.position.y <= playerGroundY) {
+                player.position.y = playerGroundY;
+                playerVelocityY = 0;
+                isGrounded = true;
+            } else {
+                isGrounded = false;
+            }
+
+            // --- Update Camera Target ---
+            cameraTarget.copy(player.position);
+            cameraTarget.y += playerHeight * 0.4;
+        }
+
+        function updateEnemyAI(deltaTime, currentTime) { /* ... (Identical) ... */
+            enemies.forEach(enemy => {
+                if (enemy.userData.isDead || isPlayerDead) return;
+                const distanceToPlayerSq = player.position.distanceToSquared(enemy.position);
+                if (distanceToPlayerSq < enemyAggroRadius * enemyAggroRadius) {
+                    if (distanceToPlayerSq > enemyCollisionRadius * enemyCollisionRadius * 1.1) {
+                        const directionToPlayer = new THREE.Vector3();
+                        directionToPlayer.subVectors(player.position, enemy.position);
+                        directionToPlayer.y = 0;
+                        directionToPlayer.normalize();
+                        const enemyMoveDistance = enemyMoveSpeed * deltaTime;
+                        enemy.position.addScaledVector(directionToPlayer, enemyMoveDistance);
+                        const targetQuaternion = new THREE.Quaternion();
+                        const lookAtMatrix = new THREE.Matrix4();
+                        const targetLookAtPos = enemy.position.clone().add(directionToPlayer);
+                        targetLookAtPos.y = enemy.position.y;
+                        lookAtMatrix.lookAt(enemy.position, targetLookAtPos, enemy.up);
+                        targetQuaternion.setFromRotationMatrix(lookAtMatrix);
+                        enemy.quaternion.slerp(targetQuaternion, 0.1);
+                    }
+                     if (distanceToPlayerSq < enemyCollisionRadius * enemyCollisionRadius) {
+                        if (currentTime > enemy.userData.lastDamageTime + enemyDamageCooldown) {
+                            applyDamage(player, enemyCollisionDamage, enemy.userData.id);
+                            enemy.userData.lastDamageTime = currentTime;
+                            flashObject(player, 0xff0000);
+                            updateHpLabels();
+                        }
+                    }
+                }
+            });
+        }
+        function updateCameraPosition() { /* ... (Identical) ... */
+            const x = cameraTarget.x + cameraRadius * Math.sin(cameraPhi) * Math.sin(cameraTheta);
+            const y = cameraTarget.y + cameraRadius * Math.cos(cameraPhi);
+            const z = cameraTarget.z + cameraRadius * Math.sin(cameraPhi) * Math.cos(cameraTheta);
+            camera.position.set(x, y, z);
+            camera.lookAt(cameraTarget);
+        }
+        function setTarget(target) { /* ... (Identical) ... */
+            if (currentTarget && currentTarget !== target && currentTarget.material.emissive) {
+                 if (!currentTarget.userData.isDead) {
+                    currentTarget.material.emissive.setHex(currentTarget.userData.baseEmissive);
+                 } else {
+                    currentTarget.material.emissive.setHex(0x000000);
+                 }
+            }
+            currentTarget = target;
+            if (currentTarget) {
+                 if (currentTarget.material.emissive) {
+                    currentTarget.material.emissive.setHex(targetHighlightColor);
+                 }
+                logCombatMessage(`Targeted ${currentTarget.userData.id}.`);
+            } else {
+                // Log clear only if there was a target previously
+                // if(currentTarget !== null) logCombatMessage("Target cleared.");
+            }
+        }
+
+        // MODIFIED: Added Immunity Logic
+        function useAbility(abilityNumber) {
+            if (isPlayerDead) return;
+            const currentTime = performance.now();
+            if (currentTime < globalCooldownEndTime) {
+                logCombatMessage("Ability on cooldown.");
+                return;
+            }
+
+            let message = "";
+            let heal = 0;
+            let requiresTarget = (abilityNumber === 1 || abilityNumber === 3 || abilityNumber === 4);
+            let abilityUsedSuccessfully = false;
+
+            // Target Validation
+            if (requiresTarget) {
+                if (!currentTarget) { logCombatMessage("No target selected."); return; }
+                if (currentTarget.userData.isDead) { logCombatMessage("Target is already defeated."); return; }
+                if (abilityNumber === 1 || abilityNumber === 3) {
+                    const distanceSq = player.position.distanceToSquared(currentTarget.position);
+                    if (distanceSq > attackRange * attackRange) { logCombatMessage(`${currentTarget.userData.id} is out of range.`); return; }
+                }
+            }
+
+            // Ability Execution
+            switch (abilityNumber) {
+                case 1: // Attack (⚔️)
+                    const d1 = 10; message = `Attacked ${currentTarget.userData.id} for ${d1} damage.`; applyDamage(currentTarget, d1); flashObject(currentTarget, 0xffff00); abilityUsedSuccessfully = true; break;
+                case 2: // Defend (🛡️) - Immunity
+                    message = "Used Defend! Immune for 5 seconds.";
+                    isPlayerImmune = true;
+                    playerImmunityEndTime = currentTime + immunityDuration;
+                    showImmunityVisual(true); // Show shield bubble
+                    flashObject(player, 0xeeeeee); // White flash for buff
+                    abilityUsedSuccessfully = true;
+                    break;
+                case 3: // Fireball (🔥)
+                    const d3 = 15; message = `Used Fireball on ${currentTarget.userData.id} for ${d3} damage.`; applyDamage(currentTarget, d3); flashObject(currentTarget, 0xff8c00); abilityUsedSuccessfully = true; break;
+                case 4: // Frost Nova (❄️) - AoE Damage
+                    message = `Used Frost Nova on ${currentTarget.userData.id}!`; createFrostAoeVisual(currentTarget.position); let enemiesHitCount = 0; enemies.forEach(enemy => { if (!enemy.userData.isDead) { const distanceSq = currentTarget.position.distanceToSquared(enemy.position); if (distanceSq < frostNovaRadius * frostNovaRadius) { applyDamage(enemy, frostNovaDamage, "Frost Nova"); flashObject(enemy, 0x00ffff); enemiesHitCount++; } } }); message += enemiesHitCount > 0 ? ` Hit ${enemiesHitCount} enemies for ${frostNovaDamage} damage each.` : " (Missed - No enemies in range)"; abilityUsedSuccessfully = true; break;
+                case 5: // Heal (✨)
+                    heal = 20; const actualHeal = applyHeal(player, heal); if (actualHeal > 0 || playerCurrentHP < playerMaxHP) { message = `Used Heal! Restored ${actualHeal} HP.`; flashObject(player, 0x90ee90); abilityUsedSuccessfully = true; } else { message = "Used Heal, but already at full health!"; } break;
+                default: console.warn("Unknown ability number:", abilityNumber); return;
+            }
+
+            // Trigger GCD
+            if (abilityUsedSuccessfully) {
+                globalCooldownEndTime = currentTime + globalCooldownDuration;
+            }
+
+            logCombatMessage(message);
+            updateHpLabels();
+        }
+
+        // MODIFIED: Check for immunity before applying damage to player
+        function applyDamage(target, amount, sourceId = "Ability") {
+            if (!target) return 0;
+
+            if (target === player) {
+                // --- Player taking damage ---
+                if (isPlayerDead) return 0;
+                // --- NEW: Immunity Check ---
+                if (isPlayerImmune) {
+                    logCombatMessage(`Immune to ${amount} damage from ${sourceId}!`);
+                    // Optional: Show "Immune" text popup near player
+                    return 0; // Prevent damage
+                }
+                // --- END NEW ---
+                playerCurrentHP -= amount;
+                playerCurrentHP = Math.max(0, playerCurrentHP);
+                console.log(`Player took ${amount} damage from ${sourceId}. HP: ${playerCurrentHP}/${playerMaxHP}`);
+                logCombatMessage(`Took ${amount} damage from ${sourceId}.`);
+                // Death check happens later
+            } else if (target.userData) {
+                 // --- Enemy taking damage ---
+                 if (target.userData.isDead) return 0;
+                 target.userData.currentHP -= amount;
+                 target.userData.currentHP = Math.max(0, target.userData.currentHP);
+                 console.log(`${target.userData.id} HP: ${target.userData.currentHP}/${target.userData.maxHP}`);
+                 if (target.userData.currentHP <= 0) {
+                     handleEnemyDeath(target);
+                 }
+            } else {
+                console.warn("applyDamage called on invalid target:", target);
+                return 0;
+            }
+            return amount;
+         }
+        function applyHeal(target, amount) { /* ... (Identical) ... */
+            if (!target || isPlayerDead) return 0;
+             let healedAmount = 0;
+             if (target === player) {
+                 const hpBefore = playerCurrentHP;
+                 playerCurrentHP += amount;
+                 playerCurrentHP = Math.min(playerMaxHP, playerCurrentHP);
+                 healedAmount = playerCurrentHP - hpBefore;
+                 console.log(`Player HP: ${playerCurrentHP}/${playerMaxHP}`);
+             }
+             return healedAmount;
+        }
+        function handleEnemyDeath(enemy) { /* ... (Identical) ... */
+            if (!enemy || enemy.userData.isDead) return;
+            console.log(`${enemy.userData.id} Defeated!`);
+            enemy.userData.isDead = true;
+            enemy.material.color.set(0x808080);
+            enemy.material.emissive.setHex(0x000000);
+            logCombatMessage(`${enemy.userData.id} defeated!`);
+            if (currentTarget === enemy) { setTarget(null); }
+            updateHpLabels();
+        }
+        function handlePlayerDeath() { /* ... (Identical) ... */
+            if (isPlayerDead) return;
+            console.log("Player Defeated!");
+            isPlayerDead = true;
+            player.material.color.set(0x808080);
+            player.material.emissive.set(0x000000);
+            if (gameOverScreen) { gameOverScreen.style.display = 'flex'; }
+            renderer.domElement.style.cursor = 'default';
+            setTarget(null);
+            showImmunityVisual(false); // Ensure immunity visual is off on death
+        }
+        function checkPlayerHealth() { /* ... (Identical) ... */
+            if (playerCurrentHP <= 0 && !isPlayerDead) {
+                handlePlayerDeath();
+            }
+        }
+        function flashObject(object, colorHex) { /* ... (Identical) ... */
+            if (!object || !object.material || !object.material.emissive) return;
+            const isObjectDead = object === player ? isPlayerDead : (object.userData ? object.userData.isDead : false);
+            if (isObjectDead) return;
+            let baseEmissive = (object.userData && object.userData.baseEmissive !== undefined) ? object.userData.baseEmissive : 0x000000;
+            if (object === currentTarget) { baseEmissive = targetHighlightColor; }
+            object.material.emissive.setHex(colorHex);
+            setTimeout(() => {
+                if (object && object.material && object.material.emissive) {
+                    const isObjectNowDead = object === player ? isPlayerDead : (object.userData ? object.userData.isDead : false);
+                    if (!isObjectNowDead) {
+                         if (object === currentTarget) { object.material.emissive.setHex(targetHighlightColor); }
+                         else if (object.userData && object.userData.baseEmissive !== undefined) { object.material.emissive.setHex(object.userData.baseEmissive); }
+                         else { object.material.emissive.setHex(0x000000); }
+                    } else { object.material.emissive.setHex(0x000000); }
+                }
+            }, 150);
+        }
+        function createFrostAoeVisual(centerPosition) { /* ... (Identical) ... */
+            const geometry = new THREE.RingGeometry(frostNovaRadius - 0.2, frostNovaRadius, 32);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+            const ring = new THREE.Mesh(geometry, material);
+            ring.position.set(centerPosition.x, 0.05, centerPosition.z);
+            ring.rotation.x = -Math.PI / 2;
+            scene.add(ring);
+            activeVisualEffects.push(ring);
+            setTimeout(() => { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); const index = activeVisualEffects.indexOf(ring); if (index > -1) { activeVisualEffects.splice(index, 1); } }, 500);
+        }
+
+        // NEW: Show/Hide Immunity Shield Visual
+        function showImmunityVisual(show) {
+            if (show) {
+                if (!immunityVisual) { // Create if it doesn't exist
+                    const geometry = new THREE.SphereGeometry(playerRadius + 0.3, 16, 16); // Slightly larger than player
+                    const material = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.3,
+                        side: THREE.DoubleSide // Render inside and outside
+                    });
+                    immunityVisual = new THREE.Mesh(geometry, material);
+                    player.add(immunityVisual); // Attach to player model
+                }
+                immunityVisual.visible = true; // Make it visible
+            } else {
+                if (immunityVisual) {
+                    immunityVisual.visible = false; // Hide it
+                }
+            }
+        }
+
+        // NEW: Check if immunity has expired
+        function checkImmunityExpiration(currentTime) {
+             if (isPlayerImmune && currentTime >= playerImmunityEndTime) {
+                 isPlayerImmune = false;
+                 showImmunityVisual(false); // Hide the visual
+                 logCombatMessage("Immunity wore off.");
+             }
+        }
+
+
+        // --- UI Update Functions --- (Identical)
+
+        function logCombatMessage(message) { /* ... */ if (combatLogElement) { const messageElement = document.createElement('p'); messageElement.textContent = message; combatLogElement.appendChild(messageElement); const maxMessages = 10; while (combatLogElement.children.length > maxMessages) { combatLogElement.removeChild(combatLogElement.firstChild); } combatLogElement.scrollTop = combatLogElement.scrollHeight; } else { console.warn("Combat log element not found."); } }
+        function updateHpLabels() { /* ... */ if (player && player.userData.hpLabel) { player.userData.hpLabel.textContent = `HP: ${playerCurrentHP} / ${playerMaxHP}`; player.userData.hpLabel.style.color = playerCurrentHP <= 0 ? '#808080' : (playerCurrentHP / playerMaxHP < 0.3 ? '#ff4444' : 'white'); } enemies.forEach(enemy => { if (enemy && enemy.userData && enemy.userData.hpLabel) { const data = enemy.userData; data.hpLabel.textContent = `${data.id} HP: ${data.currentHP} / ${data.maxHP}`; data.hpLabel.style.color = data.isDead ? '#808080' : 'white'; } }); }
+        function positionHpLabels() { /* ... */ const objectsToLabel = [player, ...enemies]; objectsToLabel.forEach(obj => { if (!obj || !obj.userData || !obj.userData.hpLabel) return; const label = obj.userData.hpLabel; const hpOffsetY = obj.userData.hpOffsetY || 1.5; const labelPos = new THREE.Vector3(); labelPos.copy(obj.position); labelPos.y += hpOffsetY; const screenPos = labelPos.project(camera); const x = (screenPos.x * 0.5 + 0.5) * renderer.domElement.clientWidth; const y = (-screenPos.y * 0.5 + 0.5) * renderer.domElement.clientHeight; if (screenPos.z > 1) { label.style.display = 'none'; } else { label.style.display = 'block'; label.style.left = `${x}px`; label.style.top = `${y}px`; } }); }
+        function updateCooldownVisual(currentTime) { /* ... */ const isOnCooldown = currentTime < globalCooldownEndTime; abilityButtons.forEach(button => { if (isOnCooldown) { button.classList.add('on-cooldown'); } else { button.classList.remove('on-cooldown'); } }); }
+
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = clock.getDelta();
+            const currentTime = performance.now();
+
+            // Update game logic
+            updatePlayerMovementAndPhysics(deltaTime); // Includes collision
+            updateEnemyAI(deltaTime, currentTime);
+            updateCameraPosition();
+            checkPlayerHealth();
+            checkImmunityExpiration(currentTime); // NEW: Check if immunity ended
+
+            // Update UI
+            positionHpLabels();
+            updateCooldownVisual(currentTime);
+
+            // Render
+            renderer.render(scene, camera);
+        }
+
+        // --- Start ---
+        init();
+        if (renderer && renderer.domElement) {
+           renderer.domElement.style.cursor = 'crosshair';
+        }
+
+    </script>
+</body>
+</html>

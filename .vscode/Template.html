@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Game Template - Three.js</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 14px;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">3D Game Template Ready</div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // Basic Setup
+    let scene, camera, renderer;
+
+    function init() {
+      // Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87CEEB); // Sky blue
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      camera.position.set(0, 5, 10);
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 20, 10);
+      directionalLight.castShadow = true;
+      scene.add(directionalLight);
+
+      // Ground
+      const groundGeometry = new THREE.PlaneGeometry(100, 100);
+      const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 }); // Forest green
+      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Test Cube
+      const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+      const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+      const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+      cube.position.set(0, 0.5, 0);
+      cube.castShadow = true;
+      scene.add(cube);
+
+      // Handle window resizing
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Start the animation loop
+      animate();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+
+    // Start everything
+    init();
+  </script>
+</body>
+</html>
