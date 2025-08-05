@@ -1,2 +1,2 @@
-# Micro-Games
-A collection of small games I've collected by vibe coding
+# Micro-Apps
+A collection of small apps and games I've collected by vibe coding
