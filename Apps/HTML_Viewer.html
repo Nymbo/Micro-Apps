@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live HTML Renderer</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* A simple scrollbar style for webkit browsers to match the dark theme */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937; /* bg-gray-800 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563; /* bg-gray-600 */
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280; /* bg-gray-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 font-sans h-full flex flex-col antialiased">
+
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 p-4 shadow-md">
+        <h1 class="text-2xl font-bold text-white text-center">Live HTML Renderer</h1>
+        <p class="text-sm text-gray-400 text-center mt-1">Paste your HTML code in the left box and see it rendered live on the right.</p>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow flex flex-col md:flex-row gap-4 p-4 overflow-hidden">
+
+        <!-- Input Panel -->
+        <div class="flex-1 flex flex-col h-full md:h-auto">
+            <h2 class="text-lg font-semibold mb-2 text-gray-300">HTML Input</h2>
+            <textarea id="html-input" class="w-full flex-grow bg-gray-800 border border-gray-700 rounded-lg p-3 text-gray-200 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="<!-- Paste your HTML here -->"></textarea>
+        </div>
+
+        <!-- Output Panel -->
+        <div class="flex-1 flex flex-col h-full md:h-auto">
+            <h2 class="text-lg font-semibold mb-2 text-gray-300">Live Preview</h2>
+            <!-- I've changed the background from bg-white to bg-gray-800 to avoid the white flash -->
+            <iframe id="render-output" class="w-full flex-grow bg-gray-800 border border-gray-700 rounded-lg" title="Live Render Output"></iframe>
+        </div>
+
+    </main>
+
+    <script>
+        // Get references to the textarea and iframe elements
+        const htmlInput = document.getElementById('html-input');
+        const renderOutput = document.getElementById('render-output');
+
+        /**
+         * Updates the content of the iframe with the code from the textarea.
+         * If the input is empty, it displays a dark placeholder.
+         */
+        function updatePreview() {
+            // Get the content from the textarea
+            const code = htmlInput.value;
+
+            // Get the iframe's document object
+            const iframeDoc = renderOutput.contentWindow.document;
+
+            // Open the document to write to it
+            iframeDoc.open();
+
+            // If the input is empty or just whitespace, show a placeholder
+            if (!code.trim()) {
+                // This HTML creates a dark background and centers a placeholder message
+                const placeholder = `
+                    <body style="background-color: #1f2937; color: #6b7280; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: sans-serif; font-style: italic;">
+                        <div>Preview will appear here</div>
+                    </body>
+                `;
+                iframeDoc.write(placeholder);
+            } else {
+                // Otherwise, write the user's code to the iframe
+                iframeDoc.write(code);
+            }
+            
+            // Close the document to finalize the changes
+            iframeDoc.close();
+        }
+
+        // Add an event listener to the textarea to update the preview on input
+        htmlInput.addEventListener('input', updatePreview);
+
+        // Initial render on page load to show the placeholder
+        updatePreview();
+    </script>
+
+</body>
+</html>

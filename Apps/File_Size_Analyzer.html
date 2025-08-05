@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lua Repository Analyzer</title>
+    
+    <!-- This script pulls in Tailwind CSS for styling, making the app look clean and modern. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- This script includes Chart.js, a powerful library for creating beautiful and responsive charts. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* This applies the Inter font to the entire application for a clean, modern look. */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom style for the file upload area to provide visual feedback on hover. */
+        .file-drop-zone:hover {
+            border-color: #2563eb; /* A brighter blue for hover in dark mode */
+        }
+        .max-w-400 {
+            max-width: 400px;
+        }
+        .all-files-chart-wrapper {
+            height: 600px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-300">
+
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-7xl">
+
+        <!-- Header Section -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-100">Lua Repository Analyzer</h1>
+            <p class="mt-2 text-lg text-gray-400">Upload your local code repository to visualize `.lua` file sizes.</p>
+        </header>
+
+        <!-- File Upload Section -->
+        <div id="upload-section" class="w-full max-w-2xl mx-auto">
+            <!-- This label is styled to look like a button/dropzone and is linked to the hidden file input. -->
+            <label for="repoUpload" class="file-drop-zone flex flex-col items-center justify-center w-full h-48 bg-gray-800 border-2 border-gray-600 border-dashed rounded-xl cursor-pointer transition-colors duration-300">
+                <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                    <svg class="w-10 h-10 mb-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h2l2-2h6l2 2h2a4 4 0 014 4v5a4 4 0 01-4 4H7z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <p class="mb-2 text-sm font-semibold text-gray-400">Click to select a folder</p>
+                    <p class="text-xs text-gray-500">Your entire repository folder</p>
+                </div>
+            </label>
+            <!-- The actual file input is hidden. 'webkitdirectory' is the magic attribute that allows folder selection. -->
+            <input type="file" id="repoUpload" webkitdirectory multiple class="hidden">
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="text-center my-12 hidden">
+             <div role="status" class="flex justify-center items-center">
+                <svg aria-hidden="true" class="w-8 h-8 text-gray-700 animate-spin fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
+                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0492C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="class="currentFill""/>
+                </svg>
+                <span class="ml-4 text-lg text-gray-400">Analyzing repository...</span>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results-section" class="hidden space-y-8">
+        
+            <!-- Summary Stats -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-gray-800 p-6 rounded-xl shadow">
+                    <h3 class="text-sm font-medium text-gray-400">Total .lua Files</h3>
+                    <p id="total-files" class="mt-1 text-3xl font-semibold text-gray-100"></p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow">
+                    <h3 class="text-sm font-medium text-gray-400">Total Size</h3>
+                    <p id="total-size" class="mt-1 text-3xl font-semibold text-gray-100"></p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow">
+                    <h3 class="text-sm font-medium text-gray-400">Average File Size</h3>
+                    <p id="avg-size" class="mt-1 text-3xl font-semibold text-gray-100"></p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow">
+                    <h3 class="text-sm font-medium text-gray-400">Largest File</h3>
+                    <p id="largest-file" class="mt-1 text-xl font-semibold text-gray-100 truncate" title=""></p>
+                </div>
+            </div>
+
+            <!-- File-based Charts Container -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-gray-800 p-6 rounded-xl shadow">
+                    <h2 class="text-xl font-bold mb-4 text-gray-100">Top 20 Largest .lua Files</h2>
+                    <div class="relative h-96">
+                        <canvas id="fileSizeBarChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow">
+                    <h2 class="text-xl font-bold mb-4 text-gray-100">File Size Distribution</h2>
+                     <div class="relative h-96 mx-auto max-w-400">
+                        <canvas id="fileSizePieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Directory-based Charts Container -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-gray-800 p-6 rounded-xl shadow">
+                    <h2 class="text-xl font-bold mb-4 text-gray-100">File Count by Directory</h2>
+                    <div class="relative h-96">
+                        <canvas id="directoryCountBarChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-xl shadow">
+                    <h2 class="text-xl font-bold mb-4 text-gray-100">Total Size by Directory</h2>
+                    <div class="relative h-96">
+                        <canvas id="directorySizeBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- All Files Chart Container -->
+            <div class="bg-gray-800 p-6 rounded-xl shadow">
+                <h2 class="text-xl font-bold mb-4 text-gray-100">All Files by Size</h2>
+                <div id="all-files-chart-wrapper" class="relative all-files-chart-wrapper">
+                    <canvas id="allFilesChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+         <!-- Error/Message Display -->
+        <div id="message-display" class="text-center mt-8 p-4 bg-red-900/50 text-red-400 rounded-lg hidden"></div>
+
+    </div>
+
+    <script>
+        // DOM element references
+        const repoUploadInput = document.getElementById('repoUpload');
+        const uploadSection = document.getElementById('upload-section');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const resultsSection = document.getElementById('results-section');
+        const messageDisplay = document.getElementById('message-display');
+
+        // Chart instances, stored globally to be destroyed on re-upload
+        let barChartInstance = null;
+        let pieChartInstance = null;
+        let dirCountChartInstance = null;
+        let dirSizeChartInstance = null;
+        let allFilesChartInstance = null; // New chart instance
+
+        /**
+         * Attaches an event listener to the file input. When the user selects a folder,
+         * the handleFiles function is called.
+         */
+        repoUploadInput.addEventListener('change', (event) => {
+            handleFiles(event.target.files);
+        });
+
+        /**
+         * Handles the list of files selected by the user.
+         * @param {FileList} files - The list of files from the input.
+         */
+        async function handleFiles(files) {
+            loadingSpinner.classList.remove('hidden');
+            resultsSection.classList.add('hidden');
+            messageDisplay.classList.add('hidden');
+            uploadSection.classList.add('hidden');
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const luaFiles = Array.from(files).filter(file => file.name.endsWith('.lua'));
+
+            if (luaFiles.length === 0) {
+                showMessage("No '.lua' files found in the selected directory.");
+                loadingSpinner.classList.add('hidden');
+                uploadSection.classList.remove('hidden');
+                return;
+            }
+
+            const fileData = luaFiles.map(file => ({
+                path: file.webkitRelativePath,
+                size: file.size
+            }));
+
+            // Sort by size for all charts that need it
+            fileData.sort((a, b) => b.size - a.size);
+            
+            displayResults(fileData);
+
+            loadingSpinner.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+            uploadSection.classList.remove('hidden');
+        }
+
+        /**
+         * Takes the processed file data and renders the stats and charts.
+         * @param {Array<Object>} fileData - Array of objects with file path and size.
+         */
+        function displayResults(fileData) {
+            // Destroy existing charts to prevent canvas conflicts
+            if (barChartInstance) barChartInstance.destroy();
+            if (pieChartInstance) pieChartInstance.destroy();
+            if (dirCountChartInstance) dirCountChartInstance.destroy();
+            if (dirSizeChartInstance) dirSizeChartInstance.destroy();
+            if (allFilesChartInstance) allFilesChartInstance.destroy(); // Destroy the new chart instance too
+            
+            // --- 1. Calculate and Display Summary Statistics ---
+            displaySummaryStats(fileData);
+
+            // --- 2. Render File-Based Charts ---
+            renderFileCharts(fileData);
+
+            // --- 3. Render Directory-Based Charts ---
+            renderDirectoryCharts(fileData);
+
+            // --- 4. Render All Files Chart ---
+            renderAllFilesChart(fileData);
+        }
+        
+        /**
+         * Calculates and displays the summary stat cards.
+         * @param {Array<Object>} fileData - The sorted array of file data.
+         */
+        function displaySummaryStats(fileData) {
+            const totalFiles = fileData.length;
+            const totalSize = fileData.reduce((sum, file) => sum + file.size, 0);
+            const avgSize = totalFiles > 0 ? totalSize / totalFiles : 0;
+            const largestFile = fileData[0];
+
+            document.getElementById('total-files').textContent = totalFiles;
+            document.getElementById('total-size').textContent = formatBytes(totalSize);
+            document.getElementById('avg-size').textContent = formatBytes(avgSize);
+            const largestFileNameEl = document.getElementById('largest-file');
+            largestFileNameEl.textContent = largestFile.path.split('/').pop();
+            largestFileNameEl.title = `${largestFile.path} (${formatBytes(largestFile.size)})`;
+        }
+
+        /**
+         * Prepares data and renders charts based on individual files.
+         * @param {Array<Object>} fileData - The sorted array of file data.
+         */
+        function renderFileCharts(fileData) {
+            // Top 20 files for the bar chart
+            const top20Files = fileData.slice(0, 20);
+            const barChartLabels = top20Files.map(file => file.path.split('/').pop());
+            const barChartFullLabels = top20Files.map(file => `${file.path} (${formatBytes(file.size)})`);
+            const barChartData = top20Files.map(file => file.size);
+            renderBarChart('fileSizeBarChart', barChartLabels, barChartFullLabels, barChartData);
+
+            // Data for the pie chart
+            const pieChartLabels = top20Files.map(file => file.path.split('/').pop());
+            const pieChartData = top20Files.map(file => file.size);
+            if (fileData.length > 20) {
+                const otherSize = fileData.slice(20).reduce((sum, file) => sum + file.size, 0);
+                pieChartLabels.push('Other Files');
+                pieChartData.push(otherSize);
+            }
+            renderPieChart(pieChartLabels, pieChartData);
+        }
+
+        /**
+         * Processes data by directory and renders directory-based charts.
+         * @param {Array<Object>} fileData - The array of file data.
+         */
+        function renderDirectoryCharts(fileData) {
+            const directoryStats = {};
+            const rootDirName = fileData[0].path.split('/')[0] || '(root)';
+
+            fileData.forEach(file => {
+                const parts = file.path.split('/');
+                const dir = parts.length > 1 ? parts.slice(0, -1).join('/') : rootDirName;
+                if (!directoryStats[dir]) {
+                    directoryStats[dir] = { count: 0, size: 0 };
+                }
+                directoryStats[dir].count++;
+                directoryStats[dir].size += file.size;
+            });
+            
+            const sortedByCount = Object.entries(directoryStats).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.count - a.count).slice(0, 20);
+            const sortedBySize = Object.entries(directoryStats).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.size - a.size).slice(0, 20);
+            
+            renderDirectoryCountChart(sortedByCount.map(d => d.name), sortedByCount.map(d => d.count));
+            renderDirectorySizeChart(sortedBySize.map(d => d.name), sortedBySize.map(d => d.size));
+        }
+
+        /**
+         * Generic function to render a dark-themed horizontal bar chart.
+         * @param {string} canvasId - The ID of the canvas element.
+         * @param {Array<string>} labels - Data labels.
+         * @param {Object} dataset - The Chart.js dataset object.
+         * @param {Object} options - Additional Chart.js options.
+         * @returns {Chart} The new Chart instance.
+         */
+        function createHorizontalBarChart(canvasId, labels, dataset, options = {}) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            const defaultOptions = {
+                indexAxis: 'y',
+                maintainAspectRatio: false,
+                responsive: true,
+                scales: {
+                    x: { beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.7)' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+                    y: { ticks: { color: 'rgba(255, 255, 255, 0.7)' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }
+                },
+                plugins: { legend: { display: false } }
+            };
+            
+            return new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [dataset] },
+                options: { ...defaultOptions, ...options }
+            });
+        }
+        
+        /** This is for the Top 20 chart */
+        function renderBarChart(canvasId, labels, fullLabels, data) {
+            const dataset = { label: 'File Size (bytes)', data, backgroundColor: 'rgba(59, 130, 246, 0.7)', borderColor: 'rgba(59, 130, 246, 1)', borderWidth: 1 };
+            const options = {
+                plugins: { legend: { display: false }, tooltip: { callbacks: { title: (tooltipItems) => fullLabels[tooltipItems[0].dataIndex], label: (context) => `Size: ${formatBytes(context.parsed.x)}` } } },
+                scales: { x: { ticks: { callback: (value) => formatBytes(value) } } }
+            };
+            barChartInstance = createHorizontalBarChart(canvasId, labels, dataset, options);
+        }
+
+        function renderDirectoryCountChart(labels, data) {
+             const dataset = { label: '# of Files', data, backgroundColor: 'rgba(16, 185, 129, 0.7)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1 };
+             const options = { plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `${context.parsed.x} files` } } } };
+             dirCountChartInstance = createHorizontalBarChart('directoryCountBarChart', labels, dataset, options);
+        }
+
+        function renderDirectorySizeChart(labels, data) {
+            const dataset = { label: 'Total Size', data, backgroundColor: 'rgba(239, 68, 68, 0.7)', borderColor: 'rgba(239, 68, 68, 1)', borderWidth: 1 };
+            const options = {
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `Size: ${formatBytes(context.parsed.x)}` } } },
+                scales: { x: { ticks: { callback: (value) => formatBytes(value) } } }
+            };
+            dirSizeChartInstance = createHorizontalBarChart('directorySizeBarChart', labels, dataset, options);
+        }
+        
+        /**
+         * Renders the new chart for ALL files.
+         * @param {Array<Object>} fileData - The complete, sorted array of file data.
+         */
+        function renderAllFilesChart(fileData) {
+            // We reverse the array here because horizontal bar charts show the first item at the top.
+            // By reversing, the largest file will be at the top as intended.
+            const reversedData = [...fileData].reverse(); 
+            const labels = reversedData.map(f => f.path.split('/').pop()); // Show only file name on axis
+            const fullLabels = reversedData.map(f => f.path); // Show full path in tooltip
+            const data = reversedData.map(f => f.size);
+
+            // Dynamically calculate chart height to ensure labels are readable
+            const canvas = document.getElementById('allFilesChart');
+            const wrapper = document.getElementById('all-files-chart-wrapper');
+            // Assign a minimum height per bar plus some padding
+            const dynamicHeight = Math.max(600, data.length * 20); 
+            canvas.style.height = `${dynamicHeight}px`;
+            
+            const dataset = { label: 'File Size', data, backgroundColor: 'rgba(245, 158, 11, 0.7)', borderColor: 'rgba(245, 158, 11, 1)', borderWidth: 1 };
+            const options = {
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: (tooltipItems) => fullLabels[tooltipItems[0].dataIndex],
+                            label: (context) => `Size: ${formatBytes(context.parsed.x)}`
+                        }
+                    }
+                },
+                scales: { 
+                    y: { ticks: { autoSkip: false } }, // Ensure all ticks are shown
+                    x: { ticks: { callback: (value) => formatBytes(value) } } 
+                }
+            };
+
+            allFilesChartInstance = createHorizontalBarChart('allFilesChart', labels, dataset, options);
+        }
+
+        function renderPieChart(labels, data) {
+            const ctx = document.getElementById('fileSizePieChart').getContext('2d');
+            pieChartInstance = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#06B6D4', '#D97706', '#65A30D', '#4F46E5', '#DC2626', '#F97316', '#14B8A6', '#7C3AED', '#DB2777', '#0EA5E9', '#FBBF24', '#22C55E', '#9333EA', '#be185d'],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: 15, boxWidth: 12, color: 'rgba(255, 255, 255, 0.7)' } },
+                         tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.chart.getDatasetMeta(0).total;
+                                    const percentage = ((value / total) * 100).toFixed(2);
+                                    return `${label}: ${formatBytes(value)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function formatBytes(bytes, decimals = 2) {
+            if (!bytes || bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        function showMessage(message) {
+            messageDisplay.textContent = message;
+            messageDisplay.classList.remove('hidden');
+        }
+
+    </script>
+
+</body>
+</html>

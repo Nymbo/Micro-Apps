@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live SVG Viewer</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter for a clean, modern look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles to apply the Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Style for the SVG preview to ensure it scales correctly */
+        #svgPreview svg {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+
+    <!-- Main container for the application -->
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- Header section -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-white">Live SVG Viewer</h1>
+            <p class="text-gray-400 mt-2">Paste your SVG code below to see it rendered instantly.</p>
+        </header>
+
+        <!-- Grid layout for the editor and preview panels -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 h-[60vh] min-h-[400px]">
+
+            <!-- SVG Code Input Panel -->
+            <div class="flex flex-col">
+                <label for="svgCode" class="mb-2 font-semibold text-gray-300">SVG Code</label>
+                <textarea
+                    id="svgCode"
+                    class="w-full h-full p-4 bg-gray-800 border border-gray-600 rounded-lg shadow-inner text-gray-300 font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="<svg>...</svg>"
+                ></textarea>
+            </div>
+
+            <!-- SVG Preview Panel -->
+            <div class="flex flex-col">
+                <label for="svgPreview" class="mb-2 font-semibold text-gray-300">Live Preview</label>
+                <div
+                    id="svgPreview"
+                    class="w-full h-full p-4 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg shadow-inner flex items-center justify-center overflow-hidden"
+                >
+                    <!-- The rendered SVG will appear here -->
+                    <span class="text-gray-500">Preview will appear here</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- SCRIPT LOGIC ---
+
+        // Get references to the HTML elements we need to work with
+        const svgCodeTextarea = document.getElementById('svgCode');
+        const svgPreviewContainer = document.getElementById('svgPreview');
+
+        // Initial sample SVG code to show on page load
+        const initialSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-width="8">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="80" stroke="url(#grad)" />
+  <path d="M 60 100 L 100 140 L 140 60" stroke="#a7f3d0" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+        // Function to update the preview with the SVG code
+        function updatePreview() {
+            // Get the current code from the textarea
+            const code = svgCodeTextarea.value;
+
+            // If the textarea is empty, show the placeholder text
+            if (code.trim() === '') {
+                svgPreviewContainer.innerHTML = '<span class="text-gray-500">Preview will appear here</span>';
+            } else {
+                // Otherwise, inject the user's code directly into the preview container
+                // The browser will parse and render it as an SVG image
+                svgPreviewContainer.innerHTML = code;
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+
+        // Listen for any input (typing, pasting, etc.) in the textarea
+        svgCodeTextarea.addEventListener('input', updatePreview);
+
+        // When the page first loads, set the initial SVG and render it
+        window.addEventListener('load', () => {
+            svgCodeTextarea.value = initialSvg;
+            updatePreview();
+        });
+    </script>
+
+</body>
+</html>

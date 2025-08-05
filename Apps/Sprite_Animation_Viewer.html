@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprite Animation Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background-color: #1e1e1e;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #3498db;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .settings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        input[type="number"], input[type="file"], input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #333;
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: #121212;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-right: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 15px 0;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .canvas-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(52, 152, 219, 0.2);
+            padding: 10px;
+            background-color: #0a0a0a;
+        }
+        
+        canvas {
+            background-color: #0a0a0a;
+            max-width: 100%;
+            height: auto;
+            image-rendering: pixelated;
+        }
+
+        .sprite-info {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #242424;
+            border-radius: 5px;
+            border-left: 3px solid #3498db;
+        }
+
+        .fps-display {
+            margin-left: 10px;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .preview-container {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .frame-preview {
+            border: 2px solid #333;
+            border-radius: 5px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .frame-preview:hover {
+            transform: scale(1.05);
+        }
+        
+        .frame-preview.active {
+            border-color: #3498db;
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+        }
+        
+        .full-sprite-preview-container {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #242424;
+            border-radius: 5px;
+            border-left: 3px solid #3498db;
+        }
+        
+        .full-sprite-preview-container h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #3498db;
+            font-size: 16px;
+        }
+        
+        .preview-area {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: auto;
+            background-color: #1a1a1a;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .preview-area img {
+            max-width: 100%;
+            max-height: 180px;
+            object-fit: contain;
+            image-rendering: pixelated;
+        }
+        
+        .no-sprite-message {
+            color: #666;
+            text-align: center;
+            font-style: italic;
+        }
+        
+        select.row-select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #333;
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            cursor: pointer;
+        }
+        
+        select.row-select:focus {
+            border-color: #3498db;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.3);
+        }
+        
+        input[type="range"].slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #1a1a1a;
+            outline: none;
+            margin-top: 8px;
+        }
+        
+        input[type="range"].slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        input[type="range"].slider::-webkit-slider-thumb:hover {
+            background: #2980b9;
+            transform: scale(1.1);
+        }
+        
+        input[type="range"].slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        
+        input[type="range"].slider::-moz-range-thumb:hover {
+            background: #2980b9;
+            transform: scale(1.1);
+        }
+        
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .speed-control input[type="range"] {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sprite Animation Viewer</h1>
+        
+        <div class="settings">
+            <div class="form-group">
+                <label for="spriteFile">Upload Sprite Sheet:</label>
+                <input type="file" id="spriteFile" accept="image/png,image/jpeg">
+            </div>
+            
+            <div class="form-group">
+                <label for="tileWidth" id="tileWidthLabel">Tile Width (px):</label>
+                <input type="number" id="tileWidth" value="64" min="1" max="512">
+                <input type="range" id="tileWidthSlider" min="1" max="512" value="64" class="slider" aria-labelledby="tileWidthLabel">
+            </div>
+            
+            <div class="form-group">
+                <label for="tileHeight" id="tileHeightLabel">Tile Height (px):</label>
+                <input type="number" id="tileHeight" value="64" min="1" max="512">
+                <input type="range" id="tileHeightSlider" min="1" max="512" value="64" class="slider" aria-labelledby="tileHeightLabel">
+            </div>
+            
+            <div class="form-group">
+                <label for="frameCount" id="frameCountLabel">Frame Count:</label>
+                <input type="number" id="frameCount" value="10" min="1" max="50">
+                <input type="range" id="frameCountSlider" min="1" max="50" value="10" class="slider" aria-labelledby="frameCountLabel">
+            </div>
+            
+            <div class="form-group">
+                <label for="rowSelect">Color Variant:</label>
+                <select id="rowSelect" class="row-select">
+                    <option value="0">Row 1</option>
+                    <option value="1">Row 2</option>
+                    <option value="2">Row 3</option>
+                    <option value="3">Row 4</option>
+                    <option value="4">Row 5</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="directionSelect">Animation Direction:</label>
+                <select id="directionSelect" class="row-select">
+                    <option value="ltr">Left to Right</option>
+                    <option value="rtl">Right to Left</option>
+                    <option value="ttb">Top to Bottom</option>
+                    <option value="btt">Bottom to Top</option>
+                    <option value="alternate">Alternate (Ping-Pong)</option>
+                    <option value="random">Random</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="sprite-info" id="spriteInfo">
+            No sprite loaded yet.
+        </div>
+        
+        <div class="full-sprite-preview-container">
+            <h3>Full Sprite Sheet Preview</h3>
+            <div class="preview-area" id="fullSpritePreview">
+                <p class="no-sprite-message">Upload a sprite sheet to see preview</p>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="playPauseBtn" aria-label="Play animation">Play</button>
+            <button id="resetBtn" aria-label="Reset animation">Reset</button>
+            <div class="speed-control">
+                <label for="fpsRange" id="fpsLabel">Speed: </label>
+                <input type="range" id="fpsRange" min="1" max="60" value="10" aria-labelledby="fpsLabel">
+                <span class="fps-display" id="fpsDisplay" aria-live="polite">10 FPS</span>
+            </div>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="animationCanvas" aria-label="Sprite animation display"></canvas>
+        </div>
+        
+        <div class="preview-container" id="framePreviewContainer" role="list" aria-label="Animation frames preview"></div>
+    </div>
+
+    <script>
+        // Get all the DOM elements we'll need
+        const spriteFileInput = document.getElementById('spriteFile');
+        const tileWidthInput = document.getElementById('tileWidth');
+        const tileHeightInput = document.getElementById('tileHeight');
+        const frameCountInput = document.getElementById('frameCount');
+        const tileWidthSlider = document.getElementById('tileWidthSlider');
+        const tileHeightSlider = document.getElementById('tileHeightSlider');
+        const frameCountSlider = document.getElementById('frameCountSlider');
+        const rowSelectInput = document.getElementById('rowSelect');
+        const directionSelectInput = document.getElementById('directionSelect');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const fpsRange = document.getElementById('fpsRange');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const canvas = document.getElementById('animationCanvas');
+        const ctx = canvas.getContext('2d');
+        const spriteInfo = document.getElementById('spriteInfo');
+        const framePreviewContainer = document.getElementById('framePreviewContainer');
+        const fullSpritePreview = document.getElementById('fullSpritePreview');
+
+        // Animation state
+        let spriteImage = null;
+        let currentFrame = 0;
+        let isPlaying = false;
+        let animationInterval = null;
+        let fps = 10;
+        let currentRow = 0; // Track which row/color variant is selected
+        let direction = 'ltr'; // Animation direction
+        let isReversing = false; // For alternating animation
+
+        // Initialize with default sizes
+        canvas.width = 128;
+        canvas.height = 128;
+
+        // Handle file upload
+        spriteFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                // Create image from uploaded file
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    spriteImage = new Image();
+                    spriteImage.onload = () => {
+                        updateSpriteInfo();
+                        updateFullSpritePreview();
+                        reset();
+                        createFramePreviews();
+                    };
+                    spriteImage.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Update the full sprite sheet preview
+        function updateFullSpritePreview() {
+            fullSpritePreview.innerHTML = '';
+            
+            if (!spriteImage) {
+                fullSpritePreview.innerHTML = '<p class="no-sprite-message">Upload a sprite sheet to see preview</p>';
+                return;
+            }
+            
+            // Create a copy of the sprite image for the preview
+            const previewImg = document.createElement('img');
+            previewImg.src = spriteImage.src;
+            previewImg.alt = 'Full sprite sheet preview';
+            
+            // Add the image to the preview container
+            fullSpritePreview.appendChild(previewImg);
+        }
+
+        // Update sprite sheet information display
+        function updateSpriteInfo() {
+            if (!spriteImage) return;
+            
+            const tileWidth = parseInt(tileWidthInput.value);
+            const tileHeight = parseInt(tileHeightInput.value);
+            const frameCount = parseInt(frameCountInput.value);
+            
+            // Update canvas size to match tile size (scaled up by 2x for better visibility)
+            canvas.width = tileWidth * 2;
+            canvas.height = tileHeight * 2;
+            
+            // Calculate how many frames can fit in the image
+            const framesPerRow = Math.floor(spriteImage.width / tileWidth);
+            const totalRows = Math.floor(spriteImage.height / tileHeight);
+            const maxPossibleFrames = framesPerRow * totalRows;
+            
+            // Update the row selector to match the actual number of rows in the sprite sheet
+            rowSelectInput.innerHTML = '';
+            for (let i = 0; i < totalRows; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `Row ${i+1} ${i === 0 ? '(Top)' : i === totalRows-1 ? '(Bottom)' : ''}`;
+                rowSelectInput.appendChild(option);
+            }
+            
+            spriteInfo.innerHTML = `
+                Sprite Sheet: ${spriteImage.width}x${spriteImage.height}px<br>
+                Tile Size: ${tileWidth}x${tileHeight}px<br>
+                Frames: ${frameCount} per row<br>
+                Rows/Variants: ${totalRows}<br>
+                Layout: ${framesPerRow} frames per row<br>
+                Animation: ${getDirectionDescription()}
+            `;
+            
+            // Set current row to match the select value
+            currentRow = parseInt(rowSelectInput.value);
+        }
+        
+        // Get a user-friendly description of the current animation direction
+        function getDirectionDescription() {
+            switch (directionSelectInput.value) {
+                case 'ltr': return 'Left to Right';
+                case 'rtl': return 'Right to Left';
+                case 'ttb': return 'Top to Bottom';
+                case 'btt': return 'Bottom to Top';
+                case 'alternate': return 'Alternating (Ping-Pong)';
+                case 'random': return 'Random Frame Order';
+                default: return 'Left to Right';
+            }
+        }
+
+        // Create individual frame previews
+        function createFramePreviews() {
+            framePreviewContainer.innerHTML = '';
+            if (!spriteImage) return;
+            
+            const tileWidth = parseInt(tileWidthInput.value);
+            const tileHeight = parseInt(tileHeightInput.value);
+            const frameCount = parseInt(frameCountInput.value);
+            const row = currentRow;
+            
+            for (let i = 0; i < frameCount; i++) {
+                // Create a canvas for each frame preview
+                const previewCanvas = document.createElement('canvas');
+                previewCanvas.width = tileWidth;
+                previewCanvas.height = tileHeight;
+                previewCanvas.style.width = '64px'; // Smaller display size
+                previewCanvas.style.height = '64px';
+                previewCanvas.className = 'frame-preview';
+                previewCanvas.setAttribute('role', 'listitem');
+                previewCanvas.setAttribute('aria-label', `Frame ${i+1}`);
+                
+                if (i === currentFrame) {
+                    previewCanvas.classList.add('active');
+                    previewCanvas.setAttribute('aria-current', 'true');
+                }
+                
+                const previewCtx = previewCanvas.getContext('2d');
+                previewCtx.imageSmoothingEnabled = false;
+                
+                // Calculate position in sprite sheet
+                const framesPerRow = Math.floor(spriteImage.width / tileWidth);
+                const col = i % framesPerRow;
+                
+                // Draw the frame from the current row
+                previewCtx.drawImage(
+                    spriteImage,
+                    col * tileWidth,
+                    row * tileHeight,
+                    tileWidth,
+                    tileHeight,
+                    0,
+                    0,
+                    tileWidth,
+                    tileHeight
+                );
+                
+                // Add click handler to select frame
+                previewCanvas.addEventListener('click', () => {
+                    currentFrame = i;
+                    updateActivePreviews();
+                    drawFrame();
+                });
+                
+                framePreviewContainer.appendChild(previewCanvas);
+            }
+        }
+
+        // Update which preview is marked as active
+        function updateActivePreviews() {
+            const previews = document.querySelectorAll('.frame-preview');
+            previews.forEach((preview, index) => {
+                if (index === currentFrame) {
+                    preview.classList.add('active');
+                    preview.setAttribute('aria-current', 'true');
+                } else {
+                    preview.classList.remove('active');
+                    preview.removeAttribute('aria-current');
+                }
+            });
+        }
+
+        // Draw the current frame
+        function drawFrame() {
+            if (!spriteImage) return;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const tileWidth = parseInt(tileWidthInput.value);
+            const tileHeight = parseInt(tileHeightInput.value);
+            const frameCount = parseInt(frameCountInput.value);
+            const row = currentRow;
+            
+            // Ensure currentFrame is within bounds
+            currentFrame = currentFrame % frameCount;
+            
+            // Calculate position in sprite sheet
+            const framesPerRow = Math.floor(spriteImage.width / tileWidth);
+            const col = currentFrame % framesPerRow;
+            
+            // Draw the frame - maintain crisp pixel art by using imageSmoothingEnabled = false
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(
+                spriteImage,
+                col * tileWidth,
+                row * tileHeight,
+                tileWidth,
+                tileHeight,
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
+            
+            updateActivePreviews();
+            
+            // Update canvas aria-label for accessibility
+            canvas.setAttribute('aria-label', `Sprite animation display - Frame ${currentFrame + 1} of ${frameCount}, Row ${currentRow + 1}, Direction: ${getDirectionDescription()}`);
+        }
+
+        // Animation loop
+        function animate() {
+            if (!isPlaying) return;
+            
+            clearInterval(animationInterval);
+            
+            animationInterval = setInterval(() => {
+                // Update the current frame based on direction
+                updateFrameBasedOnDirection();
+                drawFrame();
+            }, 1000 / fps);
+        }
+        
+        // Update the frame based on selected direction
+        function updateFrameBasedOnDirection() {
+            const frameCount = parseInt(frameCountInput.value);
+            direction = directionSelectInput.value;
+            
+            switch (direction) {
+                case 'ltr':
+                    // Left to right (increment frame horizontally)
+                    currentFrame = (currentFrame + 1) % frameCount;
+                    break;
+                    
+                case 'rtl':
+                    // Right to left (decrement frame horizontally)
+                    currentFrame = (currentFrame - 1 + frameCount) % frameCount;
+                    break;
+                
+                case 'ttb':
+                    // Top to bottom (increment row)
+                    currentFrame = currentFrame;  // Keep the same frame
+                    const totalRows = Math.floor(spriteImage.height / parseInt(tileHeightInput.value));
+                    currentRow = (currentRow + 1) % totalRows;
+                    break;
+                    
+                case 'btt':
+                    // Bottom to top (decrement row)
+                    currentFrame = currentFrame;  // Keep the same frame
+                    const rows = Math.floor(spriteImage.height / parseInt(tileHeightInput.value));
+                    currentRow = (currentRow - 1 + rows) % rows;
+                    break;
+                    
+                case 'alternate':
+                    // Ping-pong between first and last frame
+                    if (!isReversing) {
+                        currentFrame++;
+                        if (currentFrame >= frameCount - 1) {
+                            isReversing = true;
+                        }
+                    } else {
+                        currentFrame--;
+                        if (currentFrame <= 0) {
+                            isReversing = false;
+                        }
+                    }
+                    break;
+                    
+                case 'random':
+                    // Jump to a random frame
+                    let newFrame;
+                    do {
+                        newFrame = Math.floor(Math.random() * frameCount);
+                    } while (newFrame === currentFrame && frameCount > 1);
+                    currentFrame = newFrame;
+                    break;
+            }
+        }
+
+        // Play/Pause button
+        playPauseBtn.addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            playPauseBtn.textContent = isPlaying ? 'Pause' : 'Play';
+            playPauseBtn.setAttribute('aria-label', isPlaying ? 'Pause animation' : 'Play animation');
+            
+            if (isPlaying) {
+                animate();
+            } else {
+                clearInterval(animationInterval);
+            }
+        });
+
+        // Reset button
+        resetBtn.addEventListener('click', reset);
+
+        function reset() {
+            currentFrame = 0;
+            isReversing = false; // Reset the alternating direction state
+            drawFrame();
+        }
+
+        // FPS (speed) control
+        fpsRange.addEventListener('input', (e) => {
+            fps = parseInt(e.target.value);
+            fpsDisplay.textContent = `${fps} FPS`;
+            
+            if (isPlaying) {
+                animate();
+            }
+        });
+
+        // Update when parameters change
+        tileWidthInput.addEventListener('input', () => {
+            tileWidthSlider.value = tileWidthInput.value;
+            updateSpriteInfo();
+            createFramePreviews();
+            drawFrame();
+        });
+
+        tileHeightInput.addEventListener('input', () => {
+            tileHeightSlider.value = tileHeightInput.value;
+            updateSpriteInfo();
+            createFramePreviews();
+            drawFrame();
+        });
+
+        frameCountInput.addEventListener('input', () => {
+            frameCountSlider.value = frameCountInput.value;
+            updateSpriteInfo();
+            createFramePreviews();
+            drawFrame();
+        });
+        
+        // Slider event listeners
+        tileWidthSlider.addEventListener('input', () => {
+            tileWidthInput.value = tileWidthSlider.value;
+            updateSpriteInfo();
+            createFramePreviews();
+            drawFrame();
+        });
+        
+        tileHeightSlider.addEventListener('input', () => {
+            tileHeightInput.value = tileHeightSlider.value;
+            updateSpriteInfo();
+            createFramePreviews();
+            drawFrame();
+        });
+        
+        frameCountSlider.addEventListener('input', () => {
+            frameCountInput.value = frameCountSlider.value;
+            updateSpriteInfo();
+            createFramePreviews();
+            drawFrame();
+        });
+        
+        // Listen for row selection changes
+        rowSelectInput.addEventListener('change', () => {
+            currentRow = parseInt(rowSelectInput.value);
+            createFramePreviews();
+            drawFrame();
+        });
+        
+        // Listen for direction selection changes
+        directionSelectInput.addEventListener('change', () => {
+            // Update direction - the actual change happens in the animation loop
+            direction = directionSelectInput.value;
+            // Reset alternating state when changing direction
+            isReversing = false;
+            
+            // Create new frame previews if we've changed to a vertical animation
+            if (direction === 'ttb' || direction === 'btt') {
+                createFramePreviews();
+            }
+            
+            // If we're actively playing, restart the animation with the new direction
+            if (isPlaying) {
+                animate();
+            }
+            
+            // Update the sprite info to show the new direction
+            if (spriteImage) {
+                updateSpriteInfo();
+            }
+        });
+
+        // Initial drawing
+        drawFrame();
+    </script>
+</body>
+</html>
