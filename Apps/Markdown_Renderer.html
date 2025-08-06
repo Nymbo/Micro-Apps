@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsidian Clone - Markdown Notes</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/markdown/markdown.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .app-header {
+            background-color: #2a2a2a;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #3a3a3a;
+        }
+
+        .app-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #a7c0e0;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background-color: #3a3a3a;
+            color: #e0e0e0;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #4a4a4a;
+        }
+
+        .btn-primary {
+            background-color: #4a6fa5;
+        }
+
+        .btn-primary:hover {
+            background-color: #5a7fb5;
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #252525;
+            border-right: 1px solid #3a3a3a;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 10px;
+            border-bottom: 1px solid #3a3a3a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .search-box {
+            width: 100%;
+            background-color: #333;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 5px;
+        }
+
+        .file-item {
+            padding: 8px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 2px;
+        }
+
+        .file-item:hover {
+            background-color: #333;
+        }
+
+        .file-item.active {
+            background-color: #3a4a6a;
+        }
+
+        .file-icon {
+            color: #a7c0e0;
+        }
+
+        .editor-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .editor-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-right: 1px solid #3a3a3a;
+        }
+
+        .editor-header {
+            padding: 10px 15px;
+            background-color: #2a2a2a;
+            border-bottom: 1px solid #3a3a3a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .editor-title {
+            font-size: 14px;
+            color: #a7c0e0;
+        }
+
+        .editor-toolbar {
+            display: flex;
+            gap: 5px;
+        }
+
+        .toolbar-btn {
+            background: none;
+            border: none;
+            color: #a7c0e0;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 3px;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background-color: #3a3a3a;
+        }
+
+        .CodeMirror {
+            flex: 1;
+            height: 100%;
+            font-size: 15px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+
+        .preview-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .preview-header {
+            padding: 10px 15px;
+            background-color: #2a2a2a;
+            border-bottom: 1px solid #3a3a3a;
+            font-size: 14px;
+            color: #a7c0e0;
+        }
+
+        .preview-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: #1e1e1e;
+        }
+
+        .preview-content h1, .preview-content h2, .preview-content h3, 
+        .preview-content h4, .preview-content h5, .preview-content h6 {
+            color: #a7c0e0;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .preview-content h1 {
+            border-bottom: 1px solid #3a3a3a;
+            padding-bottom: 10px;
+        }
+
+        .preview-content p {
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+
+        .preview-content code {
+            background-color: #2a2a2a;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .preview-content pre {
+            background-color: #2a2a2a;
+            padding: 16px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 16px;
+        }
+
+        .preview-content pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .preview-content blockquote {
+            border-left: 4px solid #4a6fa5;
+            padding-left: 16px;
+            margin-left: 0;
+            margin-right: 0;
+            color: #b0b0b0;
+        }
+
+        .preview-content ul, .preview-content ol {
+            padding-left: 24px;
+            margin-bottom: 16px;
+        }
+
+        .preview-content li {
+            margin-bottom: 4px;
+        }
+
+        .preview-content a {
+            color: #7d9ec6;
+            text-decoration: none;
+        }
+
+        .preview-content a:hover {
+            text-decoration: underline;
+        }
+
+        .preview-content img {
+            max-width: 100%;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .preview-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+
+        .preview-content th, .preview-content td {
+            border: 1px solid #3a3a3a;
+            padding: 8px 12px;
+        }
+
+        .preview-content th {
+            background-color: #2a2a2a;
+            text-align: left;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            width: 400px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #a7c0e0;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .input-field {
+            width: 100%;
+            background-color: #333;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .resize-handle {
+            width: 5px;
+            background-color: #3a3a3a;
+            cursor: ew-resize;
+        }
+
+        .resize-handle:hover {
+            background-color: #4a6fa5;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+            }
+            
+            .editor-container {
+                flex-direction: column;
+            }
+            
+            .editor-pane {
+                border-right: none;
+                border-bottom: 1px solid #3a3a3a;
+            }
+            
+            .resize-handle {
+                width: 100%;
+                height: 5px;
+                cursor: ns-resize;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="app-header">
+            <div class="app-title">
+                <i class="fas fa-book"></i> Obsidian Clone
+            </div>
+            <div class="header-actions">
+                <button class="btn" id="new-note-btn">
+                    <i class="fas fa-plus"></i> New Note
+                </button>
+                <button class="btn" id="save-note-btn">
+                    <i class="fas fa-save"></i> Save
+                </button>
+                <button class="btn" id="settings-btn">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <input type="text" class="search-box" placeholder="Search notes..." id="search-input">
+                </div>
+                <div class="file-list" id="file-list">
+                    <!-- Files will be dynamically added here -->
+                </div>
+            </div>
+            
+            <div class="editor-container">
+                <div class="editor-pane">
+                    <div class="editor-header">
+                        <div class="editor-title" id="editor-title">Untitled.md</div>
+                        <div class="editor-toolbar">
+                            <button class="toolbar-btn" id="bold-btn" title="Bold">
+                                <i class="fas fa-bold"></i>
+                            </button>
+                            <button class="toolbar-btn" id="italic-btn" title="Italic">
+                                <i class="fas fa-italic"></i>
+                            </button>
+                            <button class="toolbar-btn" id="heading-btn" title="Heading">
+                                <i class="fas fa-heading"></i>
+                            </button>
+                            <button class="toolbar-btn" id="link-btn" title="Link">
+                                <i class="fas fa-link"></i>
+                            </button>
+                            <button class="toolbar-btn" id="code-btn" title="Code">
+                                <i class="fas fa-code"></i>
+                            </button>
+                            <button class="toolbar-btn" id="list-btn" title="List">
+                                <i class="fas fa-list-ul"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <textarea id="markdown-editor"></textarea>
+                </div>
+                
+                <div class="resize-handle" id="resize-handle"></div>
+                
+                <div class="preview-pane">
+                    <div class="preview-header">
+                        <i class="fas fa-eye"></i> Preview
+                    </div>
+                    <div class="preview-content" id="preview-content">
+                        <!-- Preview will be rendered here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal" id="new-note-modal">
+        <div class="modal-content">
+            <div class="modal-header">Create New Note</div>
+            <div class="modal-body">
+                <input type="text" class="input-field" id="new-note-title" placeholder="Note title...">
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="cancel-new-note">Cancel</button>
+                <button class="btn btn-primary" id="create-new-note">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize CodeMirror
+        const editor = CodeMirror.fromTextArea(document.getElementById('markdown-editor'), {
+            mode: 'markdown',
+            theme: 'monokai',
+            lineNumbers: true,
+            lineWrapping: true,
+            autofocus: true
+        });
+
+        // App state
+        let notes = [];
+        let currentNoteId = null;
+        let isResizing = false;
+
+        // DOM elements
+        const fileList = document.getElementById('file-list');
+        const previewContent = document.getElementById('preview-content');
+        const editorTitle = document.getElementById('editor-title');
+        const newNoteModal = document.getElementById('new-note-modal');
+        const newNoteTitle = document.getElementById('new-note-title');
+        const searchInput = document.getElementById('search-input');
+        const resizeHandle = document.getElementById('resize-handle');
+
+        // Initialize app
+        function init() {
+            loadNotesFromStorage();
+            renderFileList();
+            
+            // If there are notes, open the first one
+            if (notes.length > 0) {
+                openNote(notes[0].id);
+            } else {
+                // Create a default note if none exist
+                createNote('Welcome', '# Welcome to Obsidian Clone\n\nThis is a lightweight clone of Obsidian with live preview.\n\n## Features\n\n- Markdown editing with syntax highlighting\n- Live preview\n- Dark theme\n- Note management\n\nStart by creating a new note or editing this one!');
+            }
+            
+            // Set up event listeners
+            setupEventListeners();
+        }
+
+        // Load notes from localStorage
+        function loadNotesFromStorage() {
+            const storedNotes = localStorage.getItem('obsidian-clone-notes');
+            if (storedNotes) {
+                notes = JSON.parse(storedNotes);
+            }
+        }
+
+        // Save notes to localStorage
+        function saveNotesToStorage() {
+            localStorage.setItem('obsidian-clone-notes', JSON.stringify(notes));
+        }
+
+        // Render the file list
+        function renderFileList(filteredNotes = null) {
+            fileList.innerHTML = '';
+            const notesToRender = filteredNotes || notes;
+            
+            notesToRender.forEach(note => {
+                const fileItem = document.createElement('div');
+                fileItem.className = `file-item ${note.id === currentNoteId ? 'active' : ''}`;
+                fileItem.innerHTML = `
+                    <i class="fas fa-file-alt file-icon"></i>
+                    <span>${note.title}.md</span>
+                `;
+                fileItem.addEventListener('click', () => openNote(note.id));
+                fileList.appendChild(fileItem);
+            });
+        }
+
+        // Create a new note
+        function createNote(title, content = '') {
+            const newNote = {
+                id: Date.now().toString(),
+                title: title,
+                content: content,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            
+            notes.unshift(newNote);
+            saveNotesToStorage();
+            renderFileList();
+            openNote(newNote.id);
+        }
+
+        // Open a note
+        function openNote(noteId) {
+            const note = notes.find(n => n.id === noteId);
+            if (!note) return;
+            
+            currentNoteId = noteId;
+            editor.setValue(note.content);
+            editorTitle.textContent = `${note.title}.md`;
+            renderPreview();
+            renderFileList();
+        }
+
+        // Save the current note
+        function saveCurrentNote() {
+            if (!currentNoteId) return;
+            
+            const noteIndex = notes.findIndex(n => n.id === currentNoteId);
+            if (noteIndex === -1) return;
+            
+            notes[noteIndex].content = editor.getValue();
+            notes[noteIndex].updatedAt = new Date().toISOString();
+            saveNotesToStorage();
+            
+            // Show a save indicator
+            const saveBtn = document.getElementById('save-note-btn');
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<i class="fas fa-check"></i> Saved';
+            saveBtn.style.backgroundColor = '#4a8a4a';
+            
+            setTimeout(() => {
+                saveBtn.innerHTML = originalText;
+                saveBtn.style.backgroundColor = '';
+            }, 1500);
+        }
+
+        // Render the preview
+        function renderPreview() {
+            const markdown = editor.getValue();
+            const html = marked.parse(markdown);
+            previewContent.innerHTML = html;
+        }
+
+        // Search notes
+        function searchNotes(query) {
+            if (!query) {
+                renderFileList();
+                return;
+            }
+            
+            const filteredNotes = notes.filter(note => 
+                note.title.toLowerCase().includes(query.toLowerCase()) ||
+                note.content.toLowerCase().includes(query.toLowerCase())
+            );
+            
+            renderFileList(filteredNotes);
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Editor change event
+            editor.on('change', renderPreview);
+            
+            // New note button
+            document.getElementById('new-note-btn').addEventListener('click', () => {
+                newNoteModal.style.display = 'flex';
+                newNoteTitle.focus();
+            });
+            
+            // Save note button
+            document.getElementById('save-note-btn').addEventListener('click', saveCurrentNote);
+            
+            // Modal events
+            document.getElementById('cancel-new-note').addEventListener('click', () => {
+                newNoteModal.style.display = 'none';
+                newNoteTitle.value = '';
+            });
+            
+            document.getElementById('create-new-note').addEventListener('click', () => {
+                const title = newNoteTitle.value.trim() || 'Untitled';
+                createNote(title);
+                newNoteModal.style.display = 'none';
+                newNoteTitle.value = '';
+            });
+            
+            // Enter key in modal
+            newNoteTitle.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('create-new-note').click();
+                }
+            });
+            
+            // Search input
+            searchInput.addEventListener('input', (e) => {
+                searchNotes(e.target.value);
+            });
+            
+            // Toolbar buttons
+            document.getElementById('bold-btn').addEventListener('click', () => {
+                editor.replaceSelection('**bold text**');
+            });
+            
+            document.getElementById('italic-btn').addEventListener('click', () => {
+                editor.replaceSelection('*italic text*');
+            });
+            
+            document.getElementById('heading-btn').addEventListener('click', () => {
+                editor.replaceSelection('\n## Heading\n');
+            });
+            
+            document.getElementById('link-btn').addEventListener('click', () => {
+                editor.replaceSelection('[link text](https://example.com)');
+            });
+            
+            document.getElementById('code-btn').addEventListener('click', () => {
+                editor.replaceSelection('`code`');
+            });
+            
+            document.getElementById('list-btn').addEventListener('click', () => {
+                editor.replaceSelection('\n- List item\n');
+            });
+            
+            // Auto-save on editor blur
+            editor.on('blur', saveCurrentNote);
+            
+            // Resize handle
+            resizeHandle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                document.body.style.cursor = 'ew-resize';
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                
+                const editorContainer = document.querySelector('.editor-container');
+                const editorPane = document.querySelector('.editor-pane');
+                const previewPane = document.querySelector('.preview-pane');
+                
+                const containerRect = editorContainer.getBoundingClientRect();
+                const percentage = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+                
+                if (percentage > 20 && percentage < 80) {
+                    editorPane.style.flex = `0 0 ${percentage}%`;
+                    previewPane.style.flex = `0 0 ${100 - percentage}%`;
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isResizing = false;
+                document.body.style.cursor = '';
+            });
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                // Ctrl/Cmd + S to save
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    saveCurrentNote();
+                }
+                
+                // Ctrl/Cmd + N to create new note
+                if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+                    e.preventDefault();
+                    document.getElementById('new-note-btn').click();
+                }
+            });
+        }
+
+        // Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
