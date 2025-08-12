@@ -32,16 +32,19 @@
     </header>
 
     <!-- Main Content Area -->
-    <main class="flex-grow flex flex-col md:flex-row gap-4 p-4 overflow-hidden">
+    <main id="split-container" class="flex-grow flex flex-col md:flex-row gap-0 p-4 overflow-hidden">
 
         <!-- Input Panel -->
-        <div class="flex-1 flex flex-col h-full md:h-auto">
+    <div id="left-pane" class="flex-1 flex flex-col min-w-0 min-h-0">
             <h2 class="text-lg font-semibold mb-2 text-gray-300">HTML Input</h2>
             <textarea id="html-input" class="w-full flex-grow bg-gray-800 border border-gray-700 rounded-lg p-3 text-gray-200 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="<!-- Paste your HTML here -->"></textarea>
         </div>
 
+        <!-- Draggable Divider -->
+        <div id="divider" role="separator" aria-orientation="horizontal" class="bg-gray-700 hover:bg-gray-600 w-full h-1 md:w-1 md:h-auto md:cursor-col-resize cursor-row-resize select-none" title="Drag to resize"></div>
+
         <!-- Output Panel -->
-        <div class="flex-1 flex flex-col h-full md:h-auto">
+    <div id="right-pane" class="flex-1 flex flex-col min-w-0 min-h-0">
             <h2 class="text-lg font-semibold mb-2 text-gray-300">Live Preview</h2>
             <!-- I've changed the background from bg-white to bg-gray-800 to avoid the white flash -->
             <iframe id="render-output" class="w-full flex-grow bg-gray-800 border border-gray-700 rounded-lg" title="Live Render Output"></iframe>
@@ -53,6 +56,10 @@
         // Get references to the textarea and iframe elements
         const htmlInput = document.getElementById('html-input');
         const renderOutput = document.getElementById('render-output');
+    const splitContainer = document.getElementById('split-container');
+    const leftPane = document.getElementById('left-pane');
+    const rightPane = document.getElementById('right-pane');
+    const divider = document.getElementById('divider');
 
         /**
          * Updates the content of the iframe with the code from the textarea.
@@ -91,6 +98,102 @@
 
         // Initial render on page load to show the placeholder
         updatePreview();
+
+        // --- Resizable Split Logic ---
+        // State: split ratio between 0 and 1 (space allocated to left/top pane)
+        let splitRatio = 0.5; // default 50/50
+        let dragging = false;
+
+        const mdQuery = window.matchMedia('(min-width: 768px)');
+
+        function isRowLayout() {
+            return mdQuery.matches; // md and up => horizontal split (row)
+        }
+
+        function applySplit() {
+            const rect = splitContainer.getBoundingClientRect();
+            const isRow = isRowLayout();
+            if (isRow) {
+                const dividerW = divider.getBoundingClientRect().width || 4; // fallback
+                const available = Math.max(rect.width - dividerW, 0);
+                const leftW = Math.round(available * splitRatio);
+                leftPane.style.flex = `0 0 ${leftW}px`;
+                rightPane.style.flex = '1 1 auto';
+                divider.setAttribute('aria-orientation', 'vertical');
+                divider.style.cursor = 'col-resize';
+            } else {
+                const dividerH = divider.getBoundingClientRect().height || 4; // fallback
+                const available = Math.max(rect.height - dividerH, 0);
+                const topH = Math.round(available * splitRatio);
+                leftPane.style.flex = `0 0 ${topH}px`;
+                rightPane.style.flex = '1 1 auto';
+                divider.setAttribute('aria-orientation', 'horizontal');
+                divider.style.cursor = 'row-resize';
+            }
+        }
+
+        function clamp(val, min, max) {
+            return Math.min(Math.max(val, min), max);
+        }
+
+        function onPointerMove(e) {
+            if (!dragging) return;
+            const rect = splitContainer.getBoundingClientRect();
+            if (isRowLayout()) {
+                const dividerW = divider.getBoundingClientRect().width || 4;
+                const minPx = 150; // minimum pane size
+                const pos = e.clientX - rect.left;
+                const maxPos = rect.width - minPx - dividerW;
+                const clamped = clamp(pos, minPx, maxPos);
+                splitRatio = (rect.width - dividerW) > 0 ? clamped / (rect.width - dividerW) : 0.5;
+            } else {
+                const dividerH = divider.getBoundingClientRect().height || 4;
+                const minPx = 150;
+                const pos = e.clientY - rect.top;
+                const maxPos = rect.height - minPx - dividerH;
+                const clamped = clamp(pos, minPx, maxPos);
+                splitRatio = (rect.height - dividerH) > 0 ? clamped / (rect.height - dividerH) : 0.5;
+            }
+            applySplit();
+            e.preventDefault();
+        }
+
+        function onPointerUp() {
+            if (!dragging) return;
+            dragging = false;
+            divider.releasePointerCapture?.(pointerId);
+            document.body.style.userSelect = '';
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+        }
+
+        let pointerId = null;
+        divider.addEventListener('pointerdown', (e) => {
+            dragging = true;
+            pointerId = e.pointerId;
+            divider.setPointerCapture?.(pointerId);
+            document.body.style.userSelect = 'none';
+            window.addEventListener('pointermove', onPointerMove);
+            window.addEventListener('pointerup', onPointerUp);
+        });
+
+        // Double-click (or double-tap) to reset to 50/50
+        divider.addEventListener('dblclick', () => {
+            splitRatio = 0.5;
+            applySplit();
+        });
+
+        // Re-apply on resize and on breakpoint changes
+        window.addEventListener('resize', () => applySplit());
+        if (mdQuery.addEventListener) {
+            mdQuery.addEventListener('change', () => applySplit());
+        } else if (mdQuery.addListener) {
+            // Fallback for older browsers
+            mdQuery.addListener(() => applySplit());
+        }
+
+        // Initial layout sizing
+        applySplit();
     </script>
 
 </body>
