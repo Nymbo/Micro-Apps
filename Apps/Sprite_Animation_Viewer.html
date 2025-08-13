@@ -1,759 +1,1221 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sprite Animation Viewer</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: Arial, sans-serif;
-        }
-        
-        body {
-            background-color: #121212;
-            color: #e0e0e0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-        }
-        
-        .container {
-            width: 100%;
-            max-width: 900px;
-            background-color: #1e1e1e;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-        }
-        
-        h1 {
-            text-align: center;
-            margin-bottom: 20px;
-            color: #3498db;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        
-        .settings {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #3498db;
-        }
-        
-        input[type="number"], input[type="file"], input[type="range"] {
-            width: 100%;
-            padding: 8px;
-            border-radius: 5px;
-            border: 1px solid #333;
-            background-color: #2a2a2a;
-            color: #e0e0e0;
-        }
-        
-        button {
-            background-color: #3498db;
-            color: #121212;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-            margin-right: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-        
-        button:hover {
-            background-color: #2980b9;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-        }
-        
-        .controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 15px 0;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .canvas-container {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            margin-top: 20px;
-            border: 2px solid #3498db;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 0 20px rgba(52, 152, 219, 0.2);
-            padding: 10px;
-            background-color: #0a0a0a;
-        }
-        
-        canvas {
-            background-color: #0a0a0a;
-            max-width: 100%;
-            height: auto;
-            image-rendering: pixelated;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprite Animation Viewer — Remastered</title>
+  <style>
+    /* =========================
+       THEME & RESET
+       - We define CSS variables so the look can be tweaked in one place
+       - We also apply a clean, modern dark theme with glassy cards
+       ========================= */
+    :root {
+      --bg: #0b0d10;              /* App background */
+      --panel: #12151a;           /* Card / panel background */
+      --panel-2: #0f1216;         /* Slightly darker card for contrast */
+      --muted: #9aa4b2;           /* Secondary text color */
+      --text: #e7eef7;            /* Primary text */
+      --accent: #4db5ff;          /* Brand accent */
+      --accent-2: #6ee7ff;        /* Hover accent */
+      --good: #6ee7a0;            /* Good / success */
+      --bad: #ff6e6e;             /* Error / danger */
+      --warning: #ffd26e;         /* Warning */
+      --border: rgba(255,255,255,0.08); /* Subtle borders */
+      --shadow: 0 10px 30px rgba(0,0,0,0.4);
+      --radius-xl: 18px;
+      --radius-lg: 14px;
+      --radius-md: 10px;
+      --radius-sm: 8px;
+    }
 
-        .sprite-info {
-            margin-top: 15px;
-            padding: 10px;
-            background-color: #242424;
-            border-radius: 5px;
-            border-left: 3px solid #3498db;
-        }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 800px at 20% -10%, rgba(77,181,255,0.08), transparent 60%),
+                  radial-gradient(800px 600px at 100% 0%, rgba(110,231,255,0.05), transparent 50%),
+                  var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      line-height: 1.3;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100vh;
+    }
 
-        .fps-display {
-            margin-left: 10px;
-            font-weight: bold;
-            color: #3498db;
-        }
+    /* =========================
+       TOP BAR
+       - Sticky header with title and quick actions
+       ========================= */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+  -webkit-backdrop-filter: saturate(1.4) blur(8px);
+  backdrop-filter: saturate(1.4) blur(8px);
+      background: linear-gradient(to bottom, rgba(11,13,16,0.85), rgba(11,13,16,0.55));
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px clamp(16px, 4vw, 32px);
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .title {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 800; letter-spacing: 0.2px; font-size: clamp(16px, 2.2vw, 22px);
+    }
+    .title .dot {
+      width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 10px rgba(77,181,255,0.8);
+    }
+    .top-actions { display: flex; gap: 8px; align-items: center; }
 
-        .preview-container {
-            margin-top: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-        }
-        
-        .frame-preview {
-            border: 2px solid #333;
-            border-radius: 5px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: transform 0.2s, border-color 0.2s;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-        }
-        
-        .frame-preview:hover {
-            transform: scale(1.05);
-        }
-        
-        .frame-preview.active {
-            border-color: #3498db;
-            box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
-        }
-        
-        .full-sprite-preview-container {
-            margin-top: 15px;
-            padding: 15px;
-            background-color: #242424;
-            border-radius: 5px;
-            border-left: 3px solid #3498db;
-        }
-        
-        .full-sprite-preview-container h3 {
-            margin-top: 0;
-            margin-bottom: 10px;
-            color: #3498db;
-            font-size: 16px;
-        }
-        
-        .preview-area {
-            width: 100%;
-            overflow-x: auto;
-            overflow-y: auto;
-            background-color: #1a1a1a;
-            border-radius: 4px;
-            padding: 10px;
-            max-height: 200px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .preview-area img {
-            max-width: 100%;
-            max-height: 180px;
-            object-fit: contain;
-            image-rendering: pixelated;
-        }
-        
-        .no-sprite-message {
-            color: #666;
-            text-align: center;
-            font-style: italic;
-        }
-        
-        select.row-select {
-            width: 100%;
-            padding: 8px;
-            border-radius: 5px;
-            border: 1px solid #333;
-            background-color: #2a2a2a;
-            color: #e0e0e0;
-            cursor: pointer;
-        }
-        
-        select.row-select:focus {
-            border-color: #3498db;
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.3);
-        }
-        
-        input[type="range"].slider {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 100%;
-            height: 6px;
-            border-radius: 3px;
-            background: #1a1a1a;
-            outline: none;
-            margin-top: 8px;
-        }
-        
-        input[type="range"].slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #3498db;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        input[type="range"].slider::-webkit-slider-thumb:hover {
-            background: #2980b9;
-            transform: scale(1.1);
-        }
-        
-        input[type="range"].slider::-moz-range-thumb {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #3498db;
-            cursor: pointer;
-            border: none;
-            transition: all 0.2s;
-        }
-        
-        input[type="range"].slider::-moz-range-thumb:hover {
-            background: #2980b9;
-            transform: scale(1.1);
-        }
-        
-        .speed-control {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .speed-control input[type="range"] {
-            flex: 1;
-        }
-    </style>
+    /* Buttons */
+    .btn {
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.06));
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: rgba(255,255,255,0.16); }
+    .btn:active { transform: translateY(0); }
+
+    .btn.primary {
+      background: linear-gradient(135deg, rgba(77,181,255,0.18), rgba(110,231,255,0.06));
+      border-color: rgba(77,181,255,0.35);
+      box-shadow: inset 0 0 0 1px rgba(77,181,255,0.15);
+    }
+    .btn.primary:hover { box-shadow: inset 0 0 0 1px rgba(77,181,255,0.25), 0 6px 22px rgba(77,181,255,0.15); }
+
+    .btn.ghost { background: transparent; }
+
+    /* =========================
+       LAYOUT GRID
+       - Sidebar for controls, main area for canvas and previews
+       ========================= */
+    .app {
+      max-width: 1200px;
+      padding: 20px clamp(16px, 4vw, 32px) 32px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 360px 1fr;
+    }
+    @media (max-width: 1000px) {
+      .app { grid-template-columns: 1fr; }
+    }
+
+    /* Cards */
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.15));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card .card-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 14px 16px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.04));
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+    }
+    .card .card-body { padding: 14px 16px 16px; }
+
+    /* =========================
+       DROP ZONE / FILE PICKER
+       - Click to pick or drag & drop a sprite sheet
+       ========================= */
+    .dropzone {
+      display: grid; place-items: center;
+      padding: 18px; border: 1px dashed rgba(255,255,255,0.2);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.06));
+      cursor: pointer;
+      transition: border-color 0.12s ease, background 0.2s ease;
+      text-align: center;
+      gap: 6px;
+    }
+    .dropzone:hover { border-color: rgba(77,181,255,0.6); background: linear-gradient(180deg, rgba(77,181,255,0.08), rgba(0,0,0,0.06)); }
+    .dropzone input { display: none; }
+    .hint { color: var(--muted); font-size: 12px; }
+
+    /* =========================
+       FORM CONTROLS
+       - Unified control styles with inline labels and number+range pairs
+       ========================= */
+    .control-group { display: grid; gap: 14px; }
+
+    .row { display: grid; gap: 10px; grid-template-columns: 1fr; }
+    .row.two { grid-template-columns: 1fr 1fr; }
+
+    .field { display: grid; gap: 6px; }
+    .label {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .label strong { color: var(--text); font-size: 12px; letter-spacing: 0.04em; }
+
+    input[type="number"], select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.18));
+      color: var(--text);
+      outline: none;
+    }
+    input[type="number"]:focus, select:focus {
+      border-color: rgba(77,181,255,0.5);
+      box-shadow: 0 0 0 3px rgba(77,181,255,0.15);
+    }
+
+    .range-line {
+      display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+    }
+    input[type="range"] {
+      width: 100%; height: 6px; border-radius: 4px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      outline: none; -webkit-appearance: none; appearance: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none;
+      box-shadow: 0 0 0 3px rgba(77,181,255,0.18);
+      transition: transform 0.12s ease;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.05); }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px; height: 16px; border-radius: 50%; border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 0 3px rgba(77,181,255,0.18);
+      cursor: pointer;
+    }
+
+    .toggle {
+      display: inline-flex; align-items: center; gap: 10px; cursor: pointer; -webkit-user-select: none; -ms-user-select: none; user-select: none;
+      padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.16));
+    }
+    .toggle input { accent-color: var(--accent); width: 18px; height: 18px; }
+
+    /* =========================
+       CANVAS STAGE
+       - Checkerboard background shows transparency
+       - Canvas stays crisp for pixel art
+       ========================= */
+    .stage.card .card-body { padding: 0; }
+
+    .stage-inner {
+      display: grid; place-items: center;
+      padding: 16px; min-height: 360px;
+      background:
+        linear-gradient(45deg, rgba(255,255,255,0.03) 25%, transparent 25%) -8px 0/16px 16px,
+        linear-gradient(-45deg, rgba(255,255,255,0.03) 25%, transparent 25%) -8px 0/16px 16px,
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.03) 75%) -8px 0/16px 16px,
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.03) 75%) -8px 0/16px 16px,
+        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.02));
+      border-bottom: 1px solid var(--border);
+    }
+
+  canvas { image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; display: block; }
+
+    .stage-footer {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 10px 12px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));
+    }
+
+    .stage-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    /* =========================
+       THUMBNAIL STRIP
+       - Scrollable row of frames to jump directly
+       ========================= */
+    .thumbs.card .card-body { padding: 10px 10px 14px; }
+    .thumbs-row {
+      display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 8px;
+      overflow-x: auto; padding-bottom: 6px;
+    }
+    .thumb {
+      width: 64px; height: 64px; border-radius: var(--radius-sm); overflow: hidden; position: relative;
+      border: 1px solid var(--border); cursor: pointer; background: #0b0f14;
+      transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+    .thumb:hover { transform: translateY(-1px); border-color: rgba(77,181,255,0.5); }
+    .thumb.active { border-color: rgba(77,181,255,0.9); box-shadow: 0 0 0 3px rgba(77,181,255,0.18); }
+  .thumb canvas { width: 100%; height: 100%; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; display: block; }
+    .thumb-index {
+      position: absolute; bottom: 4px; right: 6px; font-size: 11px; color: #dff2ff; opacity: 0.9;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+    }
+
+    /* =========================
+       INFO PANEL
+       ========================= */
+    .info-row { display: grid; gap: 8px; grid-template-columns: repeat(2, 1fr); }
+    .pill {
+      display: inline-flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.1)); border: 1px solid var(--border);
+      font-size: 12px; color: var(--muted);
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    /* Small helper text */
+    .subtle { color: var(--muted); font-size: 12px; }
+
+    /* Utilities (migrated from inline styles) */
+    .mt-12 { margin-top: 12px; }
+    .pt-12 { padding-top: 12px; }
+    .border-top { border-top: 1px solid var(--border); }
+    .grid-center { display: grid; place-items: center; }
+
+    /* Image preview styles (moved from inline) */
+    #sheetPreview {
+      max-width: 100%;
+      max-height: 220px;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: pixelated;
+      display: none;
+      border-radius: var(--radius-sm);
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Sprite Animation Viewer</h1>
-        
-        <div class="settings">
-            <div class="form-group">
-                <label for="spriteFile">Upload Sprite Sheet:</label>
-                <input type="file" id="spriteFile" accept="image/png,image/jpeg">
-            </div>
-            
-            <div class="form-group">
-                <label for="tileWidth" id="tileWidthLabel">Tile Width (px):</label>
-                <input type="number" id="tileWidth" value="64" min="1" max="512">
-                <input type="range" id="tileWidthSlider" min="1" max="512" value="64" class="slider" aria-labelledby="tileWidthLabel">
-            </div>
-            
-            <div class="form-group">
-                <label for="tileHeight" id="tileHeightLabel">Tile Height (px):</label>
-                <input type="number" id="tileHeight" value="64" min="1" max="512">
-                <input type="range" id="tileHeightSlider" min="1" max="512" value="64" class="slider" aria-labelledby="tileHeightLabel">
-            </div>
-            
-            <div class="form-group">
-                <label for="frameCount" id="frameCountLabel">Frame Count:</label>
-                <input type="number" id="frameCount" value="10" min="1" max="50">
-                <input type="range" id="frameCountSlider" min="1" max="50" value="10" class="slider" aria-labelledby="frameCountLabel">
-            </div>
-            
-            <div class="form-group">
-                <label for="rowSelect">Color Variant:</label>
-                <select id="rowSelect" class="row-select">
-                    <option value="0">Row 1</option>
-                    <option value="1">Row 2</option>
-                    <option value="2">Row 3</option>
-                    <option value="3">Row 4</option>
-                    <option value="4">Row 5</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label for="directionSelect">Animation Direction:</label>
-                <select id="directionSelect" class="row-select">
-                    <option value="ltr">Left to Right</option>
-                    <option value="rtl">Right to Left</option>
-                    <option value="ttb">Top to Bottom</option>
-                    <option value="btt">Bottom to Top</option>
-                    <option value="alternate">Alternate (Ping-Pong)</option>
-                    <option value="random">Random</option>
-                </select>
-            </div>
-        </div>
-        
-        <div class="sprite-info" id="spriteInfo">
-            No sprite loaded yet.
-        </div>
-        
-        <div class="full-sprite-preview-container">
-            <h3>Full Sprite Sheet Preview</h3>
-            <div class="preview-area" id="fullSpritePreview">
-                <p class="no-sprite-message">Upload a sprite sheet to see preview</p>
-            </div>
-        </div>
-        
-        <div class="controls">
-            <button id="playPauseBtn" aria-label="Play animation">Play</button>
-            <button id="resetBtn" aria-label="Reset animation">Reset</button>
-            <div class="speed-control">
-                <label for="fpsRange" id="fpsLabel">Speed: </label>
-                <input type="range" id="fpsRange" min="1" max="60" value="10" aria-labelledby="fpsLabel">
-                <span class="fps-display" id="fpsDisplay" aria-live="polite">10 FPS</span>
-            </div>
-        </div>
-        
-        <div class="canvas-container">
-            <canvas id="animationCanvas" aria-label="Sprite animation display"></canvas>
-        </div>
-        
-        <div class="preview-container" id="framePreviewContainer" role="list" aria-label="Animation frames preview"></div>
+  <!-- =========================
+       HEADER
+       - Title and quick actions (Reset, Help)
+       ========================= -->
+  <header>
+    <div class="topbar">
+      <div class="title" aria-label="App title">
+        <span class="dot" aria-hidden="true"></span>
+        <span>Sprite Animation Viewer — Remastered</span>
+      </div>
+      <div class="top-actions">
+        <button id="resetBtn" class="btn ghost" title="Reset all settings">Reset</button>
+        <button id="helpBtn" class="btn ghost" title="Shortcuts & tips">Help</button>
+      </div>
     </div>
+  </header>
 
-    <script>
-        // Get all the DOM elements we'll need
-        const spriteFileInput = document.getElementById('spriteFile');
-        const tileWidthInput = document.getElementById('tileWidth');
-        const tileHeightInput = document.getElementById('tileHeight');
-        const frameCountInput = document.getElementById('frameCount');
-        const tileWidthSlider = document.getElementById('tileWidthSlider');
-        const tileHeightSlider = document.getElementById('tileHeightSlider');
-        const frameCountSlider = document.getElementById('frameCountSlider');
-        const rowSelectInput = document.getElementById('rowSelect');
-        const directionSelectInput = document.getElementById('directionSelect');
-        const playPauseBtn = document.getElementById('playPauseBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const fpsRange = document.getElementById('fpsRange');
-        const fpsDisplay = document.getElementById('fpsDisplay');
-        const canvas = document.getElementById('animationCanvas');
-        const ctx = canvas.getContext('2d');
-        const spriteInfo = document.getElementById('spriteInfo');
-        const framePreviewContainer = document.getElementById('framePreviewContainer');
-        const fullSpritePreview = document.getElementById('fullSpritePreview');
+  <!-- =========================
+       MAIN APP LAYOUT
+       - Left: Controls
+       - Right: Stage + Thumbnails + Info
+       ========================= -->
+  <main class="app" role="main">
+    <!-- SIDEBAR: CONTROLS -->
+    <aside class="card" aria-label="Controls sidebar">
+      <div class="card-header">Sprite Controls</div>
+      <div class="card-body control-group">
+        <!-- SPRITE INPUT -->
+        <label class="dropzone" id="dropzone" for="spriteFile" title="Click or drop a sprite sheet here">
+          <div><strong>Drop or Click to Upload Sprite Sheet</strong></div>
+          <div class="hint">PNG / JPG • No external assets downloaded</div>
+          <input type="file" id="spriteFile" accept="image/png,image/jpeg" />
+        </label>
 
-        // Animation state
-        let spriteImage = null;
-        let currentFrame = 0;
-        let isPlaying = false;
-        let animationInterval = null;
-        let fps = 10;
-        let currentRow = 0; // Track which row/color variant is selected
-        let direction = 'ltr'; // Animation direction
-        let isReversing = false; // For alternating animation
+        <!-- FRAME GEOMETRY -->
+        <div class="row two">
+          <div class="field">
+            <div class="label"><strong id="labelTileWidth">Tile Width</strong><span id="wOut" class="mono">64</span></div>
+            <div class="range-line">
+              <input id="tileWidth" type="range" min="1" max="512" value="64" aria-labelledby="labelTileWidth" />
+              <input id="tileWidthNum" type="number" min="1" max="1024" value="64" aria-labelledby="labelTileWidth" />
+            </div>
+          </div>
+          <div class="field">
+            <div class="label"><strong id="labelTileHeight">Tile Height</strong><span id="hOut" class="mono">64</span></div>
+            <div class="range-line">
+              <input id="tileHeight" type="range" min="1" max="512" value="64" aria-labelledby="labelTileHeight" />
+              <input id="tileHeightNum" type="number" min="1" max="1024" value="64" aria-labelledby="labelTileHeight" />
+            </div>
+          </div>
+        </div>
 
-        // Initialize with default sizes
-        canvas.width = 128;
-        canvas.height = 128;
+        <div class="row two">
+          <div class="field">
+            <div class="label"><strong id="labelRow">Row (Variant)</strong><span class="mono" id="rowOut">1</span></div>
+            <select id="rowSelect" aria-labelledby="labelRow"></select>
+          </div>
+          <div class="field">
+            <div class="label"><strong id="labelFramesUsed">Frames Used</strong><span class="mono" id="framesUsedOut">10</span></div>
+            <div class="range-line">
+              <input id="framesUsed" type="range" min="1" max="50" value="10" aria-labelledby="labelFramesUsed" />
+              <input id="framesUsedNum" type="number" min="1" max="500" value="10" aria-labelledby="labelFramesUsed" />
+            </div>
+          </div>
+        </div>
 
-        // Handle file upload
-        spriteFileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                // Create image from uploaded file
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    spriteImage = new Image();
-                    spriteImage.onload = () => {
-                        updateSpriteInfo();
-                        updateFullSpritePreview();
-                        reset();
-                        createFramePreviews();
-                    };
-                    spriteImage.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
+        <div class="row two">
+          <div class="field">
+            <div class="label"><strong id="labelStartFrame">Start Frame</strong><span class="mono" id="startOut">1</span></div>
+            <div class="range-line">
+              <input id="startFrame" type="range" min="1" max="1" value="1" aria-labelledby="labelStartFrame" />
+              <input id="startFrameNum" type="number" min="1" max="1" value="1" aria-labelledby="labelStartFrame" />
+            </div>
+          </div>
+          <div class="field">
+            <div class="label"><strong id="labelEndFrame">End Frame</strong><span class="mono" id="endOut">1</span></div>
+            <div class="range-line">
+              <input id="endFrame" type="range" min="1" max="1" value="1" aria-labelledby="labelEndFrame" />
+              <input id="endFrameNum" type="number" min="1" max="1" value="1" aria-labelledby="labelEndFrame" />
+            </div>
+          </div>
+        </div>
+
+        <!-- PLAYBACK -->
+        <div class="row two">
+          <div class="field">
+            <div class="label"><strong id="labelFPS">FPS</strong><span class="mono" id="fpsOut">10</span></div>
+            <div class="range-line">
+              <input id="fps" type="range" min="1" max="60" value="10" aria-labelledby="labelFPS" />
+              <input id="fpsNum" type="number" min="1" max="240" value="10" aria-labelledby="labelFPS" />
+            </div>
+          </div>
+          <div class="field">
+            <div class="label"><strong id="labelScale">Scale</strong><span class="mono" id="scaleOut">2x</span></div>
+            <div class="range-line">
+              <input id="scale" type="range" min="1" max="10" value="2" aria-labelledby="labelScale" />
+              <input id="scaleNum" type="number" min="1" max="20" value="2" aria-labelledby="labelScale" />
+            </div>
+          </div>
+        </div>
+
+        <div class="row two">
+          <div class="field">
+            <div class="label"><strong id="labelDirection">Direction</strong><span class="mono" id="dirOut">Left → Right</span></div>
+            <select id="direction" aria-labelledby="labelDirection">
+              <option value="ltr">Left → Right</option>
+              <option value="rtl">Right → Left</option>
+              <option value="ttb">Top → Bottom</option>
+              <option value="btt">Bottom → Top</option>
+              <option value="alternate">Ping‑Pong</option>
+              <option value="random">Random</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="label"><strong id="labelBg">Background</strong><span class="mono" id="bgOut">Checker</span></div>
+            <select id="bgStyle" aria-labelledby="labelBg">
+              <option value="checker">Checker</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <label class="toggle"><input type="checkbox" id="showGrid" checked /> Show Grid Overlay</label>
+          <label class="toggle"><input type="checkbox" id="showCenter" /> Show Center Crosshair</label>
+          <label class="toggle"><input type="checkbox" id="loop" checked /> Loop</label>
+          <label class="toggle"><input type="checkbox" id="mirrorX" /> Mirror Horizontally</label>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN: STAGE + THUMBNAILS + INFO -->
+    <section aria-label="Preview and meta">
+      <!-- STAGE: Canvas + transport controls -->
+      <div class="card stage" aria-live="polite">
+        <div class="card-header">Preview</div>
+        <div class="stage-inner" id="stageBg">
+          <!-- The canvas is where we actually draw the sprite frame -->
+          <canvas id="canvas" width="128" height="128" aria-label="Sprite canvas"></canvas>
+        </div>
+        <div class="stage-footer">
+          <div class="stage-tools">
+            <button id="playPause" class="btn primary" title="Space">Play</button>
+            <button id="stepBack" class="btn" title="←">Step Back</button>
+            <button id="stepFwd" class="btn" title="→">Step Forward</button>
+            <span class="subtle">Current Frame: <span id="frameReadout" class="mono">1</span></span>
+          </div>
+          <div class="stage-tools">
+            <button id="exportFrame" class="btn" title="Export current frame as PNG">Export Frame</button>
+            <button id="exportStrip" class="btn" title="Export used frames as PNG strip">Export Strip</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- THUMB STRIP: Click a frame to jump -->
+      <div class="card thumbs">
+        <div class="card-header">Frames</div>
+        <div class="card-body">
+          <div id="thumbs" class="thumbs-row" role="list" aria-label="Frame thumbnails"></div>
+        </div>
+      </div>
+
+      <!-- INFO: Sprite sheet meta and a small full preview -->
+      <div class="card">
+        <div class="card-header">Sprite Sheet Info</div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="pill">Sheet <span id="sheetSize" class="mono">–</span></span>
+            <span class="pill">Tile <span id="tileSize" class="mono">–</span></span>
+            <span class="pill">Frames/Row <span id="fpr" class="mono">–</span></span>
+            <span class="pill">Rows <span id="rows" class="mono">–</span></span>
+          </div>
+          <div class="subtle mt-12">Tip: Use <span class="mono">Space</span> to Play/Pause, <span class="mono">←/→</span> to step, <span class="mono">↑/↓</span> to change row.</div>
+          <div class="mt-12 border-top pt-12 grid-center">
+            <!-- Full sheet preview image -->
+            <img id="sheetPreview" alt="Full sprite sheet preview" />
+            <div id="noSheet" class="subtle">No sprite loaded yet.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // =============================================================
+    // STATE & DOM HOOKUP
+    // - We gather references to elements and declare the app state
+    // - Comments are written in plain language to explain each chunk
+    // =============================================================
+
+    // File input and drag-drop
+    const fileInput = document.getElementById('spriteFile'); // Where we pick the file
+    const dropzone = document.getElementById('dropzone');     // Big area for drag & drop
+
+    // Canvas and drawing context
+    const canvas = document.getElementById('canvas');         // The display surface
+    const ctx = canvas.getContext('2d', { willReadFrequently: true }); // 2D drawing tool
+    ctx.imageSmoothingEnabled = false;                        // Keep pixel art crisp
+
+    // Stage background where we can switch checker / dark / light
+    const stageBg = document.getElementById('stageBg');
+
+    // Transport controls (playback buttons)
+    const playPauseBtn = document.getElementById('playPause');
+    const stepBackBtn = document.getElementById('stepBack');
+    const stepFwdBtn = document.getElementById('stepFwd');
+
+    // Export buttons
+    const exportFrameBtn = document.getElementById('exportFrame');
+    const exportStripBtn = document.getElementById('exportStrip');
+
+    // Reset & Help
+    const resetBtn = document.getElementById('resetBtn');
+    const helpBtn = document.getElementById('helpBtn');
+
+    // Controls for geometry and playback
+    const tileWidthRange = document.getElementById('tileWidth');
+    const tileWidthNum = document.getElementById('tileWidthNum');
+    const tileHeightRange = document.getElementById('tileHeight');
+    const tileHeightNum = document.getElementById('tileHeightNum');
+    const framesUsedRange = document.getElementById('framesUsed');
+    const framesUsedNum = document.getElementById('framesUsedNum');
+    const startFrameRange = document.getElementById('startFrame');
+    const startFrameNum = document.getElementById('startFrameNum');
+    const endFrameRange = document.getElementById('endFrame');
+    const endFrameNum = document.getElementById('endFrameNum');
+    const rowSelect = document.getElementById('rowSelect');
+    const fpsRange = document.getElementById('fps');
+    const fpsNum = document.getElementById('fpsNum');
+    const scaleRange = document.getElementById('scale');
+    const scaleNum = document.getElementById('scaleNum');
+    const directionSel = document.getElementById('direction');
+    const bgStyleSel = document.getElementById('bgStyle');
+    const showGridChk = document.getElementById('showGrid');
+    const showCenterChk = document.getElementById('showCenter');
+    const loopChk = document.getElementById('loop');
+    const mirrorXChk = document.getElementById('mirrorX');
+
+    // Readouts (little numbers next to labels)
+    const wOut = document.getElementById('wOut');
+    const hOut = document.getElementById('hOut');
+    const rowOut = document.getElementById('rowOut');
+    const framesUsedOut = document.getElementById('framesUsedOut');
+    const startOut = document.getElementById('startOut');
+    const endOut = document.getElementById('endOut');
+    const fpsOut = document.getElementById('fpsOut');
+    const scaleOut = document.getElementById('scaleOut');
+    const dirOut = document.getElementById('dirOut');
+
+    const frameReadout = document.getElementById('frameReadout');
+
+    // Info pills
+    const sheetSizeEl = document.getElementById('sheetSize');
+    const tileSizeEl = document.getElementById('tileSize');
+    const fprEl = document.getElementById('fpr');
+    const rowsEl = document.getElementById('rows');
+
+    // Thumbnails strip
+    const thumbsEl = document.getElementById('thumbs');
+
+    // Full sheet preview
+    const sheetPreview = document.getElementById('sheetPreview');
+    const noSheet = document.getElementById('noSheet');
+
+    // App state: this is where we remember what's loaded and current settings
+    const state = {
+      image: null,          // The loaded sprite sheet (HTMLImageElement)
+      imgURL: null,         // The object URL so we can clean it up later
+      tw: 64,               // Tile width in pixels
+      th: 64,               // Tile height in pixels
+      row: 0,               // Current selected row (0-based)
+      framesUsed: 10,       // How many frames we animate through
+      startFrame: 1,        // 1-based start frame index within the used range
+      endFrame: 10,         // 1-based end frame index within the used range
+      current: 1,           // 1-based current frame within [start, end]
+      fps: 10,              // Frames per second
+      scale: 2,             // Scale multiplier for display
+      playing: false,       // Are we animating?
+      pingPongBack: false,  // Direction for ping-pong mode
+      direction: 'ltr',     // Current direction mode
+      loop: true,           // Whether to loop when reaching the end
+      showGrid: true,       // Draw cell grid on the canvas
+      showCenter: false,    // Draw a center crosshair
+      mirrorX: false,       // Flip the rendered frame horizontally
+      derived: {            // Values we compute from the image and tile size
+        framesPerRow: 0,
+        totalRows: 0,
+      },
+      raf: null,            // requestAnimationFrame handle
+      lastTime: 0,          // For timing the frame stepping
+      accum: 0              // Accumulator to track when to advance based on fps
+    };
+
+    // Convenience to clamp a value between min and max
+    const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+
+    // =============================================================
+    // FILE LOADING (CLICK OR DRAG & DROP)
+    // - We support both clicking the dropzone and dragging a file onto it
+    // - When loaded, we create an Image object and initialize the UI
+    // =============================================================
+
+    function loadFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Clean up any previous object URL
+          if (state.imgURL) URL.revokeObjectURL(state.imgURL);
+          state.image = img;
+          state.imgURL = e.target.result;
+          sheetPreview.src = state.imgURL; // Show full sheet preview image
+          sheetPreview.style.display = 'block';
+          noSheet.style.display = 'none';
+
+          // After loading, recompute derived values and refresh UI
+          deriveFromImage();
+          syncRangesToState();
+          rebuildRowSelect();
+          adjustFrameBounds();
+          buildThumbnails();
+          resizeCanvas();
+          draw();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Click to open file picker
+    dropzone.addEventListener('click', () => fileInput.click());
+    // When a file is picked via the input
+    fileInput.addEventListener('change', (e) => loadFile(e.target.files[0]));
+
+    // Drag & drop support
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = 'rgba(77,181,255,0.8)'; });
+    dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = 'rgba(255,255,255,0.2)'; });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.style.borderColor = 'rgba(255,255,255,0.2)';
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      loadFile(file);
+    });
+
+    // =============================================================
+    // DERIVED METRICS & UI WIRING
+    // - Based on the image + tile size we compute frames/row and rows
+    // - We then ensure all inputs stay within valid ranges
+    // =============================================================
+
+    function deriveFromImage() {
+      if (!state.image) return;
+      state.derived.framesPerRow = Math.max(1, Math.floor(state.image.width / state.tw));
+      state.derived.totalRows = Math.max(1, Math.floor(state.image.height / state.th));
+
+      // Update the info pills
+      sheetSizeEl.textContent = `${state.image.width}×${state.image.height}`;
+      tileSizeEl.textContent = `${state.tw}×${state.th}`;
+      fprEl.textContent = `${state.derived.framesPerRow}`;
+      rowsEl.textContent = `${state.derived.totalRows}`;
+
+      // Update row if it went out of bounds
+      state.row = clamp(state.row, 0, state.derived.totalRows - 1);
+    }
+
+    function rebuildRowSelect() {
+      // Rebuild the row dropdown to reflect the actual sprite sheet rows
+      rowSelect.innerHTML = '';
+      const rows = state.derived.totalRows || 1;
+      for (let r = 0; r < rows; r++) {
+        const opt = document.createElement('option');
+        opt.value = String(r);
+        opt.textContent = `Row ${r + 1}${r === 0 ? ' (Top)' : r === rows - 1 ? ' (Bottom)' : ''}`;
+        rowSelect.appendChild(opt);
+      }
+      rowSelect.value = String(state.row);
+      rowOut.textContent = String(state.row + 1);
+    }
+
+    function adjustFrameBounds() {
+      // Keep framesUsed within the number of frames available in this row
+      const maxFrames = state.derived.framesPerRow || 1;
+      state.framesUsed = clamp(state.framesUsed, 1, maxFrames);
+
+      // Start and End frame sliders/inputs must fit inside [1, framesUsed]
+      state.startFrame = clamp(state.startFrame, 1, state.framesUsed);
+      state.endFrame = clamp(state.endFrame, state.startFrame, state.framesUsed);
+
+      // Current frame must be inside [start, end]
+      state.current = clamp(state.current, state.startFrame, state.endFrame);
+
+      // Wire the associated inputs to the fresh ranges
+      framesUsedRange.max = String(maxFrames);
+      framesUsedNum.max = String(Math.max(500, maxFrames)); // allow manual over, but we'll clamp later
+
+      startFrameRange.max = String(state.framesUsed);
+      startFrameNum.max = String(state.framesUsed);
+      endFrameRange.max = String(state.framesUsed);
+      endFrameNum.max = String(state.framesUsed);
+
+      // Reflect values on the controls
+      framesUsedRange.value = String(state.framesUsed);
+      framesUsedNum.value = String(state.framesUsed);
+      framesUsedOut.textContent = String(state.framesUsed);
+
+      startFrameRange.value = String(state.startFrame);
+      startFrameNum.value = String(state.startFrame);
+      startOut.textContent = String(state.startFrame);
+
+      endFrameRange.value = String(state.endFrame);
+      endFrameNum.value = String(state.endFrame);
+      endOut.textContent = String(state.endFrame);
+
+      frameReadout.textContent = String(state.current);
+    }
+
+    function syncRangesToState() {
+      // Keep paired range+number inputs in sync with state
+      tileWidthRange.value = String(state.tw);
+      tileWidthNum.value = String(state.tw);
+      wOut.textContent = String(state.tw);
+
+      tileHeightRange.value = String(state.th);
+      tileHeightNum.value = String(state.th);
+      hOut.textContent = String(state.th);
+
+      fpsRange.value = String(state.fps);
+      fpsNum.value = String(state.fps);
+      fpsOut.textContent = String(state.fps);
+
+      scaleRange.value = String(state.scale);
+      scaleNum.value = String(state.scale);
+      scaleOut.textContent = `${state.scale}x`;
+
+      directionSel.value = state.direction;
+      dirOut.textContent = directionLabel(state.direction);
+
+      showGridChk.checked = state.showGrid;
+      showCenterChk.checked = state.showCenter;
+      loopChk.checked = state.loop;
+      mirrorXChk.checked = state.mirrorX;
+
+      // Background style
+      applyBackground(bgStyleSel.value);
+    }
+
+    // Convert internal direction code to a friendly label
+    function directionLabel(dir) {
+      switch (dir) {
+        case 'ltr': return 'Left → Right';
+        case 'rtl': return 'Right → Left';
+        case 'ttb': return 'Top → Bottom';
+        case 'btt': return 'Bottom → Top';
+        case 'alternate': return 'Ping‑Pong';
+        case 'random': return 'Random';
+        default: return 'Left → Right';
+      }
+    }
+
+    // =============================================================
+    // CANVAS SIZE & BACKGROUND
+    // - We set the canvas size to tile size * scale
+    // - Background style is applied to the stage wrapper
+    // =============================================================
+
+    function resizeCanvas() {
+      // The canvas drawing buffer is tile size * scale (so pixels grow larger)
+      const w = Math.max(1, state.tw * state.scale);
+      const h = Math.max(1, state.th * state.scale);
+      canvas.width = w;
+      canvas.height = h;
+      // For accessibility
+      canvas.setAttribute('aria-label', `Canvas ${w} by ${h} pixels`);
+      draw();
+    }
+
+    function applyBackground(style) {
+      // We switch the stage area between checker, dark, and light
+      if (style === 'checker') {
+        stageBg.style.background =
+          'linear-gradient(45deg, rgba(255,255,255,0.03) 25%, transparent 25%) -8px 0/16px 16px,'+
+          'linear-gradient(-45deg, rgba(255,255,255,0.03) 25%, transparent 25%) -8px 0/16px 16px,'+
+          'linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.03) 75%) -8px 0/16px 16px,'+
+          'linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.03) 75%) -8px 0/16px 16px,'+
+          'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.02))';
+      } else if (style === 'dark') {
+        stageBg.style.background = 'linear-gradient(180deg, #0b0d10, #11151a)';
+      } else {
+        stageBg.style.background = 'linear-gradient(180deg, #e9eef4, #cfd8e3)';
+      }
+      document.getElementById('bgOut').textContent = style[0].toUpperCase() + style.slice(1);
+    }
+
+    // =============================================================
+    // THUMBNAILS
+    // - We render small canvases for each frame so you can jump around quickly
+    // =============================================================
+
+    function buildThumbnails() {
+      thumbsEl.innerHTML = '';
+      if (!state.image) return;
+      const count = state.framesUsed;
+      for (let i = 1; i <= count; i++) {
+        const c = document.createElement('canvas');
+        c.width = state.tw; c.height = state.th;
+        const tctx = c.getContext('2d');
+        tctx.imageSmoothingEnabled = false;
+
+        // Compute which column to grab for this frame
+        const col = (i - 1) % state.derived.framesPerRow;
+        const sx = col * state.tw;
+        const sy = state.row * state.th;
+
+        tctx.drawImage(state.image, sx, sy, state.tw, state.th, 0, 0, state.tw, state.th);
+
+        const wrap = document.createElement('div');
+        wrap.className = 'thumb' + (i === state.current ? ' active' : '');
+        wrap.setAttribute('role', 'listitem');
+        wrap.title = `Frame ${i}`;
+        wrap.appendChild(c);
+
+        const idx = document.createElement('div');
+        idx.className = 'thumb-index';
+        idx.textContent = i;
+        wrap.appendChild(idx);
+
+        wrap.addEventListener('click', () => {
+          state.current = clamp(i, state.startFrame, state.endFrame);
+          updateActiveThumb();
+          draw();
         });
-        
-        // Update the full sprite sheet preview
-        function updateFullSpritePreview() {
-            fullSpritePreview.innerHTML = '';
-            
-            if (!spriteImage) {
-                fullSpritePreview.innerHTML = '<p class="no-sprite-message">Upload a sprite sheet to see preview</p>';
-                return;
-            }
-            
-            // Create a copy of the sprite image for the preview
-            const previewImg = document.createElement('img');
-            previewImg.src = spriteImage.src;
-            previewImg.alt = 'Full sprite sheet preview';
-            
-            // Add the image to the preview container
-            fullSpritePreview.appendChild(previewImg);
+
+        thumbsEl.appendChild(wrap);
+      }
+    }
+
+    function updateActiveThumb() {
+      const nodes = thumbsEl.querySelectorAll('.thumb');
+      nodes.forEach((n, i) => {
+        if (i + 1 === state.current) n.classList.add('active'); else n.classList.remove('active');
+      });
+      frameReadout.textContent = String(state.current);
+    }
+
+    // =============================================================
+    // DRAWING THE FRAME
+    // - We clear the canvas and draw the selected tile scaled up
+    // - Optional: grid overlay, center crosshair, and mirroring
+    // =============================================================
+
+    function draw() {
+      // Safety: if no image yet, just clear
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!state.image) return;
+
+      // Figure out which source rectangle to copy from the sheet
+      const frameIndex = clamp(state.current, state.startFrame, state.endFrame); // 1-based
+      const col = (frameIndex - 1) % state.derived.framesPerRow;
+      const sx = col * state.tw;
+      const sy = state.row * state.th;
+
+      // Draw the sprite. We turn off smoothing and scale by drawing to a bigger canvas
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+
+      // If mirroring is on, we flip the X axis and draw from right to left
+      if (state.mirrorX) {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
+
+      ctx.drawImage(
+        state.image,
+        sx, sy, state.tw, state.th,            // Source rect in the sheet
+        0, 0, canvas.width, canvas.height      // Destination on the canvas (scaled)
+      );
+
+      ctx.restore();
+
+      // Optional: overlay a cell grid for alignment
+      if (state.showGrid) {
+        ctx.save();
+        const stepX = canvas.width / state.tw;
+        const stepY = canvas.height / state.th;
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        for (let x = 0; x <= canvas.width; x += stepX) { ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); }
+        for (let y = 0; y <= canvas.height; y += stepY) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
+        ctx.strokeStyle = 'rgba(77,181,255,0.6)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Optional: draw a center crosshair
+      if (state.showCenter) {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0); ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.moveTo(0, canvas.height / 2); ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Keep the thumb highlight in sync
+      updateActiveThumb();
+    }
+
+    // =============================================================
+    // ANIMATION LOOP (requestAnimationFrame)
+    // - We use a time accumulator to step frames at the chosen FPS
+    // =============================================================
+
+    function tick(timestamp) {
+      if (!state.playing) return; // If paused, stop scheduling new frames
+      if (!state.lastTime) state.lastTime = timestamp;
+      const dt = (timestamp - state.lastTime) / 1000; // seconds since last frame
+      state.lastTime = timestamp;
+
+      // Advance accumulator and move to next frame when enough time passes
+      state.accum += dt;
+      const step = 1 / Math.max(1, state.fps);
+      while (state.accum >= step) {
+        advanceFrame();
+        state.accum -= step;
+      }
+
+      draw();
+      state.raf = requestAnimationFrame(tick);
+    }
+
+    function play() {
+      if (state.playing) return;
+      state.playing = true;
+      playPauseBtn.textContent = 'Pause';
+      state.lastTime = 0; state.accum = 0;
+      state.raf = requestAnimationFrame(tick);
+    }
+
+    function pause() {
+      state.playing = false;
+      playPauseBtn.textContent = 'Play';
+      if (state.raf) cancelAnimationFrame(state.raf);
+      state.raf = null;
+    }
+
+    function togglePlay() { state.playing ? pause() : play(); }
+
+    // =============================================================
+    // FRAME STEPPING LOGIC
+    // - Different modes decide how to change the frame pointer
+    // =============================================================
+
+    function advanceFrame() {
+      const start = state.startFrame, end = state.endFrame;
+      const count = end - start + 1;
+      if (count <= 0) return;
+
+      switch (state.direction) {
+        case 'ltr':
+          state.current++;
+          break;
+        case 'rtl':
+          state.current--;
+          break;
+        case 'ttb':
+          // Move down through rows each step, frame stays the same
+          state.row = (state.row + 1) % Math.max(1, state.derived.totalRows);
+          break;
+        case 'btt':
+          // Move up through rows each step
+          state.row = (state.row - 1 + Math.max(1, state.derived.totalRows)) % Math.max(1, state.derived.totalRows);
+          break;
+        case 'alternate':
+          if (!state.pingPongBack) {
+            state.current++;
+            if (state.current >= end) state.pingPongBack = true;
+          } else {
+            state.current--;
+            if (state.current <= start) state.pingPongBack = false;
+          }
+          break;
+        case 'random':
+          if (count === 1) break; // Nothing to randomize
+          let nf = state.current;
+          while (nf === state.current) {
+            nf = start + Math.floor(Math.random() * count);
+          }
+          state.current = nf;
+          break;
+      }
+
+      // Wrapping / looping logic for simple directions
+      if (state.direction === 'ltr' || state.direction === 'rtl') {
+        if (state.current > end) {
+          if (state.loop) state.current = start; else { state.current = end; pause(); }
         }
-
-        // Update sprite sheet information display
-        function updateSpriteInfo() {
-            if (!spriteImage) return;
-            
-            const tileWidth = parseInt(tileWidthInput.value);
-            const tileHeight = parseInt(tileHeightInput.value);
-            const frameCount = parseInt(frameCountInput.value);
-            
-            // Update canvas size to match tile size (scaled up by 2x for better visibility)
-            canvas.width = tileWidth * 2;
-            canvas.height = tileHeight * 2;
-            
-            // Calculate how many frames can fit in the image
-            const framesPerRow = Math.floor(spriteImage.width / tileWidth);
-            const totalRows = Math.floor(spriteImage.height / tileHeight);
-            const maxPossibleFrames = framesPerRow * totalRows;
-            
-            // Update the row selector to match the actual number of rows in the sprite sheet
-            rowSelectInput.innerHTML = '';
-            for (let i = 0; i < totalRows; i++) {
-                const option = document.createElement('option');
-                option.value = i;
-                option.textContent = `Row ${i+1} ${i === 0 ? '(Top)' : i === totalRows-1 ? '(Bottom)' : ''}`;
-                rowSelectInput.appendChild(option);
-            }
-            
-            spriteInfo.innerHTML = `
-                Sprite Sheet: ${spriteImage.width}x${spriteImage.height}px<br>
-                Tile Size: ${tileWidth}x${tileHeight}px<br>
-                Frames: ${frameCount} per row<br>
-                Rows/Variants: ${totalRows}<br>
-                Layout: ${framesPerRow} frames per row<br>
-                Animation: ${getDirectionDescription()}
-            `;
-            
-            // Set current row to match the select value
-            currentRow = parseInt(rowSelectInput.value);
+        if (state.current < start) {
+          if (state.loop) state.current = end; else { state.current = start; pause(); }
         }
-        
-        // Get a user-friendly description of the current animation direction
-        function getDirectionDescription() {
-            switch (directionSelectInput.value) {
-                case 'ltr': return 'Left to Right';
-                case 'rtl': return 'Right to Left';
-                case 'ttb': return 'Top to Bottom';
-                case 'btt': return 'Bottom to Top';
-                case 'alternate': return 'Alternating (Ping-Pong)';
-                case 'random': return 'Random Frame Order';
-                default: return 'Left to Right';
-            }
-        }
+      } else {
+        // For vertical travel (ttb/btt), keep current clamped
+        state.current = clamp(state.current, start, end);
+      }
 
-        // Create individual frame previews
-        function createFramePreviews() {
-            framePreviewContainer.innerHTML = '';
-            if (!spriteImage) return;
-            
-            const tileWidth = parseInt(tileWidthInput.value);
-            const tileHeight = parseInt(tileHeightInput.value);
-            const frameCount = parseInt(frameCountInput.value);
-            const row = currentRow;
-            
-            for (let i = 0; i < frameCount; i++) {
-                // Create a canvas for each frame preview
-                const previewCanvas = document.createElement('canvas');
-                previewCanvas.width = tileWidth;
-                previewCanvas.height = tileHeight;
-                previewCanvas.style.width = '64px'; // Smaller display size
-                previewCanvas.style.height = '64px';
-                previewCanvas.className = 'frame-preview';
-                previewCanvas.setAttribute('role', 'listitem');
-                previewCanvas.setAttribute('aria-label', `Frame ${i+1}`);
-                
-                if (i === currentFrame) {
-                    previewCanvas.classList.add('active');
-                    previewCanvas.setAttribute('aria-current', 'true');
-                }
-                
-                const previewCtx = previewCanvas.getContext('2d');
-                previewCtx.imageSmoothingEnabled = false;
-                
-                // Calculate position in sprite sheet
-                const framesPerRow = Math.floor(spriteImage.width / tileWidth);
-                const col = i % framesPerRow;
-                
-                // Draw the frame from the current row
-                previewCtx.drawImage(
-                    spriteImage,
-                    col * tileWidth,
-                    row * tileHeight,
-                    tileWidth,
-                    tileHeight,
-                    0,
-                    0,
-                    tileWidth,
-                    tileHeight
-                );
-                
-                // Add click handler to select frame
-                previewCanvas.addEventListener('click', () => {
-                    currentFrame = i;
-                    updateActivePreviews();
-                    drawFrame();
-                });
-                
-                framePreviewContainer.appendChild(previewCanvas);
-            }
-        }
+      // Keep the UI in sync
+      frameReadout.textContent = String(state.current);
+    }
 
-        // Update which preview is marked as active
-        function updateActivePreviews() {
-            const previews = document.querySelectorAll('.frame-preview');
-            previews.forEach((preview, index) => {
-                if (index === currentFrame) {
-                    preview.classList.add('active');
-                    preview.setAttribute('aria-current', 'true');
-                } else {
-                    preview.classList.remove('active');
-                    preview.removeAttribute('aria-current');
-                }
-            });
-        }
+    function stepForward() { advanceFrame(); draw(); }
+    function stepBack() {
+      const prevDir = state.direction;
+      // Temporarily reverse for a single step
+      if (state.direction === 'ltr') state.direction = 'rtl';
+      else if (state.direction === 'rtl') state.direction = 'ltr';
+      else if (state.direction === 'alternate') state.pingPongBack = !state.pingPongBack;
+      else if (state.direction === 'random') { /* random is symmetric; do nothing */ }
+      else if (state.direction === 'ttb') state.row = (state.row - 1 + state.derived.totalRows) % state.derived.totalRows;
+      else if (state.direction === 'btt') state.row = (state.row + 1) % state.derived.totalRows;
+      if (prevDir === 'ltr' || prevDir === 'rtl' || prevDir === 'alternate' || prevDir === 'random') {
+        advanceFrame();
+      }
+      state.direction = prevDir; // restore
+      draw();
+    }
 
-        // Draw the current frame
-        function drawFrame() {
-            if (!spriteImage) return;
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            const tileWidth = parseInt(tileWidthInput.value);
-            const tileHeight = parseInt(tileHeightInput.value);
-            const frameCount = parseInt(frameCountInput.value);
-            const row = currentRow;
-            
-            // Ensure currentFrame is within bounds
-            currentFrame = currentFrame % frameCount;
-            
-            // Calculate position in sprite sheet
-            const framesPerRow = Math.floor(spriteImage.width / tileWidth);
-            const col = currentFrame % framesPerRow;
-            
-            // Draw the frame - maintain crisp pixel art by using imageSmoothingEnabled = false
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(
-                spriteImage,
-                col * tileWidth,
-                row * tileHeight,
-                tileWidth,
-                tileHeight,
-                0,
-                0,
-                canvas.width,
-                canvas.height
-            );
-            
-            updateActivePreviews();
-            
-            // Update canvas aria-label for accessibility
-            canvas.setAttribute('aria-label', `Sprite animation display - Frame ${currentFrame + 1} of ${frameCount}, Row ${currentRow + 1}, Direction: ${getDirectionDescription()}`);
-        }
+    // =============================================================
+    // EXPORTS
+    // - Save the current frame as PNG
+    // - Save a strip containing all used frames as PNG
+    // =============================================================
 
-        // Animation loop
-        function animate() {
-            if (!isPlaying) return;
-            
-            clearInterval(animationInterval);
-            
-            animationInterval = setInterval(() => {
-                // Update the current frame based on direction
-                updateFrameBasedOnDirection();
-                drawFrame();
-            }, 1000 / fps);
-        }
-        
-        // Update the frame based on selected direction
-        function updateFrameBasedOnDirection() {
-            const frameCount = parseInt(frameCountInput.value);
-            direction = directionSelectInput.value;
-            
-            switch (direction) {
-                case 'ltr':
-                    // Left to right (increment frame horizontally)
-                    currentFrame = (currentFrame + 1) % frameCount;
-                    break;
-                    
-                case 'rtl':
-                    // Right to left (decrement frame horizontally)
-                    currentFrame = (currentFrame - 1 + frameCount) % frameCount;
-                    break;
-                
-                case 'ttb':
-                    // Top to bottom (increment row)
-                    currentFrame = currentFrame;  // Keep the same frame
-                    const totalRows = Math.floor(spriteImage.height / parseInt(tileHeightInput.value));
-                    currentRow = (currentRow + 1) % totalRows;
-                    break;
-                    
-                case 'btt':
-                    // Bottom to top (decrement row)
-                    currentFrame = currentFrame;  // Keep the same frame
-                    const rows = Math.floor(spriteImage.height / parseInt(tileHeightInput.value));
-                    currentRow = (currentRow - 1 + rows) % rows;
-                    break;
-                    
-                case 'alternate':
-                    // Ping-pong between first and last frame
-                    if (!isReversing) {
-                        currentFrame++;
-                        if (currentFrame >= frameCount - 1) {
-                            isReversing = true;
-                        }
-                    } else {
-                        currentFrame--;
-                        if (currentFrame <= 0) {
-                            isReversing = false;
-                        }
-                    }
-                    break;
-                    
-                case 'random':
-                    // Jump to a random frame
-                    let newFrame;
-                    do {
-                        newFrame = Math.floor(Math.random() * frameCount);
-                    } while (newFrame === currentFrame && frameCount > 1);
-                    currentFrame = newFrame;
-                    break;
-            }
-        }
+    function exportCurrentFrame() {
+      if (!state.image) return;
+      const a = document.createElement('a');
+      a.download = `frame_${String(state.current).padStart(2,'0')}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    }
 
-        // Play/Pause button
-        playPauseBtn.addEventListener('click', () => {
-            isPlaying = !isPlaying;
-            playPauseBtn.textContent = isPlaying ? 'Pause' : 'Play';
-            playPauseBtn.setAttribute('aria-label', isPlaying ? 'Pause animation' : 'Play animation');
-            
-            if (isPlaying) {
-                animate();
-            } else {
-                clearInterval(animationInterval);
-            }
-        });
+    function exportStrip() {
+      if (!state.image) return;
+      const count = state.endFrame - state.startFrame + 1;
+      if (count <= 0) return;
 
-        // Reset button
-        resetBtn.addEventListener('click', reset);
+      const out = document.createElement('canvas');
+      out.width = state.tw * count; out.height = state.th;
+      const octx = out.getContext('2d');
+      octx.imageSmoothingEnabled = false;
 
-        function reset() {
-            currentFrame = 0;
-            isReversing = false; // Reset the alternating direction state
-            drawFrame();
-        }
+      for (let i = 0; i < count; i++) {
+        const frameIndex = state.startFrame + i; // 1-based
+        const col = (frameIndex - 1) % state.derived.framesPerRow;
+        const sx = col * state.tw;
+        const sy = state.row * state.th;
+        octx.drawImage(state.image, sx, sy, state.tw, state.th, i * state.tw, 0, state.tw, state.th);
+      }
 
-        // FPS (speed) control
-        fpsRange.addEventListener('input', (e) => {
-            fps = parseInt(e.target.value);
-            fpsDisplay.textContent = `${fps} FPS`;
-            
-            if (isPlaying) {
-                animate();
-            }
-        });
+      const a = document.createElement('a');
+      a.download = `strip_row${state.row + 1}_${state.startFrame}-${state.endFrame}.png`;
+      a.href = out.toDataURL('image/png');
+      a.click();
+    }
 
-        // Update when parameters change
-        tileWidthInput.addEventListener('input', () => {
-            tileWidthSlider.value = tileWidthInput.value;
-            updateSpriteInfo();
-            createFramePreviews();
-            drawFrame();
-        });
+    // =============================================================
+    // EVENT WIRING
+    // - Connect all controls so they update state and redraw appropriately
+    // =============================================================
 
-        tileHeightInput.addEventListener('input', () => {
-            tileHeightSlider.value = tileHeightInput.value;
-            updateSpriteInfo();
-            createFramePreviews();
-            drawFrame();
-        });
+    // Play/pause and step
+    playPauseBtn.addEventListener('click', togglePlay);
+    stepFwdBtn.addEventListener('click', stepForward);
+    stepBackBtn.addEventListener('click', stepBack);
 
-        frameCountInput.addEventListener('input', () => {
-            frameCountSlider.value = frameCountInput.value;
-            updateSpriteInfo();
-            createFramePreviews();
-            drawFrame();
-        });
-        
-        // Slider event listeners
-        tileWidthSlider.addEventListener('input', () => {
-            tileWidthInput.value = tileWidthSlider.value;
-            updateSpriteInfo();
-            createFramePreviews();
-            drawFrame();
-        });
-        
-        tileHeightSlider.addEventListener('input', () => {
-            tileHeightInput.value = tileHeightSlider.value;
-            updateSpriteInfo();
-            createFramePreviews();
-            drawFrame();
-        });
-        
-        frameCountSlider.addEventListener('input', () => {
-            frameCountInput.value = frameCountSlider.value;
-            updateSpriteInfo();
-            createFramePreviews();
-            drawFrame();
-        });
-        
-        // Listen for row selection changes
-        rowSelectInput.addEventListener('change', () => {
-            currentRow = parseInt(rowSelectInput.value);
-            createFramePreviews();
-            drawFrame();
-        });
-        
-        // Listen for direction selection changes
-        directionSelectInput.addEventListener('change', () => {
-            // Update direction - the actual change happens in the animation loop
-            direction = directionSelectInput.value;
-            // Reset alternating state when changing direction
-            isReversing = false;
-            
-            // Create new frame previews if we've changed to a vertical animation
-            if (direction === 'ttb' || direction === 'btt') {
-                createFramePreviews();
-            }
-            
-            // If we're actively playing, restart the animation with the new direction
-            if (isPlaying) {
-                animate();
-            }
-            
-            // Update the sprite info to show the new direction
-            if (spriteImage) {
-                updateSpriteInfo();
-            }
-        });
+    // Keyboard shortcuts: Space (play/pause), arrows (step/change row)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); stepForward(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); stepBack(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); state.row = clamp(state.row - 1, 0, Math.max(0, state.derived.totalRows - 1)); rowSelect.value = String(state.row); rowOut.textContent = String(state.row + 1); buildThumbnails(); draw(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); state.row = clamp(state.row + 1, 0, Math.max(0, state.derived.totalRows - 1)); rowSelect.value = String(state.row); rowOut.textContent = String(state.row + 1); buildThumbnails(); draw(); }
+    });
 
-        // Initial drawing
-        drawFrame();
-    </script>
+    // Reset to a clean state (does not remove loaded image)
+    resetBtn.addEventListener('click', () => {
+      state.tw = 64; state.th = 64; state.row = 0;
+      state.framesUsed = 10; state.startFrame = 1; state.endFrame = 10; state.current = 1;
+      state.fps = 10; state.scale = 2; state.direction = 'ltr'; state.loop = true; state.mirrorX = false;
+      state.showGrid = true; state.showCenter = false; state.pingPongBack = false;
+      pause();
+      deriveFromImage();
+      syncRangesToState();
+      adjustFrameBounds();
+      buildThumbnails();
+      resizeCanvas();
+      draw();
+    });
+
+    // Simple help with tips and shortcuts
+    helpBtn.addEventListener('click', () => {
+      alert(
+`Shortcuts & Tips\n\n• Space: Play/Pause\n• ← / →: Step back / forward\n• ↑ / ↓: Change row\n• Frames Used limits how many frames in the current row are animated.\n• Start/End Frame let you animate a subset (e.g. 3..8).\n• Scale changes the preview size without blurring pixels.\n• Export Frame saves the scaled preview; Export Strip saves original-size frames side-by-side.`
+      );
+    });
+
+    // Geometry inputs (tile width / height)
+    function handleTileWidth(v) {
+      state.tw = clamp(parseInt(v || '1', 10), 1, 1024);
+      wOut.textContent = String(state.tw);
+      deriveFromImage();
+      adjustFrameBounds();
+      buildThumbnails();
+      resizeCanvas();
+    }
+    function handleTileHeight(v) {
+      state.th = clamp(parseInt(v || '1', 10), 1, 1024);
+      hOut.textContent = String(state.th);
+      deriveFromImage();
+      adjustFrameBounds();
+      buildThumbnails();
+      resizeCanvas();
+    }
+    tileWidthRange.addEventListener('input', (e) => { tileWidthNum.value = e.target.value; handleTileWidth(e.target.value); });
+    tileWidthNum.addEventListener('input',  (e) => { tileWidthRange.value = e.target.value; handleTileWidth(e.target.value); });
+    tileHeightRange.addEventListener('input', (e) => { tileHeightNum.value = e.target.value; handleTileHeight(e.target.value); });
+    tileHeightNum.addEventListener('input',  (e) => { tileHeightRange.value = e.target.value; handleTileHeight(e.target.value); });
+
+    // Frames used + Start/End range
+    function setFramesUsed(v) {
+      state.framesUsed = clamp(parseInt(v || '1', 10), 1, state.derived.framesPerRow || 1);
+      framesUsedOut.textContent = String(state.framesUsed);
+      adjustFrameBounds();
+      buildThumbnails();
+      draw();
+    }
+    framesUsedRange.addEventListener('input', (e) => { framesUsedNum.value = e.target.value; setFramesUsed(e.target.value); });
+    framesUsedNum.addEventListener('input', (e) => { framesUsedRange.value = e.target.value; setFramesUsed(e.target.value); });
+
+    function setStartFrame(v) {
+      state.startFrame = clamp(parseInt(v || '1', 10), 1, state.framesUsed);
+      if (state.endFrame < state.startFrame) state.endFrame = state.startFrame;
+      startOut.textContent = String(state.startFrame);
+      adjustFrameBounds();
+      buildThumbnails();
+      draw();
+    }
+    startFrameRange.addEventListener('input', (e) => { startFrameNum.value = e.target.value; setStartFrame(e.target.value); });
+    startFrameNum.addEventListener('input', (e) => { startFrameRange.value = e.target.value; setStartFrame(e.target.value); });
+
+    function setEndFrame(v) {
+      state.endFrame = clamp(parseInt(v || '1', 10), state.startFrame, state.framesUsed);
+      endOut.textContent = String(state.endFrame);
+      adjustFrameBounds();
+      buildThumbnails();
+      draw();
+    }
+    endFrameRange.addEventListener('input', (e) => { endFrameNum.value = e.target.value; setEndFrame(e.target.value); });
+    endFrameNum.addEventListener('input', (e) => { endFrameRange.value = e.target.value; setEndFrame(e.target.value); });
+
+    // Row selection
+    rowSelect.addEventListener('change', () => {
+      state.row = clamp(parseInt(rowSelect.value, 10), 0, Math.max(0, state.derived.totalRows - 1));
+      rowOut.textContent = String(state.row + 1);
+      buildThumbnails();
+      draw();
+    });
+
+    // FPS
+    function setFPS(v) {
+      state.fps = clamp(parseInt(v || '1', 10), 1, 240);
+      fpsOut.textContent = String(state.fps);
+      if (state.playing) { pause(); play(); }
+    }
+    fpsRange.addEventListener('input', (e) => { fpsNum.value = e.target.value; setFPS(e.target.value); });
+    fpsNum.addEventListener('input', (e) => { fpsRange.value = e.target.value; setFPS(e.target.value); });
+
+    // Scale
+    function setScale(v) {
+      state.scale = clamp(parseInt(v || '1', 10), 1, 20);
+      scaleOut.textContent = `${state.scale}x`;
+      resizeCanvas();
+    }
+    scaleRange.addEventListener('input', (e) => { scaleNum.value = e.target.value; setScale(e.target.value); });
+    scaleNum.addEventListener('input', (e) => { scaleRange.value = e.target.value; setScale(e.target.value); });
+
+    // Direction
+    directionSel.addEventListener('change', () => {
+      state.direction = directionSel.value;
+      state.pingPongBack = false; // Reset ping-pong state when changing modes
+      dirOut.textContent = directionLabel(state.direction);
+    });
+
+    // Background style
+    bgStyleSel.addEventListener('change', () => applyBackground(bgStyleSel.value));
+
+    // Toggles
+    showGridChk.addEventListener('change', () => { state.showGrid = showGridChk.checked; draw(); });
+    showCenterChk.addEventListener('change', () => { state.showCenter = showCenterChk.checked; draw(); });
+    loopChk.addEventListener('change', () => { state.loop = loopChk.checked; });
+    mirrorXChk.addEventListener('change', () => { state.mirrorX = mirrorXChk.checked; draw(); });
+
+    // Export handlers
+    exportFrameBtn.addEventListener('click', exportCurrentFrame);
+    exportStripBtn.addEventListener('click', exportStrip);
+
+    // Play/Pause label updates
+    function ensurePlayLabel() { playPauseBtn.textContent = state.playing ? 'Pause' : 'Play'; }
+
+    // =============================================================
+    // INITIALIZATION
+    // - We sync UI to defaults and draw an empty canvas
+    // =============================================================
+
+    (function init() {
+      syncRangesToState();
+      rebuildRowSelect();
+      adjustFrameBounds();
+      resizeCanvas();
+      draw();
+      ensurePlayLabel();
+    })();
+  </script>
 </body>
 </html>
