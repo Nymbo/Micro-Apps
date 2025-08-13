@@ -1,255 +1,477 @@
 <!DOCTYPE html>
+<!--
+  File: micro-apps/text-tools/url-formatter-cleaner.html
+  Purpose: Extract only regular (non-image) HTTP/HTTPS links from large pasted text,
+           outputting one URL per line with a "Copy All" button.
+
+  Notes:
+    - Single-file Micro-App (no assets, optional CDNs not used).
+    - In-line comments explain each section in plain language.
+-->
 <html lang="en">
 <head>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Text Formatter · URL Extractor & Cleaner</title>
-	<style>
-		:root{
-			--bg:#0f1115; --panel:#151924; --panel-2:#0c0f16; --text:#e5e7eb; --muted:#a3aab8;
-			--primary:#5b9cff; --primary-2:#2f6fe6; --border:#232836; --shadow:rgba(0,0,0,.4);
-			--radius:14px; --radius-sm:10px; --pad:14px; --pad-sm:10px;
-		}
-		[data-theme="light"]{
-			--bg:#f5f7fb; --panel:#ffffff; --panel-2:#f3f5fa; --text:#0f172a; --muted:#475569;
-			--primary:#2563eb; --primary-2:#1e40af; --border:#e5e7eb; --shadow:rgba(0,0,0,.08);
-		}
-		*{box-sizing:border-box}
-		html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
-			font-family:Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial}
-		.app{min-height:100%;display:grid;grid-template-rows:auto 1fr}
-			header{position:sticky;top:0;z-index:10;display:flex;gap:10px;align-items:center;
-				padding:var(--pad);background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0)), var(--bg);
-				border-bottom:1px solid var(--border);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-		.brand{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);
-			border-radius:var(--radius-sm);padding:8px 12px;box-shadow:0 6px 20px var(--shadow);font-weight:700}
-		.spacer{flex:1}
-		.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);
-			background:var(--panel);color:var(--muted);font-size:12px}
-		main{padding:var(--pad);display:grid;grid-template-columns:1fr 1fr;gap:var(--pad)}
-		@media (max-width: 980px){main{grid-template-columns:1fr}}
-		.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
-			box-shadow:0 12px 36px var(--shadow);padding:var(--pad);display:flex;flex-direction:column;gap:10px}
-		h2{margin:0 0 6px}
-		p.muted{color:var(--muted);margin:0}
-		textarea{width:100%;min-height:320px;background:var(--panel-2);color:var(--text);
-			border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;
-			font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
-		.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-		.btn{appearance:none;border:1px solid var(--border);background:var(--panel);color:var(--text);
-			border-radius:var(--radius-sm);padding:10px 12px;cursor:pointer;transition:transform .12s, border-color .12s, background .12s}
-		.btn:hover{transform:translateY(-1px);border-color:var(--primary)}
-		.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
-		.btn.primary:hover{background:var(--primary-2);border-color:var(--primary-2)}
-		.stats{display:flex;gap:10px;flex-wrap:wrap}
-		.chip{border:1px solid var(--border);background:var(--panel-2);color:var(--muted);
-			border-radius:999px;padding:6px 10px;font-size:12px}
-		.switch{display:inline-flex;align-items:center;gap:8px}
-		.switch input{accent-color:var(--primary)}
-		footer{padding:10px var(--pad);color:var(--muted)}
-		.kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;padding:2px 6px;border:1px solid var(--border);
-			border-bottom-width:3px;border-radius:6px;background:var(--panel-2);color:var(--text);font-size:12px}
-		.count{font-weight:700;color:var(--primary)}
-	</style>
-	<meta name="description" content="Extract and clean URLs from large text. Removes direct image links. One link per line, copy to clipboard." />
-	<meta name="color-scheme" content="dark light" />
-	<link rel="icon" href="data:," />
-	<script>
-		// Minimal preferences (theme only) in localStorage
-		const STORE_KEY = 'textFormatter.prefs.v1';
-		const Prefs = {
-			load(){
-				try{ return JSON.parse(localStorage.getItem(STORE_KEY)) || { theme: 'dark', removeTracking: true }; }
-				catch{ return { theme: 'dark', removeTracking: true }; }
-			},
-			save(v){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(v)); }catch{}
-			}
-		};
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>URL Cleaner — Keep Non-Image Links Only</title>
+  <style>
+    /* =============== Theme tokens (easy color tweaking) =============== */
+    :root{
+      --bg:#0f1115;           /* page background (dark) */
+      --panel:#161a23;        /* cards/panels */
+      --panel-2:#0d1118;      /* headers / subpanels */
+      --text:#e5e7eb;         /* main text */
+      --muted:#9aa3b2;        /* secondary text */
+      --accent:#5b9cff;       /* primary accent */
+      --accent-2:#2f6fe6;     /* accent hover */
+      --border:#222838;       /* subtle borders */
+      --good:#22c55e;         /* success green */
+      --warn:#f59e0b;         /* warning amber */
+      --bad:#ef4444;          /* danger red */
+      --radius-lg:16px;       /* big rounded corners */
+      --radius:12px;          /* normal rounded corners */
+      --pad:14px;             /* base padding */
+      --shadow:0 18px 50px rgba(0,0,0,.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    /* Optional light theme (toggle button) */
+    [data-theme="light"]{
+      --bg:#f6f7fb;
+      --panel:#ffffff;
+      --panel-2:#f2f5fb;
+      --text:#0f172a;
+      --muted:#5b6474;
+      --accent:#2563eb;
+      --accent-2:#1e40af;
+      --border:#e6e8ee;
+      --shadow:0 18px 50px rgba(0,0,0,.08);
+    }
 
-		// URL utilities
-		const IMAGE_EXT_RE = /\.(?:apng|avif|gif|jpe?g|png|svg|webp|bmp|tiff?|heif|heic)(?:$|[?#])/i;
-		const URL_RE = /https?:\/\/[^\s<>"]+/gi; // broad capture; further sanitize later
+    /* =============== Page reset and layout shell =============== */
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family:var(--sans); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
 
-		function stripWrapping(url){
-			// Remove common wrappers like <...> and trailing punctuation that isn't part of URL
-			let s = url.trim();
-			if (s.startsWith('<') && s.endsWith('>')) s = s.slice(1,-1);
-			s = s.replace(/&amp;/g,'&');
-			// Remove trailing punctuation often stuck to URLs
-			// Keep balance for parentheses: avoid stripping ')' if there is no matching '('
-			const trail = /[\)\]\}"'.,;:!?»]+$/;
-			while (trail.test(s)) {
-				const last = s.slice(-1);
-				// If it's ')' but URL has fewer '(' than ')' already, break
-				if (last === ')') {
-					const opens = (s.match(/\(/g)||[]).length;
-					const closes = (s.match(/\)/g)||[]).length;
-					if (closes <= opens) break;
-				}
-				s = s.slice(0,-1);
-			}
-			return s;
-		}
+    header{
+      position:sticky; top:0; z-index:10;
+      display:flex; align-items:center; gap:10px;
+      padding:var(--pad);
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)) , var(--bg);
+      border-bottom:1px solid var(--border);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      background:var(--panel); border:1px solid var(--border);
+      padding:8px 12px; border-radius:10px; box-shadow:var(--shadow); font-weight:700;
+    }
+    .brand svg{color:var(--accent)}
+    .top-actions{margin-left:auto; display:flex; gap:8px}
+    .btn{
+      appearance:none; border:1px solid var(--border);
+      background:var(--panel); color:var(--text);
+      border-radius:10px; padding:10px 12px; cursor:pointer;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .btn:hover{transform:translateY(-1px); border-color:var(--accent)}
+    .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+    .btn.primary:hover{background:var(--accent-2); border-color:var(--accent-2)}
+    .pill{
+      display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+      border:1px solid var(--border); background:var(--panel); padding:6px 10px; border-radius:999px;
+    }
+    .kbd{
+      font-family:var(--mono); font-size:12px; padding:2px 6px;
+      border:1px solid var(--border); border-bottom-width:3px; border-radius:6px; background:var(--panel-2);
+    }
 
-		function removeTrackingParams(u){
-			// Remove common tracking parameters in-place on a URL object
-			const sp = u.searchParams;
-			const toDelete = new Set([
-				'fbclid','gclid','dclid','msclkid','yclid','gbraid','wbraid','igshid','mc_cid','mc_eid','mkt_tok','_hsenc','_hsmi','vero_id','vero_conv','ref','ref_src','ref_url','irgwc'
-			]);
-			// delete all utm_* and pk_* (Matomo) as well
-			[...sp.keys()].forEach(k=>{
-				if (k.toLowerCase().startsWith('utm_') || k.toLowerCase().startsWith('pk_') || toDelete.has(k)) sp.delete(k);
-			});
-			return u;
-		}
+    main{
+      padding:var(--pad);
+      display:grid; gap:var(--pad);
+      grid-template-columns: 1fr 1fr; /* two columns: input | output */
+    }
+    @media (max-width: 1024px){ main{grid-template-columns:1fr} }
 
-		function normalizeUrl(str, opts){
-			try{
-				const u = new URL(str);
-				if (!(u.protocol === 'http:' || u.protocol === 'https:')) return null;
-				if (opts.removeTracking) removeTrackingParams(u);
-				// Keep as-is otherwise to avoid over-normalizing
-				const qs = u.searchParams.toString();
-				return u.origin + u.pathname + (qs ? ('?' + qs) : '') + (u.hash || '');
-			}catch{ return null }
-		}
+    .card{
+      background:var(--panel); border:1px solid var(--border);
+      border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden;
+      display:grid; grid-template-rows:auto 1fr auto;
+    }
+    .card-header{
+      background:var(--panel-2); border-bottom:1px solid var(--border);
+      padding:var(--pad); display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .card-body{ padding:var(--pad); overflow:auto }
+    .card-footer{ padding:var(--pad); border-top:1px solid var(--border); background:var(--panel-2); display:flex; gap:8px; flex-wrap:wrap }
 
-		function isImageDirect(str){
-			try{ const u = new URL(str); return IMAGE_EXT_RE.test(u.pathname); }
-			catch{ return IMAGE_EXT_RE.test(str); }
-		}
+    h1,h2,h3{margin:0}
+    .muted{color:var(--muted)}
+    .row{display:flex; gap:8px; align-items:center}
+    .spacer{flex:1}
 
-		function extractUrls(text, opts){
-			const seen = new Set();
-			const out = [];
-			const images = [];
-			const allMatches = text.match(URL_RE) || [];
-			let total = 0;
-			for (let raw of allMatches){
-				total++;
-				const cleaned = stripWrapping(raw);
-				const norm = normalizeUrl(cleaned, opts);
-				if (!norm) continue;
-				if (isImageDirect(norm)) { images.push(norm); continue; }
-				if (!seen.has(norm)) { seen.add(norm); out.push(norm); }
-			}
-			return { links: out, images, total }; // images are those filtered out as direct images
-		}
+    textarea{
+      width:100%; min-height:320px; resize:vertical;
+      border-radius:12px; border:1px solid var(--border);
+      background:var(--panel-2); color:var(--text); padding:12px;
+      font-family:var(--mono); font-size:14px; line-height:1.45;
+    }
+    .stats{
+      display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted);
+    }
+    .stats b{color:var(--text)}
+    .options{
+      display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:14px; color:var(--muted);
+    }
+    label.switch{
+      display:inline-flex; gap:8px; align-items:center; cursor:pointer;
+      background:var(--panel-2); padding:6px 10px; border:1px solid var(--border); border-radius:10px;
+    }
+    input[type="checkbox"]{ accent-color: var(--accent) }
 
-		function copyText(text){
-			if (!text) return Promise.resolve(false);
-			if (navigator.clipboard && window.isSecureContext) {
-				return navigator.clipboard.writeText(text).then(()=>true, ()=>false);
-			}
-			// Fallback
-			const ta = document.createElement('textarea');
-			ta.value = text; ta.style.position='fixed'; ta.style.inset='-9999px';
-			document.body.appendChild(ta); ta.focus(); ta.select();
-			let ok = false; try { ok = document.execCommand('copy'); } catch{}
-			ta.remove(); return Promise.resolve(ok);
-		}
-
-		window.addEventListener('DOMContentLoaded', () => {
-			const prefs = Prefs.load();
-			const root = document.getElementById('app');
-			root.setAttribute('data-theme', prefs.theme || 'dark');
-
-			const input = document.getElementById('input');
-			const output = document.getElementById('output');
-			const btnFormat = document.getElementById('btnFormat');
-			const btnCopy = document.getElementById('btnCopy');
-			const btnClear = document.getElementById('btnClear');
-			const btnSwap = document.getElementById('btnSwap');
-			const removeTracking = document.getElementById('optTracking');
-			const themeToggle = document.getElementById('themeToggle');
-			const statTotal = document.getElementById('statTotal');
-			const statImages = document.getElementById('statImages');
-			const statFinal = document.getElementById('statFinal');
-
-			removeTracking.checked = !!prefs.removeTracking;
-
-			function run(){
-				const { links, images, total } = extractUrls(input.value || '', { removeTracking: removeTracking.checked });
-				output.value = links.join('\n');
-				statTotal.textContent = String(total);
-				statImages.textContent = String(images.length);
-				statFinal.textContent = String(links.length);
-			}
-
-			btnFormat.addEventListener('click', run);
-			input.addEventListener('keydown', (e)=>{ if ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='enter'){ e.preventDefault(); run(); }});
-			document.getElementById('btnSelectAll').addEventListener('click', ()=>{ output.focus(); output.select(); });
-			btnCopy.addEventListener('click', async ()=>{
-				const ok = await copyText(output.value);
-				btnCopy.textContent = ok ? 'Copied!' : 'Copy failed';
-				setTimeout(()=>{ btnCopy.textContent = 'Copy'; }, 1200);
-			});
-			btnClear.addEventListener('click', ()=>{ input.value=''; output.value=''; statTotal.textContent='0'; statImages.textContent='0'; statFinal.textContent='0'; input.focus(); });
-			btnSwap.addEventListener('click', ()=>{ const t = input.value; input.value = output.value; output.value = t; run(); });
-
-			removeTracking.addEventListener('change', ()=>{ prefs.removeTracking = removeTracking.checked; Prefs.save(prefs); });
-			themeToggle.addEventListener('click', ()=>{
-				const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-				root.setAttribute('data-theme', next); prefs.theme = next; Prefs.save(prefs);
-			});
-
-			// If content was pasted before load (rare), run once
-			if (input.value) run();
-		});
-	</script>
-	<style>
-		/* Small icon via pure CSS */
-		.dot{width:10px;height:10px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 3px rgba(91,156,255,.15)}
-	</style>
+    /* Small toast notification (copy confirmation) */
+    .toast{
+      position:fixed; bottom:16px; right:16px; z-index:50;
+      background:var(--panel); border:1px solid var(--border); border-left:6px solid var(--good);
+      padding:10px 12px; border-radius:10px; box-shadow:var(--shadow);
+      opacity:0; transform:translateY(8px); transition:opacity .18s ease, transform .18s ease;
+    }
+    .toast.show{opacity:1; transform:translateY(0)}
+    .help{
+      font-size:13px; color:var(--muted);
+    }
+    .small{font-size:12px}
+    .count-badge{
+      background:var(--panel-2); border:1px solid var(--border);
+      padding:4px 8px; border-radius:999px; font-size:12px; color:var(--muted);
+    }
+  </style>
 </head>
 <body>
-	<div class="app" id="app" data-theme="dark">
-		<header>
-			<div class="brand"><span class="dot" aria-hidden="true"></span> Text Formatter</div>
-			<span class="pill">Paste text, extract links, remove direct image URLs</span>
-			<div class="spacer"></div>
-			<button id="themeToggle" class="btn" title="Toggle theme" aria-label="Toggle theme">Theme</button>
-		</header>
+  <!-- ========= Top bar with title and quick actions ========= -->
+  <header>
+    <div class="brand" role="img" aria-label="URL Cleaner">
+      <!-- tiny logo dot -->
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="8" fill="currentColor"></circle>
+      </svg>
+      URL Cleaner
+    </div>
+    <span class="pill">Paste messy text → Get one clean URL per line</span>
+    <div class="spacer"></div>
+    <button id="themeToggle" class="btn" title="Toggle theme (dark/light)">Toggle Theme</button>
+  </header>
 
-		<main>
-			<section class="card" aria-label="Input">
-				<div>
-					<h2 class="mt0">Input</h2>
-					<p class="muted">Paste any text containing URLs. Press Ctrl/Cmd + Enter to format.</p>
-				</div>
-				<textarea id="input" placeholder="Paste text with URLs, descriptions, and images here..."></textarea>
-				<div class="row">
-					<button id="btnFormat" class="btn primary">Extract & Format</button>
-					<button id="btnClear" class="btn" title="Clear input and output">Clear</button>
-					<button id="btnSwap" class="btn" title="Swap input and output">Swap</button>
-					<span class="spacer"></span>
-					<label class="switch"><input type="checkbox" id="optTracking" /> Remove tracking params (utm_*, fbclid, etc.)</label>
-				</div>
-			</section>
+  <!-- ========= Main two-panel layout: Input | Output ========= -->
+  <main id="app" data-theme="dark">
+    <!-- ========== Left: Input panel ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Input Text</h3>
+        <div class="row">
+          <button id="btnPaste" class="btn" title="Paste from clipboard">Paste</button>
+          <span class="help small">Tip: Press <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to clean</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- This is where the user pastes all the messy text -->
+        <textarea id="inputArea" placeholder="Paste any text here (can include descriptions, HTML/Markdown, image links, etc.)"></textarea>
+      </div>
+      <div class="card-footer">
+        <!-- Simple options that tweak cleaning behavior -->
+        <div class="options">
+          <label class="switch" title="Remove UTM/fbclid/tracking params from kept links">
+            <input type="checkbox" id="optStripTracking" checked />
+            <span>Strip tracking params</span>
+          </label>
+          <label class="switch" title="Remove exact-duplicate links (case-insensitive)">
+            <input type="checkbox" id="optDedupe" checked />
+            <span>De-duplicate</span>
+          </label>
+          <label class="switch" title="Only keep http/https (ignore other schemes)">
+            <input type="checkbox" id="optHttpOnly" checked />
+            <span>HTTP(S) only</span>
+          </label>
+        </div>
+        <div class="spacer"></div>
+        <button id="btnClean" class="btn primary" title="Extract non-image links (Ctrl+Enter)">Clean Links</button>
+      </div>
+    </section>
 
-			<section class="card" aria-label="Output">
-				<div>
-					<h2 class="mt0">Output</h2>
-					<p class="muted">One URL per line. Image links are removed automatically.</p>
-				</div>
-				<textarea id="output" readonly placeholder="Your cleaned list of URLs will appear here..."></textarea>
-				<div class="row">
-					<div class="stats">
-						<span class="chip">Found: <span class="count" id="statTotal">0</span></span>
-						<span class="chip">Images removed: <span class="count" id="statImages">0</span></span>
-						<span class="chip">Final: <span class="count" id="statFinal">0</span></span>
-					</div>
-					<span class="spacer"></span>
-					<button id="btnSelectAll" class="btn" title="Select all">Select all</button>
-					<button id="btnCopy" class="btn primary" title="Copy to clipboard">Copy</button>
-				</div>
-			</section>
-		</main>
+    <!-- ========== Right: Output panel ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Cleaned Links</h3>
+        <div class="row">
+          <span id="counts" class="count-badge" aria-live="polite">0 kept · 0 removed</span>
+          <button id="btnCopy" class="btn" title="Copy all to clipboard">Copy All</button>
+          <button id="btnDownload" class="btn" title="Download as .txt">Download</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Read-only output with one URL per line -->
+        <textarea id="outputArea" readonly placeholder="Your cleaned list will appear here (one URL per line)"></textarea>
+      </div>
+      <div class="card-footer">
+        <div class="stats" id="stats">
+          <!-- Live stats help you see what's happening at a glance -->
+          <div><b>Found:</b> <span id="statFound">0</span> links</div>
+          <div><b>Removed images:</b> <span id="statImg">0</span></div>
+          <div><b>Removed dupes:</b> <span id="statDupes">0</span></div>
+          <div><b>Kept:</b> <span id="statKept">0</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
 
-		<footer>
-			Tip: Use <span class="kbd">Ctrl</span>/<span class="kbd">Cmd</span> + <span class="kbd">Enter</span> to extract quickly.
-		</footer>
-	</div>
+  <!-- Tiny toast element for "Copied!" feedback -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // ===========================
+    // Small helper shortcuts
+    // ===========================
+    const qs  = (s, el=document) => el.querySelector(s);   // grab one element by CSS selector
+    const qsa = (s, el=document) => [...el.querySelectorAll(s)]; // grab many elements
+    const on  = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts); // attach event listener
+
+    // ===========================
+    // Configuration: detection rules and utilities
+    // ===========================
+
+    // Regex to find raw http/https URLs in text (keeps anything until whitespace or obvious break)
+    // Layman's terms: this looks for "http://..." or "https://..." and grabs characters until a space or quote.
+    const URL_REGEX = /https?:\/\/[^\s<>"'`)+\]}]+/gi;
+
+    // Common image file extensions we consider "direct image links"
+    const IMAGE_EXT = /\.(?:png|jpe?g|gif|bmp|webp|tiff?|svg|avif|heic|heif)$/i;
+
+    // Some query parameters that usually indicate image blobs or formats
+    const IMAGE_HINT_PARAMS = ['format','fm','image','img','ext']; // e.g., ?format=jpg, ?fm=png
+
+    // Tracking parameters we strip when that option is enabled
+    const TRACKING_PARAMS = [
+      'utm_source','utm_medium','utm_campaign','utm_term','utm_content',
+      'utm_name','utm_id','utm_creative_format','utm_creative_tactic',
+      'gclid','fbclid','mc_cid','mc_eid','igshid','msclkid','vero_conv','vero_id'
+    ];
+
+    // Trim trailing punctuation that often clings to copied links (like ")" or "," at the end of a sentence)
+    function trimTrailingPunctuation(url){
+      // Remove surrounding angle brackets often used in Markdown <https://...>
+      url = url.replace(/^<+|>+$/g, '');
+      // Strip trailing punctuation or unmatched brackets
+      const TRAIL = /[),.;:'"\]\}>]+$/;
+      while (TRAIL.test(url)) {
+        // Special-case: balance a trailing ')' if there are more '(' earlier (Markdown links)
+        if (url.endsWith(')')) {
+          const open = (url.match(/\(/g)||[]).length;
+          const close = (url.match(/\)/g)||[]).length;
+          if (close <= open) break; // if balanced, stop stripping ')'
+        }
+        url = url.replace(TRAIL, '');
+      }
+      return url;
+    }
+
+    // Decide if a URL points directly to an image file
+    function isDirectImageURL(href){
+      // Disallow data/blob images outright
+      if (/^(data|blob):/i.test(href)) return true;
+
+      let u;
+      try { u = new URL(href); } catch { return false; } // if not a valid URL, it's not an image link we care about
+
+      // Only consider http/https as "web links"; else treat as image if it's a data/blob (already handled)
+      if (!/^https?:$/i.test(u.protocol)) return false;
+
+      // If the path ends in an image extension like .png or .jpg -> it's a direct image
+      if (IMAGE_EXT.test(u.pathname)) return true;
+
+      // If query string strongly hints it's an image (e.g., ?format=jpg, ?fm=png) -> count as image
+      for (const key of IMAGE_HINT_PARAMS) {
+        const val = (u.searchParams.get(key) || '').toLowerCase();
+        if (/(?:png|jpe?g|gif|bmp|webp|tiff?|svg|avif|heic|heif)/.test(val)) return true;
+      }
+
+      // Some CDNs use "image" paths without extensions; heuristic: path segments like /images/123456 with size hints
+      // We'll be conservative and NOT remove these unless they match the above checks.
+      return false;
+    }
+
+    // Optionally remove common tracking parameters from a URL to "clean it up"
+    function stripTrackingParams(href){
+      let u;
+      try { u = new URL(href); } catch { return href; }
+      let changed = false;
+      for (const p of TRACKING_PARAMS) {
+        if (u.searchParams.has(p)) { u.searchParams.delete(p); changed = true; }
+      }
+      // Edge case: leftover empty "?" or trailing "#"
+      const out = u.toString().replace(/\?$/, '').replace(/#$/, '');
+      return changed ? out : href;
+    }
+
+    // ===========================
+    // Core cleaning logic
+    // ===========================
+    function cleanLinksFromText(raw, opts){
+      // In plain terms: we look through the whole text and collect every http(s) link,
+      // tidy it, throw away ones that go straight to image files, then optionally dedupe and strip tracking.
+      if (!raw) return { kept: [], found: 0, removedImages: 0, removedDupes: 0 };
+
+      const matches = raw.match(URL_REGEX) || [];
+      let foundCount = matches.length;
+
+      // Tidy up trailing punctuation/angles and normalize
+      let links = matches.map(m => trimTrailingPunctuation(m));
+
+      // Optionally restrict to http/https only (ignore mailto:, ftp:, etc.)
+      if (opts.httpOnly) {
+        links = links.filter(h => /^https?:\/\//i.test(h));
+      }
+
+      // Remove direct image URLs
+      const kept = [];
+      let removedImages = 0;
+      for (const href of links) {
+        if (isDirectImageURL(href)) {
+          removedImages++;
+          continue;
+        }
+        kept.push(href);
+      }
+
+      // Strip tracking parameters if requested
+      let cleaned = kept.map(h => opts.stripTracking ? stripTrackingParams(h) : h);
+
+      // De-duplicate (case-insensitive) if requested
+      let removedDupes = 0;
+      if (opts.dedupe) {
+        const seen = new Set();
+        const uniq = [];
+        for (const h of cleaned) {
+          const key = h.toLowerCase();
+          if (!seen.has(key)) { seen.add(key); uniq.push(h); } else { removedDupes++; }
+        }
+        cleaned = uniq;
+      }
+
+      return {
+        kept: cleaned,
+        found: foundCount,
+        removedImages,
+        removedDupes
+      };
+    }
+
+    // ===========================
+    // UI wiring
+    // ===========================
+    const app = qs('#app');
+    const inputArea  = qs('#inputArea');
+    const outputArea = qs('#outputArea');
+    const btnClean   = qs('#btnClean');
+    const btnCopy    = qs('#btnCopy');
+    const btnDownload= qs('#btnDownload');
+    const btnPaste   = qs('#btnPaste');
+    const themeToggle= qs('#themeToggle');
+
+    const optStrip   = qs('#optStripTracking');
+    const optDedupe  = qs('#optDedupe');
+    const optHttp    = qs('#optHttpOnly');
+
+    const counts     = qs('#counts');
+    const statFound  = qs('#statFound');
+    const statImg    = qs('#statImg');
+    const statDupes  = qs('#statDupes');
+    const statKept   = qs('#statKept');
+    const toastEl    = qs('#toast');
+
+    // Show a tiny "Copied!" toast for friendly feedback
+    function showToast(msg='Copied!'){
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(()=> toastEl.classList.remove('show'), 1400);
+    }
+
+    // Apply dark/light theme toggle
+    on(themeToggle, 'click', () => {
+      const next = app.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      app.setAttribute('data-theme', next);
+    });
+
+    // PASTE helper: read plain text from clipboard (browser will ask permission)
+    on(btnPaste, 'click', async () => {
+      try {
+        const txt = await navigator.clipboard.readText();
+        inputArea.value = txt || inputArea.value;
+        inputArea.focus();
+      } catch {
+        showToast('Clipboard read blocked by browser');
+      }
+    });
+
+    // MAIN ACTION: Clean links when user clicks the button
+    on(btnClean, 'click', () => runClean());
+    // Keyboard shortcut: Ctrl/Cmd + Enter to clean
+    on(document, 'keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runClean();
+      }
+    });
+
+    // Copy all output to clipboard
+    on(btnCopy, 'click', async () => {
+      const txt = outputArea.value || '';
+      try {
+        await navigator.clipboard.writeText(txt);
+        showToast('Cleaned links copied!');
+      } catch {
+        // Fallback: select text and rely on user Ctrl+C if programmatic copy fails
+        outputArea.focus(); outputArea.select();
+        showToast('Press Ctrl+C to copy');
+      }
+    });
+
+    // Download output as a .txt file for convenience
+    on(btnDownload, 'click', () => {
+      const blob = new Blob([outputArea.value || ''], {type:'text/plain'});
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = 'cleaned-links.txt'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // The function that ties UI → cleaning logic → UI
+    function runClean(){
+      // Gather the user options from the checkboxes
+      const opts = {
+        stripTracking: !!optStrip.checked,
+        dedupe:        !!optDedupe.checked,
+        httpOnly:      !!optHttp.checked
+      };
+
+      // Call the core cleaner with the raw text and options
+      const res = cleanLinksFromText(inputArea.value || '', opts);
+
+      // Turn the kept list into "one url per line" text for the output box
+      outputArea.value = res.kept.join('\n');
+
+      // Update the visible counters so user can see what happened
+      statFound.textContent = String(res.found);
+      statImg.textContent   = String(res.removedImages);
+      statDupes.textContent = String(res.removedDupes);
+      statKept.textContent  = String(res.kept.length);
+      counts.textContent    = `${res.kept.length} kept · ${res.removedImages + res.removedDupes} removed`;
+    }
+
+    // Optional: run once on load if the user already has text in the input (e.g., after refresh)
+    if (inputArea.value.trim()) runClean();
+  </script>
 </body>
 </html>
