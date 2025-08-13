@@ -165,6 +165,9 @@
       main: document.getElementById('main'),
     };
 
+  // Guards rapid swaps to avoid out-of-order iframe replacements
+  let swapCounter = 0;
+
     // Helper to revoke an object URL safely
     function revokeUrl(u) { try { if (u) URL.revokeObjectURL(u); } catch (_) {} }
 
@@ -172,6 +175,48 @@
     function makeUrlFromText(text) {
       const blob = new Blob([text], { type: 'text/html' });
       return URL.createObjectURL(blob);
+    }
+
+    // Create a fresh sandboxed iframe for the viewer
+    function createViewerIframe() {
+      const iframe = document.createElement('iframe');
+      iframe.id = 'viewer';
+      iframe.className = 'w-full h-full bg-gray-900 fade-enter';
+      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads');
+      iframe.setAttribute('title', 'HTML preview');
+      return iframe;
+    }
+
+    // Swap the current iframe with a new one and load provided HTML via srcdoc
+    function swapIframeWithHtml(html) {
+      const seq = ++swapCounter;
+      const oldIframe = el.viewer;
+      // Cooperative: notify the running app it should clean up
+      try { oldIframe.contentWindow?.postMessage({ type: 'app-launcher:before-unload' }, '*'); } catch (_) {}
+
+      // Quick fade-out on the old iframe
+      try {
+        oldIframe.style.transition = 'opacity 120ms ease-out';
+        oldIframe.style.opacity = '0';
+      } catch (_) {}
+
+      const newIframe = createViewerIframe();
+
+      // Perform the swap after a short delay to allow any cleanup
+      setTimeout(() => {
+        if (seq !== swapCounter) return; // a newer swap superseded this one
+        // Replace in DOM and update reference
+        oldIframe.replaceWith(newIframe);
+        el.viewer = newIframe;
+
+        // Load new content
+        newIframe.srcdoc = html || '';
+
+        // Fade-in
+  requestAnimationFrame(() => {
+          newIframe.classList.add('fade-enter-active');
+        });
+      }, 130);
     }
 
     // Render the sidebar list, applying search filter
@@ -232,28 +277,14 @@
       });
     }
 
-    // Select a given index and show it in the iframe
+    // Select a given index and show it in the iframe (hard reset via swap)
     function selectIndex(i) {
       if (i < 0 || i >= files.length) return;
       selectedIndex = i;
-      // Fade hint
-      el.viewer.classList.remove('fade-enter-active');
-      el.viewer.classList.add('fade-enter');
-
       const f = files[i];
       el.current.textContent = f ? (f.alias || f.name) : 'No file selected';
-
-      // Write HTML directly to iframe's contentDocument
-      const iframe = el.viewer;
-      const doc = iframe.contentDocument || iframe.contentWindow.document;
-      doc.open();
-      doc.write(f.text);
-      doc.close();
-
-      requestAnimationFrame(() => {
-        el.viewer.classList.add('fade-enter-active');
-      });
-
+      // Hard swap iframe to ensure all timers/audio/etc are torn down
+      swapIframeWithHtml(f.text);
       renderList();
     }
 
@@ -296,12 +327,11 @@
       window.open(url, '_blank');
     }
 
-    // Refresh = rebuild object URL so scripts/styles fully reload
+    // Refresh = replace iframe and re-load the same app
     function refreshSelected() {
-  const f = files[selectedIndex];
-  if (!f) return;
-  // Just re-write the content
-  selectIndex(selectedIndex);
+      const f = files[selectedIndex];
+      if (!f) return;
+      swapIframeWithHtml(f.text);
     }
 
     // Simple placeholder page when nothing is selected
@@ -312,7 +342,7 @@
           <div style="font-size:14px">Load HTML files to view them here.</div>
         </div>
       </body></html>`;
-      el.viewer.srcdoc = html;
+      swapIframeWithHtml(html);
       el.current.textContent = 'No file selected';
     }
 
