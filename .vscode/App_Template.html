@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<!--
+  File: micro-apps/templates/general_app_template.html
+  Purpose: A self-contained "Micro-App" starter you can copy/paste to begin any app or game.
+  Rules this template follows (per your spec):
+    - Single HTML file with <!DOCTYPE html>.
+    - Only HTML + CSS + JS. No downloaded assets.
+    - Optional libraries may be loaded via CDN (commented examples included).
+    - When you modify this Micro-App, rewrite the entire file inside a code block (no truncation).
+
+  Notes for Developers:
+    - Search for "TODO:" to see common extension points.
+    - Everything is namespaced under window.App to avoid globals.
+    - Includes: layout, theme toggle, settings modal, toast notifications, keyboard shortcuts,
+      a minimal state store with persistence, a command palette, and example views (Dashboard, Canvas Demo).
+    - Three.js bootstrap is included but commented out; un-comment if you need 3D.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Basic metadata so the app behaves nicely on desktop & mobile -->
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Micro-App Template</title>
+
+  <!-- Optional CDN Libraries (kept commented until you need them) -->
+  <!-- three.js (uncomment to enable 3D): -->
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script> -->
+
+  <style>
+    /* ====== Design System: CSS variables for easy theming ====== */
+    :root {
+      --bg: #0f1115;            /* main background (dark) */
+      --panel: #151924;         /* panels/cards */
+      --panel-2: #0c0f16;       /* deeper panels */
+      --text: #e5e7eb;          /* primary text */
+      --text-muted: #a3aab8;    /* secondary text */
+      --primary: #5b9cff;       /* accent color */
+      --primary-2: #2f6fe6;     /* accent hover */
+      --border: #232836;        /* subtle borders */
+      --success: #22c55e;
+      --warning: #fbbf24;
+      --danger:  #ef4444;
+      --shadow:  rgba(0,0,0,0.4);
+      --radius:  14px;          /* rounded corners standard */
+      --radius-sm: 10px;        /* smaller radius */
+      --radius-lg: 22px;        /* larger radius */
+      --pad: 14px;              /* standard spacing */
+      --pad-sm: 10px;
+      --pad-lg: 18px;
+    }
+
+    /* Light theme (toggled via [data-theme="light"]) */
+    [data-theme="light"] {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-2: #f3f5fa;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --primary: #2563eb;
+      --primary-2: #1e40af;
+      --border: #e5e7eb;
+      --shadow: rgba(0,0,0,0.08);
+    }
+
+    /* ====== Global Resets & Typography ====== */
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ====== App Shell Layout ======
+       Layout uses a header + main grid (sidebar + content). */
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100%;
+    }
+
+    /* Top bar with app title, theme toggle, and actions */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: var(--pad);
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)) , var(--bg);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      box-shadow: 0 6px 20px var(--shadow);
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .topbar-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Sidebar + Main Content Grid */
+    .main {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: var(--pad);
+      padding: var(--pad);
+    }
+
+    /* Sidebar styling */
+    .sidebar {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--pad);
+      display: flex;
+      flex-direction: column;
+      gap: var(--pad);
+      box-shadow: 0 10px 30px var(--shadow);
+    }
+
+    .nav-section h3 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    .nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav button {
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+      color: var(--text);
+      cursor: pointer;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+    .nav button:hover {
+      transform: translateY(-1px);
+      border-color: var(--primary);
+    }
+    .nav button.active {
+      border-color: var(--primary);
+      background: linear-gradient(180deg, rgba(91,156,255,0.18), rgba(91,156,255,0.04));
+    }
+
+    /* Main content card */
+    .content {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0;
+      min-height: 60vh;
+      box-shadow: 0 18px 50px var(--shadow);
+      /* Fallback for iOS Safari <16 */
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    /* Preferred where supported */
+    @supports (overflow: clip) {
+      .content { overflow: clip; }
+    }
+
+    .content-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--pad);
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-2);
+    }
+
+    .content-body {
+      padding: var(--pad);
+      overflow: auto;
+    }
+
+    /* Reusable button styles */
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: var(--primary); }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: white; }
+    .btn.primary:hover { background: var(--primary-2); border-color: var(--primary-2); }
+
+    /* Chips/pills for small indicators */
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--pad);
+      box-shadow: 0 10px 30px var(--shadow);
+    }
+
+    /* Grid helper */
+    .grid {
+      display: grid;
+      gap: var(--pad);
+    }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    @media (max-width: 1024px) {
+      .main { grid-template-columns: 1fr; }
+      .grid.two, .grid.three { grid-template-columns: 1fr; }
+    }
+
+    /* ====== Modal & Toasts ====== */
+    .modal-backdrop {
+      position: fixed; inset: 0; display: none;
+      background: rgba(0,0,0,0.5);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+      z-index: 80;
+      align-items: center; justify-content: center;
+      padding: var(--pad);
+    }
+    .modal {
+      width: min(640px, 96vw);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 18px 60px var(--shadow);
+      overflow: hidden;
+      display: grid; grid-template-rows: auto 1fr auto;
+    }
+    .modal-header, .modal-footer {
+      padding: var(--pad);
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-2);
+    }
+    .modal-footer { border-top: 1px solid var(--border); border-bottom: 0; display: flex; justify-content: flex-end; gap: 8px; }
+    .modal-body { padding: var(--pad); }
+
+    .toasts {
+      position: fixed; bottom: 16px; right: 16px; z-index: 90;
+      display: grid; gap: 10px; width: min(420px, 92vw);
+    }
+    .toast {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--primary);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      box-shadow: 0 12px 32px var(--shadow);
+      display: flex; align-items: start; gap: 10px;
+    }
+    .toast.success { border-left-color: var(--success); }
+    .toast.warning { border-left-color: var(--warning); }
+    .toast.danger  { border-left-color: var(--danger);  }
+
+    /* ====== Command Palette ====== */
+    .palette {
+      position: fixed; inset: 0; display: none; z-index: 85;
+      align-items: start; justify-content: center;
+      padding-top: 10vh;
+  background: rgba(0,0,0,0.35);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+    }
+    .palette-panel {
+      width: min(720px, 96vw);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 18px 60px var(--shadow);
+      overflow: hidden;
+      display: grid; grid-template-rows: auto 1fr;
+    }
+    .palette input {
+      width: 100%; padding: 14px;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 0; outline: none;
+      border-bottom: 1px solid var(--border);
+      font-size: 15px;
+    }
+    .palette-list { max-height: 50vh; overflow: auto; }
+    .palette-item {
+      padding: 12px 14px; cursor: pointer;
+      border-bottom: 1px solid var(--border);
+    }
+    .palette-item:hover { background: rgba(255,255,255,0.05); }
+
+    /* ====== Utility helpers ====== */
+    .hidden { display: none !important; }
+    .muted { color: var(--text-muted); }
+    .spacer { flex: 1; }
+    .kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      padding: 2px 6px;
+      border: 1px solid var(--border);
+      border-bottom-width: 3px;
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--text);
+    }
+
+    /* ====== Utilities (to remove inline styles) ====== */
+    .mt0 { margin-top: 0; }
+    .mt-10 { margin-top: 10px; }
+    .row { display: flex; }
+    .items-center { align-items: center; }
+    .justify-center { justify-content: center; }
+    .gap-8 { gap: 8px; }
+    .gap-10 { gap: 10px; }
+    .w-100 { width: 100%; }
+    .flex-1 { flex: 1; }
+
+    .canvas-surface {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--panel-2);
+    }
+    .preblock {
+      white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
+      background: var(--panel-2);
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+    .three-mount {
+      height: 240px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+    }
+    .textarea {
+      width: 100%;
+      min-height: 260px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+  /* Small element tweaks moved from inline styles */
+  .brand svg { color: var(--primary); }
+  .count-display { min-width: 64px; text-align: center; font-size: 24px; }
+  </style>
+</head>
+
+<body>
+  <!-- ====== App Shell (Header + Main) ====== -->
+  <div class="app" id="app" data-theme="dark">
+    <!-- Top bar: branding and quick actions -->
+    <header class="topbar">
+      <!-- App title badge -->
+      <div class="brand" role="img" aria-label="App brand">
+        <!-- Simple logo dot -->
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="8" fill="currentColor"></circle>
+        </svg>
+        Micro-App Template
+      </div>
+
+      <!-- Topbar hint chips -->
+      <span class="pill">Press <span class="kbd">Ctrl</span> + <span class="kbd">K</span> for Commands</span>
+      <span class="pill">Press <span class="kbd">?</span> for Help</span>
+
+      <div class="spacer"></div>
+
+      <!-- Theme toggle and settings -->
+      <div class="topbar-actions">
+        <button id="themeToggle" class="btn" title="Toggle theme (dark/light)">
+          Toggle Theme
+        </button>
+        <button id="openSettings" class="btn" title="Open Settings">
+          Settings
+        </button>
+        <button id="showAbout" class="btn" title="About this micro-app">
+          About
+        </button>
+      </div>
+    </header>
+
+    <!-- Main area: sidebar navigation + content surface -->
+    <main class="main">
+      <!-- Sidebar: simple nav between views -->
+      <aside class="sidebar" aria-label="Sidebar Navigation">
+        <section class="nav-section">
+          <h3>Navigation</h3>
+          <div class="nav">
+            <button class="active" data-route="dashboard">Dashboard</button>
+            <button data-route="canvas-demo">Canvas Demo</button>
+            <button data-route="storage">Storage</button>
+          </div>
+        </section>
+
+        <section class="nav-section">
+          <h3>Actions</h3>
+          <div class="nav">
+            <button id="notifySuccess">Show Success Toast</button>
+            <button id="notifyWarning">Show Warning Toast</button>
+            <button id="notifyDanger">Show Danger Toast</button>
+          </div>
+        </section>
+
+        <section class="nav-section">
+          <h3>Shortcuts</h3>
+          <div class="card">
+            <div class="grid">
+              <div><span class="kbd">Ctrl</span> + <span class="kbd">K</span> — Command Palette</div>
+              <div><span class="kbd">T</span> — Toggle Theme</div>
+              <div><span class="kbd">S</span> — Open Settings</div>
+              <div><span class="kbd">?</span> — Help/About</div>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Content: routed views appear here -->
+      <section class="content" aria-live="polite">
+        <div class="content-header">
+          <div id="viewTitle">Dashboard</div>
+          <div>
+            <button class="btn" id="exportState">Export State</button>
+            <button class="btn" id="importState">Import State</button>
+          </div>
+        </div>
+        <div class="content-body">
+          <!-- View: Dashboard -->
+          <div data-view="dashboard">
+            <div class="grid two">
+              <div class="card">
+                <h2 class="mt0">Welcome</h2>
+                <p class="muted">
+                  This is your starting point. Use the sidebar to explore, the command palette for quick actions, and the settings modal to tweak behavior.
+                </p>
+                <ul>
+                  <li>Single-file app shell (no build step).</li>
+                  <li>Dark/light themes, keyboard shortcuts, toasts, settings.</li>
+                  <li>State persisted to localStorage.</li>
+                  <li>Canvas playground + optional Three.js (commented).</li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <h3 class="mt0">Quick Demo: Counter Component</h3>
+                <p class="muted">A tiny stateful widget to show how to read/write from the store.</p>
+                <div class="row items-center gap-10">
+                  <button class="btn" id="dec">−</button>
+                  <div id="count" class="count-display">0</div>
+                  <button class="btn" id="inc">+</button>
+                  <button class="btn" id="reset">Reset</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- View: Canvas Demo (2D canvas animation) -->
+          <div class="hidden" data-view="canvas-demo">
+            <div class="grid two">
+              <div class="card">
+                <h3 class="mt0">Canvas Playground</h3>
+                <p class="muted">A simple bouncing ball animation on a 2D canvas. Great for quick visuals and prototyping.</p>
+                <canvas id="demoCanvas" width="640" height="360" class="canvas-surface"></canvas>
+                <div class="mt-10 row gap-8 items-center">
+                  <button class="btn" id="canvasPause">Pause</button>
+                  <button class="btn" id="canvasResume">Resume</button>
+                  <span class="muted">Tip: Resize the window to see the app respond.</span>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3 class="mt0">Three.js (Optional)</h3>
+                <p class="muted">
+                  If you want 3D, un-comment the three.js CDN at the top and the initThreeDemo() call below.
+                </p>
+                <pre class="muted preblock">
+<!-- Example bootstrap (uncomment to use)
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  function initThreeDemo(mountEl) {
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0e0f14);
+    const camera = new THREE.PerspectiveCamera(70, mountEl.clientWidth/mountEl.clientHeight, 0.1, 1000);
+    camera.position.set(0,1.4,3);
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(mountEl.clientWidth, mountEl.clientHeight);
+    mountEl.innerHTML = "";
+    mountEl.appendChild(renderer.domElement);
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(2,3,4);
+    scene.add(light);
+
+    const geo = new THREE.BoxGeometry(1,1,1);
+    const mat = new THREE.MeshPhongMaterial({color: 0x5b9cff});
+    const cube = new THREE.Mesh(geo, mat);
+    scene.add(cube);
+
+    function onResize(){
+      const {clientWidth:w, clientHeight:h} = mountEl;
+      renderer.setSize(w,h);
+      camera.aspect = w/h; camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', onResize);
+    onResize();
+
+    (function loop(){
+      cube.rotation.y += 0.01;
+      renderer.render(scene, camera);
+      requestAnimationFrame(loop);
+    })();
+  }
+</script>
+-->
+                </pre>
+                <div id="threeMount" class="three-mount">
+                  Three.js mount target
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- View: Storage (inspect and edit persisted state) -->
+          <div class="hidden" data-view="storage">
+            <div class="card">
+              <h3 class="mt0">App State (localStorage)</h3>
+              <p class="muted">Inspect and modify your persisted state. Changes save automatically.</p>
+              <textarea id="stateEditor" class="textarea"></textarea>
+              <div class="row gap-8 mt-10">
+                <button class="btn primary" id="applyState">Apply State</button>
+                <button class="btn" id="reloadState">Reload</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ====== Settings Modal ====== -->
+  <div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="modal">
+      <div class="modal-header">
+        <strong>Settings</strong>
+      </div>
+      <div class="modal-body">
+        <div class="grid two">
+          <div class="card">
+            <h4 class="mt0">Theme</h4>
+            <p class="muted">Choose dark or light theme.</p>
+            <div class="row gap-8">
+              <button class="btn" data-theme-choice="dark">Dark</button>
+              <button class="btn" data-theme-choice="light">Light</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h4 class="mt0">App Options</h4>
+            <label class="row items-center gap-8">
+              <input type="checkbox" id="optAnimations" />
+              Enable subtle animations
+            </label>
+            <label class="row items-center gap-8 mt-10">
+              <input type="checkbox" id="optHints" />
+              Show helper hints
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="closeSettings">Close</button>
+        <button class="btn primary" id="saveSettings">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== Command Palette ====== -->
+  <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Command Palette">
+    <div class="palette-panel">
+      <input id="paletteInput" placeholder="Type a command… (e.g., 'Go: Dashboard', 'Theme: Light')" />
+      <div class="palette-list" id="paletteList" role="listbox" aria-label="Command Results"></div>
+    </div>
+  </div>
+
+  <!-- ====== Toast Container (notifications) ====== -->
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    // ====== Tiny helper utilities (in layman's terms) ======
+    // qs/qsa: quick ways to grab elements on the page
+    const qs  = (sel, el=document) => el.querySelector(sel);
+    const qsa = (sel, el=document) => [...el.querySelectorAll(sel)];
+    // on: attach an event listener in a short way
+    const on = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts);
+    // clamp: keep a number between min and max
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+    // ====== App namespace to avoid global clutter ======
+    window.App = {
+      version: '1.0.0',
+      storageKey: 'microAppState.v1',
+      state: {
+        // Default values shown the very first time the app loads
+        theme: 'dark',
+        options: { animations: true, hints: true },
+        counter: 0
+      },
+      routes: [
+        { id: 'dashboard',   title: 'Dashboard' },
+        { id: 'canvas-demo', title: 'Canvas Demo' },
+        { id: 'storage',     title: 'Storage' }
+      ],
+      // List of commands shown in the command palette
+      commands: [
+        { label: 'Go: Dashboard',   run: () => App.navigate('dashboard') },
+        { label: 'Go: Canvas Demo', run: () => App.navigate('canvas-demo') },
+        { label: 'Go: Storage',     run: () => App.navigate('storage') },
+        { label: 'Theme: Dark',     run: () => App.setTheme('dark') },
+        { label: 'Theme: Light',    run: () => App.setTheme('light') },
+        { label: 'Open: Settings',  run: () => App.openSettings() },
+        { label: 'About: Show',     run: () => App.showAbout() },
+      ],
+    };
+
+    // ====== Persistence layer (saves and loads from localStorage) ======
+    App.load = function load() {
+      // Try to load existing state; if none found, use defaults above
+      try {
+        const raw = localStorage.getItem(App.storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          // Merge to keep backward compatibility if you add new fields later
+          App.state = Object.assign({}, App.state, parsed);
+        }
+      } catch (e) {
+        console.warn('State load failed, using defaults', e);
+      }
+    };
+
+    App.save = function save() {
+      // Save current state to localStorage so it persists across refreshes
+      try {
+        localStorage.setItem(App.storageKey, JSON.stringify(App.state));
+      } catch (e) {
+        console.warn('State save failed', e);
+        App.toast('Saving to localStorage failed.', 'danger');
+      }
+    };
+
+    // ====== Routing (switches which "view" is visible) ======
+    App.navigate = function navigate(id) {
+      // Find the corresponding route metadata to update title
+      const route = App.routes.find(r => r.id === id) || App.routes[0];
+      // Show matching view, hide others
+      qsa('[data-view]').forEach(v => v.classList.toggle('hidden', v.getAttribute('data-view') !== route.id));
+      // Update active button styles in the sidebar
+      qsa('.nav button').forEach(b => b.classList.toggle('active', b.getAttribute('data-route') === route.id));
+      // Set content header title
+      qs('#viewTitle').textContent = route.title;
+      // Update URL hash for basic deep-linking (optional)
+      location.hash = route.id;
+
+      // If we entered the canvas view, ensure canvas fits / resumes
+      if (route.id === 'canvas-demo') {
+        App.canvas && App.canvas.onResize();
+      }
+    };
+
+    // ====== Theme handling (dark/light) ======
+    App.setTheme = function setTheme(theme) {
+      // Update the data attribute; CSS variables do the rest
+      const root = qs('#app');
+      root.setAttribute('data-theme', theme);
+      App.state.theme = theme;
+      App.save();
+    };
+
+    // ====== Toast notifications (little popups for feedback) ======
+    App.toast = function toast(message, kind='info', timeout=2600) {
+      const wrap = qs('#toasts');
+      const el = document.createElement('div');
+      el.className = `toast ${kind}`;
+      el.innerHTML = `<div class="flex-1"></div><button class="btn" aria-label="Dismiss">Dismiss</button>`;
+      el.querySelector('.flex-1').textContent = message;
+      wrap.appendChild(el);
+      const remove = () => el.remove();
+      on(el.querySelector('button'), 'click', remove);
+      setTimeout(remove, timeout);
+    };
+
+    // ====== Modal controls (for Settings) ======
+    App.openSettings = function openSettings() {
+      // Fill current values into the modal inputs
+      qs('#optAnimations').checked = !!App.state.options.animations;
+      qs('#optHints').checked = !!App.state.options.hints;
+      qs('#settingsModal').style.display = 'flex';
+    };
+    App.closeSettings = function closeSettings() {
+      qs('#settingsModal').style.display = 'none';
+    };
+    App.saveSettings = function saveSettings() {
+      // Grab values from the modal and store them
+      App.state.options.animations = !!qs('#optAnimations').checked;
+      App.state.options.hints = !!qs('#optHints').checked;
+      App.save();
+      App.closeSettings();
+      App.toast('Settings saved.', 'success');
+    };
+
+    // ====== About helper (simple alert for now; could be a modal) ======
+    App.showAbout = function showAbout() {
+      const about = `
+Micro-App Template v${App.version}
+– Single-file, self-contained HTML app shell
+– Dark/Light theme, keyboard shortcuts, toasts
+– LocalStorage persistence
+– Canvas playground + optional Three.js
+`;
+      alert(about);
+    };
+
+    // ====== Command Palette (Ctrl/Cmd + K) ======
+    App.openPalette = function openPalette() {
+      const pal = qs('#palette');
+      const input = qs('#paletteInput');
+      const list = qs('#paletteList');
+      // Populate the list with all commands initially
+      list.innerHTML = '';
+      App.commands.forEach((cmd, i) => {
+        const item = document.createElement('div');
+        item.className = 'palette-item';
+        item.textContent = cmd.label;
+        item.setAttribute('role', 'option');
+        item.dataset.index = i;
+        list.appendChild(item);
+      });
+      pal.style.display = 'flex';
+      input.value = '';
+      input.focus();
+    };
+    App.closePalette = function closePalette() {
+      qs('#palette').style.display = 'none';
+    };
+
+    // Filters palette items live based on input text
+    App.filterPalette = function filterPalette(text) {
+      const items = qsa('.palette-item', qs('#paletteList'));
+      const t = text.trim().toLowerCase();
+      items.forEach(item => {
+        const match = item.textContent.toLowerCase().includes(t);
+        item.style.display = match ? '' : 'none';
+      });
+    };
+
+    // Executes a selected command
+    App.runPaletteItem = function runPaletteItem(index) {
+      const cmd = App.commands[index];
+      if (cmd) {
+        cmd.run();
+        App.closePalette();
+      }
+    };
+
+    // ====== Example: Small counter component ======
+    App.counter = {
+      init() {
+        // Show current value
+        qs('#count').textContent = App.state.counter;
+        // Wire buttons
+        on(qs('#inc'), 'click', () => {
+          App.state.counter = clamp((App.state.counter || 0) + 1, -9999, 9999);
+          qs('#count').textContent = App.state.counter;
+          App.save();
+        });
+        on(qs('#dec'), 'click', () => {
+          App.state.counter = clamp((App.state.counter || 0) - 1, -9999, 9999);
+          qs('#count').textContent = App.state.counter;
+          App.save();
+        });
+        on(qs('#reset'), 'click', () => {
+          App.state.counter = 0;
+          qs('#count').textContent = App.state.counter;
+          App.save();
+        });
+      }
+    };
+
+    // ====== Canvas demo (simple 2D bouncing ball) ======
+    App.canvas = (function(){
+      // Private variables for the animation
+      let ctx, canvas, raf, running = true;
+      let x = 80, y = 60, vx = 2.6, vy = 2.1, r = 14;
+
+      function draw() {
+        if (!ctx) return;
+        // Clear the canvas
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        // Draw the ball
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI*2);
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--primary') || '#5b9cff';
+        ctx.fill();
+        // Update position and bounce on edges
+        x += vx; y += vy;
+        if (x - r < 0 || x + r > canvas.width)  vx *= -1;
+        if (y - r < 0 || y + r > canvas.height) vy *= -1;
+        // Continue loop if running
+        if (running) raf = requestAnimationFrame(draw);
+      }
+
+      function start() { if (!running) { running = true; draw(); } }
+      function stop()  { running = false; if (raf) cancelAnimationFrame(raf); }
+
+      function onResize() {
+        if (!canvas) return;
+        // Keep a 16:9 feel while filling container width
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = Math.floor(rect.width * devicePixelRatio);
+        canvas.height = Math.floor(rect.width * 9/16 * devicePixelRatio);
+        canvas.style.height = `${Math.floor(rect.width * 9/16)}px`;
+      }
+
+      function init() {
+        canvas = qs('#demoCanvas');
+        if (!canvas) return;
+        ctx = canvas.getContext('2d');
+        on(window, 'resize', onResize);
+        onResize();
+        draw();
+        on(qs('#canvasPause'), 'click', stop);
+        on(qs('#canvasResume'), 'click', start);
+      }
+
+      return { init, onResize, start, stop };
+    })();
+
+    // ====== Import/Export State helpers ======
+    App.exportState = function exportState() {
+      // Turn current state into a downloadable JSON file
+      const data = new Blob([JSON.stringify(App.state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'micro-app-state.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      App.toast('State exported.', 'success');
+    };
+
+    App.importState = function importState() {
+      // Let the user pick a JSON file and merge it into state
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'application/json';
+      on(inp, 'change', () => {
+        const file = inp.files && inp.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const obj = JSON.parse(String(reader.result || '{}'));
+            App.state = Object.assign({}, App.state, obj);
+            App.save();
+            App.applyStateToUI();
+            App.toast('State imported.', 'success');
+          } catch (e) {
+            App.toast('Invalid JSON.', 'danger');
+          }
+        };
+        reader.readAsText(file);
+      });
+      inp.click();
+    };
+
+    // ====== Apply current state to visible UI ======
+    App.applyStateToUI = function applyStateToUI() {
+      // Theme
+      App.setTheme(App.state.theme || 'dark');
+      // Counter
+      const countEl = qs('#count');
+      if (countEl) countEl.textContent = App.state.counter || 0;
+      // Storage editor
+      const ed = qs('#stateEditor');
+      if (ed) ed.value = JSON.stringify(App.state, null, 2);
+    };
+
+    // ====== Bootstrapping the app (runs once at load) ======
+    (function init() {
+      // 1) Load saved state (if any)
+      App.load();
+
+      // 2) Wire topbar buttons
+      on(qs('#themeToggle'), 'click', () => App.setTheme(App.state.theme === 'dark' ? 'light' : 'dark'));
+      on(qs('#openSettings'), 'click', App.openSettings);
+      on(qs('#showAbout'), 'click', App.showAbout);
+
+      // 3) Wire sidebar navigation
+      qsa('.nav button').forEach(btn => {
+        on(btn, 'click', () => App.navigate(btn.getAttribute('data-route')));
+      });
+
+      // 4) Wire toasts for demonstration
+      on(qs('#notifySuccess'), 'click', () => App.toast('Operation completed successfully.', 'success'));
+      on(qs('#notifyWarning'), 'click', () => App.toast('Heads up! Check your inputs.', 'warning'));
+      on(qs('#notifyDanger'), 'click', () => App.toast('Something went wrong.', 'danger'));
+
+      // 5) Settings modal
+      on(qs('#closeSettings'), 'click', App.closeSettings);
+      on(qs('#saveSettings'), 'click', App.saveSettings);
+      qsa('[data-theme-choice]').forEach(b => on(b, 'click', () => App.setTheme(b.dataset.themeChoice)));
+
+      // 6) Command palette events
+      on(document, 'keydown', (e) => {
+        // Ctrl/Cmd + K to open
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          App.openPalette();
+        }
+        // '?' to open About
+        if (!e.ctrlKey && !e.metaKey && e.key === '?') {
+          e.preventDefault();
+          App.showAbout();
+        }
+        // 't' to toggle theme
+        if (!e.ctrlKey && !e.metaKey && (e.key === 't' || e.key === 'T')) {
+          e.preventDefault();
+          App.setTheme(App.state.theme === 'dark' ? 'light' : 'dark');
+        }
+        // 's' to open settings
+        if (!e.ctrlKey && !e.metaKey && (e.key === 's' || e.key === 'S')) {
+          e.preventDefault();
+          App.openSettings();
+        }
+      });
+      on(qs('#paletteInput'), 'input', (e) => App.filterPalette(e.target.value));
+      on(qs('#paletteList'), 'click', (e) => {
+        const item = e.target.closest('.palette-item');
+        if (!item) return;
+        App.runPaletteItem(Number(item.dataset.index));
+      });
+      on(qs('#palette'), 'click', (e) => {
+        if (e.target.id === 'palette') App.closePalette();
+      });
+      on(document, 'keydown', (e) => {
+        if (e.key === 'Escape') {
+          App.closePalette();
+          App.closeSettings();
+        }
+      });
+
+      // 7) Counter demo
+      App.counter.init();
+
+      // 8) Canvas demo
+      App.canvas.init();
+
+      // 9) Storage view controls
+      on(qs('#reloadState'), 'click', () => {
+        App.load();
+        App.applyStateToUI();
+        App.toast('State reloaded.', 'success');
+      });
+      on(qs('#applyState'), 'click', () => {
+        try {
+          const next = JSON.parse(qs('#stateEditor').value || '{}');
+          App.state = Object.assign({}, App.state, next);
+          App.save();
+          App.applyStateToUI();
+          App.toast('State applied.', 'success');
+        } catch (e) {
+          App.toast('Invalid JSON.', 'danger');
+        }
+      });
+      on(qs('#exportState'), 'click', App.exportState);
+      on(qs('#importState'), 'click', App.importState);
+
+      // 10) Start on hash route or default
+      const startRoute = (location.hash || '').replace('#','') || 'dashboard';
+      App.navigate(startRoute);
+
+      // 11) Apply state to UI once everything is wired
+      App.applyStateToUI();
+
+      // 12) If you un-comment the three.js CDN, you can also un-comment this:
+      // initThreeDemo(qs('#threeMount'));
+    })();
+  </script>
+</body>
+</html>
