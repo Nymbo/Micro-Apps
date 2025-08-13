@@ -1,112 +1,705 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live SVG Viewer</title>
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Inter for a clean, modern look -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        /* Custom styles to apply the Inter font */
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Style for the SVG preview to ensure it scales correctly */
-        #svgPreview svg {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SVG Viewer</title>
+
+  <style>
+    /* ====== Design System: CSS variables for easy theming ====== */
+    :root {
+      --bg: #0f1115;          /* main background (dark) */
+      --panel: #151924;        /* panels/cards */
+      --panel-2: #0c0f16;      /* deeper panels */
+      --text: #e5e7eb;         /* primary text */
+      --text-muted: #a3aab8;   /* secondary text */
+      --primary: #5b9cff;      /* accent color */
+      --primary-2: #2f6fe6;    /* accent hover */
+      --border: #232836;       /* subtle borders */
+      --success: #22c55e;
+      --warning: #fbbf24;
+      --danger:  #ef4444;
+      --shadow:  rgba(0,0,0,0.4);
+      --radius:  14px;          /* rounded corners standard */
+      --radius-sm: 10px;        /* smaller radius */
+      --radius-lg: 22px;        /* larger radius */
+      --pad: 14px;              /* standard spacing */
+      --pad-sm: 10px;
+      --pad-lg: 18px;
+    }
+
+    /* Light theme (toggled via [data-theme="light"]) */
+    [data-theme="light"] {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-2: #f3f5fa;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --primary: #2563eb;
+      --primary-2: #1e40af;
+      --border: #e5e7eb;
+      --shadow: rgba(0,0,0,0.08);
+    }
+
+    /* ====== Global Resets & Typography ====== */
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ====== App Shell Layout ======
+        Layout uses a header + main grid. Sidebar is removed for a single-view app. */
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100%;
+    }
+
+    /* Top bar with app title, theme toggle, and actions */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: var(--pad);
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)) , var(--bg);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      box-shadow: 0 6px 20px var(--shadow);
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .topbar-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Main Content Grid (simplified to a single column) */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--pad);
+      padding: var(--pad);
+    }
+
+    /* Main content card */
+    .content {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0;
+      box-shadow: 0 18px 50px var(--shadow);
+      overflow: hidden; /* Fallback for older browsers */
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    @supports (overflow: clip) {
+      .content { overflow: clip; }
+    }
+
+    .content-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--pad);
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-2);
+    }
+
+    .content-body {
+      padding: var(--pad);
+      overflow: auto;
+      display: flex; /* Allow content to fill vertical space */
+      flex-direction: column;
+    }
+
+    /* Reusable button styles */
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: var(--primary); }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: white; }
+    .btn.primary:hover { background: var(--primary-2); border-color: var(--primary-2); }
+
+    /* Chips/pills for small indicators */
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--panel-2); /* Use panel-2 for inner cards */
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--pad);
+      display: flex; /* Enable flex for vertical stretching */
+      flex-direction: column;
+      gap: var(--pad-sm);
+    }
+
+    /* Grid helper */
+    .grid {
+      display: grid;
+      gap: var(--pad);
+    }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @media (max-width: 1024px) {
+      .grid.two { grid-template-columns: 1fr; }
+    }
+
+    /* ====== Modal & Toasts ====== */
+    .modal-backdrop {
+      position: fixed; inset: 0; display: none;
+      background: rgba(0,0,0,0.5);
+      -webkit-backdrop-filter: blur(3px);
+      backdrop-filter: blur(3px);
+      z-index: 80;
+      align-items: center; justify-content: center;
+      padding: var(--pad);
+    }
+    .modal {
+      width: min(640px, 96vw);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 18px 60px var(--shadow);
+      overflow: hidden;
+      display: grid; grid-template-rows: auto 1fr auto;
+    }
+    .modal-header, .modal-footer {
+      padding: var(--pad);
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-2);
+    }
+    .modal-footer { border-top: 1px solid var(--border); border-bottom: 0; display: flex; justify-content: flex-end; gap: 8px; }
+    .modal-body { padding: var(--pad); }
+
+    .toasts {
+      position: fixed; bottom: 16px; right: 16px; z-index: 90;
+      display: grid; gap: 10px; width: min(420px, 92vw);
+    }
+    .toast {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--primary);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      box-shadow: 0 12px 32px var(--shadow);
+      display: flex; align-items: start; gap: 10px;
+    }
+    .toast.success { border-left-color: var(--success); }
+    .toast.warning { border-left-color: var(--warning); }
+    .toast.danger  { border-left-color: var(--danger);  }
+
+    /* ====== Command Palette ====== */
+    .palette {
+      position: fixed; inset: 0; display: none; z-index: 85;
+      align-items: start; justify-content: center;
+      padding-top: 10vh;
+      background: rgba(0,0,0,0.35);
+      -webkit-backdrop-filter: blur(2px);
+      backdrop-filter: blur(2px);
+    }
+    .palette-panel {
+      width: min(720px, 96vw);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 18px 60px var(--shadow);
+      overflow: hidden;
+      display: grid; grid-template-rows: auto 1fr;
+    }
+    .palette input {
+      width: 100%; padding: 14px;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 0; outline: none;
+      border-bottom: 1px solid var(--border);
+      font-size: 15px;
+    }
+    .palette-list { max-height: 50vh; overflow: auto; }
+    .palette-item {
+      padding: 12px 14px; cursor: pointer;
+      border-bottom: 1px solid var(--border);
+    }
+    .palette-item:hover { background: rgba(255,255,255,0.05); }
+
+    /* ====== Utility helpers ====== */
+    .hidden { display: none !important; }
+    .muted { color: var(--text-muted); }
+    .spacer { flex: 1; }
+    .kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      padding: 2px 6px;
+      border: 1px solid var(--border);
+      border-bottom-width: 3px;
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--text);
+    }
+
+    /* ====== Utilities (to remove inline styles) ====== */
+    .mt0 { margin-top: 0; }
+    .mb0 { margin-bottom: 0; }
+    .row { display: flex; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-8 { gap: 8px; }
+    .flex-1 { flex: 1; }
+
+    /* ====== App-Specific Styles for SVG Viewer ====== */
+    .textarea {
+      width: 100%;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      resize: none; /* Let flexbox handle sizing */
+    }
+    .svg-preview-area {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-sm);
+      padding: var(--pad-sm);
+      background: var(--bg); /* Use main BG for contrast */
+      overflow: hidden;
+    }
+    .svg-preview-area svg {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* Small element tweaks */
+    .brand svg { color: var(--primary); }
+  </style>
 </head>
-<body class="bg-gray-900 text-gray-200">
 
-    <!-- Main container for the application -->
-    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+<body>
+  <div class="app" id="app" data-theme="dark">
+    <header class="topbar">
+      <div class="brand" role="img" aria-label="App brand">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.174 6.812a1 1 0 0 0-1.218-1.218l-5.638 2.039a1 1 0 0 0-.646.646l-2.039 5.638a1 1 0 0 0 1.218 1.218l5.638-2.039a1 1 0 0 0 .646-.646l2.039-5.638z"/><path d="m18 5-1.5-1.5"/>
+          <path d="M12.157 11.843 2.86 21.14a1 1 0 0 1-1.25-.424L.352 18.2a1 1 0 0 1 .424-1.25l9.298-8.298a1 1 0 0 1 1.25.424l2.518 2.518a1 1 0 0 1-.424 1.25z"/>
+        </svg>
+        SVG Viewer
+      </div>
 
-        <!-- Header section -->
-        <header class="text-center mb-8">
-            <h1 class="text-3xl sm:text-4xl font-bold text-white">Live SVG Viewer</h1>
-            <p class="text-gray-400 mt-2">Paste your SVG code below to see it rendered instantly.</p>
-        </header>
+      <span class="pill">Press <span class="kbd">Ctrl</span> + <span class="kbd">K</span> for Commands</span>
+      <span class="pill">Press <span class="kbd">?</span> for Help</span>
 
-        <!-- Grid layout for the editor and preview panels -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 h-[60vh] min-h-[400px]">
+      <div class="spacer"></div>
 
-            <!-- SVG Code Input Panel -->
-            <div class="flex flex-col">
-                <label for="svgCode" class="mb-2 font-semibold text-gray-300">SVG Code</label>
-                <textarea
-                    id="svgCode"
-                    class="w-full h-full p-4 bg-gray-800 border border-gray-600 rounded-lg shadow-inner text-gray-300 font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    placeholder="<svg>...</svg>"
-                ></textarea>
-            </div>
+      <div class="topbar-actions">
+        <button id="themeToggle" class="btn" title="Toggle theme (dark/light)">Toggle Theme</button>
+        <button id="openSettings" class="btn" title="Open Settings">Settings</button>
+        <button id="showAbout" class="btn" title="About this micro-app">About</button>
+      </div>
+    </header>
 
-            <!-- SVG Preview Panel -->
-            <div class="flex flex-col">
-                <label for="svgPreview" class="mb-2 font-semibold text-gray-300">Live Preview</label>
-                <div
-                    id="svgPreview"
-                    class="w-full h-full p-4 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg shadow-inner flex items-center justify-center overflow-hidden"
-                >
-                    <!-- The rendered SVG will appear here -->
-                    <span class="text-gray-500">Preview will appear here</span>
-                </div>
-            </div>
+    <main class="main">
+      <section class="content" aria-live="polite">
+        <div class="content-header">
+          <div id="viewTitle">Live SVG Editor</div>
+          <div>
+            <button class="btn" id="exportState">Export State</button>
+            <button class="btn" id="importState">Import State</button>
+          </div>
         </div>
+        <div class="content-body">
+          <div class="grid two flex-1">
+            <div class="card">
+              <div class="row items-center justify-between">
+                <h3 class="mt0 mb0">SVG Code</h3>
+                <div class="row gap-8">
+                  <button id="copySvg" class="btn">Copy</button>
+                  <button id="clearSvg" class="btn">Clear</button>
+                </div>
+              </div>
+              <p class="muted mt0">Paste markup to see a live preview. Changes are saved automatically.</p>
+              <textarea id="svgCode" class="textarea flex-1" placeholder="<svg>..."></textarea>
+            </div>
 
+            <div class="card">
+              <h3 class="mt0">Live Preview</h3>
+              <p class="muted mt0">Rendered output appears here.</p>
+              <div id="svgPreview" class="svg-preview-area flex-1">
+                <span class="muted">Awaiting SVG...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="modal">
+      <div class="modal-header">
+        <strong>Settings</strong>
+      </div>
+      <div class="modal-body">
+         <div class="card">
+            <h4 class="mt0">Theme</h4>
+            <p class="muted">Choose dark or light theme for the editor.</p>
+            <div class="row gap-8">
+              <button class="btn" data-theme-choice="dark">Dark</button>
+              <button class="btn" data-theme-choice="light">Light</button>
+            </div>
+          </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="closeSettings">Close</button>
+      </div>
     </div>
+  </div>
 
-    <script>
-        // --- SCRIPT LOGIC ---
+  <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Command Palette">
+    <div class="palette-panel">
+      <input id="paletteInput" placeholder="Type a command… (e.g., 'Theme: Light', 'SVG: Clear')" />
+      <div class="palette-list" id="paletteList" role="listbox" aria-label="Command Results"></div>
+    </div>
+  </div>
 
-        // Get references to the HTML elements we need to work with
-        const svgCodeTextarea = document.getElementById('svgCode');
-        const svgPreviewContainer = document.getElementById('svgPreview');
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="true"></div>
 
-        // Initial sample SVG code to show on page load
-        const initialSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-width="8">
+  <script>
+    // ====== Tiny helper utilities (in layman's terms) ======
+    // qs/qsa: quick ways to grab elements on the page
+    const qs  = (sel, el=document) => el.querySelector(sel);
+    const qsa = (sel, el=document) => [...el.querySelectorAll(sel)];
+    // on: attach an event listener in a short way
+    const on = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts);
+
+    // ====== App namespace to avoid global clutter ======
+    window.App = {
+      version: '1.0.0',
+      storageKey: 'svgViewerState.v1',
+      state: {
+        // Default values shown the very first time the app loads
+        theme: 'dark',
+        svgContent: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-width="8">
   <defs>
     <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="1" />
+      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="1" />
     </linearGradient>
   </defs>
   <circle cx="100" cy="100" r="80" stroke="url(#grad)" />
   <path d="M 60 100 L 100 140 L 140 60" stroke="#a7f3d0" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
+</svg>`,
+      },
+      // List of commands shown in the command palette
+      commands: [
+        { label: 'Theme: Dark',       run: () => App.setTheme('dark') },
+        { label: 'Theme: Light',      run: () => App.setTheme('light') },
+        { label: 'Open: Settings',    run: () => App.openSettings() },
+        { label: 'About: Show Info',  run: () => App.showAbout() },
+        { label: 'SVG: Copy Code',    run: () => App.svgViewer.copy() },
+        { label: 'SVG: Clear Code',   run: () => App.svgViewer.clear() },
+        { label: 'State: Export',     run: () => App.exportState() },
+        { label: 'State: Import',     run: () => App.importState() },
+      ],
+    };
 
-        // Function to update the preview with the SVG code
-        function updatePreview() {
-            // Get the current code from the textarea
-            const code = svgCodeTextarea.value;
-
-            // If the textarea is empty, show the placeholder text
-            if (code.trim() === '') {
-                svgPreviewContainer.innerHTML = '<span class="text-gray-500">Preview will appear here</span>';
-            } else {
-                // Otherwise, inject the user's code directly into the preview container
-                // The browser will parse and render it as an SVG image
-                svgPreviewContainer.innerHTML = code;
-            }
+    // ====== Persistence layer (saves and loads from localStorage) ======
+    App.load = function load() {
+      // Try to load existing state; if none found, use defaults above
+      try {
+        const raw = localStorage.getItem(App.storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          // Merge to keep backward compatibility if you add new fields later
+          App.state = Object.assign({}, App.state, parsed);
         }
+      } catch (e) {
+        console.warn('State load failed, using defaults', e);
+      }
+    };
 
-        // --- EVENT LISTENERS ---
+    App.save = function save() {
+      // Save current state to localStorage so it persists across refreshes
+      try {
+        localStorage.setItem(App.storageKey, JSON.stringify(App.state));
+      } catch (e) {
+        console.warn('State save failed', e);
+        App.toast('Saving to localStorage failed.', 'danger');
+      }
+    };
 
-        // Listen for any input (typing, pasting, etc.) in the textarea
-        svgCodeTextarea.addEventListener('input', updatePreview);
+    // ====== Theme handling (dark/light) ======
+    App.setTheme = function setTheme(theme) {
+      // Update the data attribute; CSS variables do the rest
+      qs('#app').setAttribute('data-theme', theme);
+      App.state.theme = theme;
+      App.save();
+    };
 
-        // When the page first loads, set the initial SVG and render it
-        window.addEventListener('load', () => {
-            svgCodeTextarea.value = initialSvg;
-            updatePreview();
+    // ====== Toast notifications (little popups for feedback) ======
+    App.toast = function toast(message, kind='info', timeout=2600) {
+      const wrap = qs('#toasts');
+      const el = document.createElement('div');
+      el.className = `toast ${kind}`;
+      el.innerHTML = `<div class="flex-1"></div><button class="btn" aria-label="Dismiss">X</button>`;
+      el.querySelector('.flex-1').textContent = message;
+      wrap.appendChild(el);
+      const remove = () => el.remove();
+      on(el.querySelector('button'), 'click', remove);
+      setTimeout(remove, timeout);
+    };
+
+    // ====== Modal controls (for Settings) ======
+    App.openSettings = function openSettings() {
+      qs('#settingsModal').style.display = 'flex';
+    };
+    App.closeSettings = function closeSettings() {
+      qs('#settingsModal').style.display = 'none';
+    };
+
+    // ====== About helper (simple alert for now) ======
+    App.showAbout = function showAbout() {
+      const about = `
+SVG Viewer v${App.version}
+– A Micro-App by Devan Eckert.
+– Single-file, self-contained HTML app.
+– Live renders SVG markup.
+– Features dark/light theme, keyboard shortcuts, and state persistence.
+`;
+      alert(about);
+    };
+
+    // ====== Command Palette (Ctrl/Cmd + K) ======
+    App.openPalette = function openPalette() {
+      const pal = qs('#palette');
+      const input = qs('#paletteInput');
+      const list = qs('#paletteList');
+      // Populate the list with all commands
+      list.innerHTML = '';
+      App.commands.forEach((cmd, i) => {
+        const item = document.createElement('div');
+        item.className = 'palette-item';
+        item.textContent = cmd.label;
+        item.setAttribute('role', 'option');
+        item.dataset.index = i;
+        list.appendChild(item);
+      });
+      pal.style.display = 'flex';
+      input.value = '';
+      input.focus();
+    };
+    App.closePalette = function closePalette() {
+      qs('#palette').style.display = 'none';
+    };
+
+    App.filterPalette = function filterPalette(text) {
+      const items = qsa('.palette-item', qs('#paletteList'));
+      const t = text.trim().toLowerCase();
+      items.forEach(item => {
+        const match = item.textContent.toLowerCase().includes(t);
+        item.style.display = match ? '' : 'none';
+      });
+    };
+
+    App.runPaletteItem = function runPaletteItem(index) {
+      const cmd = App.commands[index];
+      if (cmd) {
+        cmd.run();
+        App.closePalette();
+      }
+    };
+
+    // ====== SVG Viewer Core Logic ======
+    App.svgViewer = {
+      elements: {}, // To store DOM element references
+      init() {
+        // Cache elements for quick access
+        this.elements.editor = qs('#svgCode');
+        this.elements.preview = qs('#svgPreview');
+        this.elements.copyBtn = qs('#copySvg');
+        this.elements.clearBtn = qs('#clearSvg');
+
+        // Set initial content from the loaded state
+        this.elements.editor.value = App.state.svgContent || '';
+        this.render();
+
+        // Wire up event listeners
+        on(this.elements.editor, 'input', () => {
+          App.state.svgContent = this.elements.editor.value;
+          this.render();
+          App.save(); // Save on every keystroke
         });
-    </script>
+        on(this.elements.copyBtn, 'click', this.copy);
+        on(this.elements.clearBtn, 'click', this.clear);
+      },
 
+      render() {
+        const code = this.elements.editor.value.trim();
+        // To prevent potential security issues with script injection, it's safer
+        // to use DOMParser, though for trusted SVGs, innerHTML is faster.
+        // We'll stick to innerHTML for this simple tool's purpose.
+        if (code === '') {
+          this.elements.preview.innerHTML = '<span class="muted">Awaiting SVG...</span>';
+        } else {
+          this.elements.preview.innerHTML = code;
+        }
+      },
+
+      copy() {
+        // Use the Clipboard API to copy SVG code
+        if (!App.svgViewer.elements.editor.value) {
+            App.toast('Nothing to copy.', 'warning');
+            return;
+        }
+        navigator.clipboard.writeText(App.svgViewer.elements.editor.value)
+          .then(() => App.toast('SVG code copied!', 'success'))
+          .catch(() => App.toast('Failed to copy code.', 'danger'));
+      },
+
+      clear() {
+        // Clear the editor, which will trigger the 'input' event
+        this.elements.editor.value = '';
+        this.elements.editor.dispatchEvent(new Event('input'));
+        App.toast('Editor cleared.');
+      }
+    };
+
+    // ====== Import/Export State helpers ======
+    App.exportState = function exportState() {
+      // Turn current state into a downloadable JSON file
+      const data = new Blob([JSON.stringify(App.state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'svg-viewer-state.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      App.toast('State exported.', 'success');
+    };
+
+    App.importState = function importState() {
+      // Let the user pick a JSON file and merge it into state
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'application/json';
+      on(inp, 'change', () => {
+        const file = inp.files && inp.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const obj = JSON.parse(String(reader.result || '{}'));
+            App.state = Object.assign({}, App.state, obj);
+            App.save();
+            App.applyStateToUI();
+            App.toast('State imported. Reloading.', 'success');
+            // A full reload is often easiest after a state import
+            setTimeout(() => location.reload(), 500);
+          } catch (e) {
+            App.toast('Invalid JSON file.', 'danger');
+          }
+        };
+        reader.readAsText(file);
+      });
+      inp.click();
+    };
+
+    // ====== Apply current state to visible UI ======
+    App.applyStateToUI = function applyStateToUI() {
+      // Set the theme based on loaded state
+      App.setTheme(App.state.theme || 'dark');
+      // The SVG viewer module handles its own state during its init.
+    };
+
+    // ====== Bootstrapping the app (runs once at load) ======
+    (function init() {
+      // 1) Load saved state (if any) from localStorage
+      App.load();
+
+      // 2) Wire topbar buttons
+      on(qs('#themeToggle'), 'click', () => App.setTheme(App.state.theme === 'dark' ? 'light' : 'dark'));
+      on(qs('#openSettings'), 'click', App.openSettings);
+      on(qs('#showAbout'), 'click', App.showAbout);
+
+      // 3) Wire Settings modal
+      on(qs('#closeSettings'), 'click', App.closeSettings);
+      qsa('[data-theme-choice]').forEach(b => on(b, 'click', () => App.setTheme(b.dataset.themeChoice)));
+
+      // 4) Wire Command palette events
+      on(document, 'keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault(); App.openPalette();
+        }
+        if (e.key === '?') {
+          e.preventDefault(); App.showAbout();
+        }
+      });
+      on(qs('#paletteInput'), 'input', (e) => App.filterPalette(e.target.value));
+      on(qs('#paletteList'), 'click', (e) => {
+        const item = e.target.closest('.palette-item');
+        if (item) App.runPaletteItem(Number(item.dataset.index));
+      });
+      on(qs('#palette'), 'click', (e) => {
+        if (e.target.id === 'palette') App.closePalette();
+      });
+      on(document, 'keydown', (e) => {
+        if (e.key === 'Escape') {
+          App.closePalette();
+          App.closeSettings();
+        }
+      });
+
+      // 5) Initialize the core SVG viewer logic
+      App.svgViewer.init();
+
+      // 6) Wire Import/Export buttons
+      on(qs('#exportState'), 'click', App.exportState);
+      on(qs('#importState'), 'click', App.importState);
+
+      // 7) Apply loaded state to the UI
+      App.applyStateToUI();
+    })();
+  </script>
 </body>
 </html>
