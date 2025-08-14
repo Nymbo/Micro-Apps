@@ -119,6 +119,7 @@
     .muted{color:var(--muted)}
     .row{display:flex; gap:8px; align-items:center}
     .spacer{flex:1}
+  .hidden{display:none}
 
     textarea{
       width:100%; min-height:320px; resize:vertical;
@@ -207,9 +208,9 @@
     <section class="card">
       <div class="card-header">
         <h3>Output</h3>
-        <div class="row" style="gap:8px; align-items:center">
+        <div class="row">
           <span id="counts" class="pill" aria-live="polite">0 kept · 0 removed</span>
-          <span id="loading" class="pill" style="display:none"><span class="spinner" aria-hidden="true"></span> <span id="loadingText">Fetching…</span></span>
+          <span id="loading" class="pill hidden"><span class="spinner" aria-hidden="true"></span> <span id="loadingText">Fetching…</span></span>
           <button id="btnTitles" class="btn" title="Fetch titles and output Markdown (no bullets)">Titles → Markdown</button>
           <button id="btnCopy" class="btn" title="Copy all to clipboard">Copy All</button>
           <button id="btnDownload" class="btn" title="Download as .txt">Download</button>
@@ -570,7 +571,7 @@
     on(btnTitles, 'click', () => runTitlesToMarkdown());
 
     function setLoading(isOn, text){
-      loadingEl.style.display = isOn ? 'inline-flex' : 'none';
+  loadingEl.classList.toggle('hidden', !isOn);
       loadingTxt.textContent = text || 'Fetching…';
       btnTitles.disabled = !!isOn; btnClean.disabled = !!isOn; btnCopy.disabled = !!isOn; btnDownload.disabled = !!isOn;
     }
