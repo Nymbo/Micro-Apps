@@ -213,13 +213,15 @@
           <span id="loading" class="pill hidden"><span class="spinner" aria-hidden="true"></span> <span id="loadingText">Fetching…</span></span>
           <button id="btnTitles" class="btn" title="Fetch titles and output Markdown (no bullets)">Titles → Markdown</button>
           <button id="btnAddSpacing" class="btn" title="Insert a blank line between each link in the output">Add spacing</button>
+          <button id="btnRemoveSpacing" class="btn" title="Remove extra blank lines between links">Remove spacing</button>
+          <button id="btnSortDomain" class="btn" title="Sort by domain (group similar domains)">Sort by domain</button>
           <button id="btnCopy" class="btn" title="Copy all to clipboard">Copy All</button>
           <button id="btnDownload" class="btn" title="Download as .txt">Download</button>
         </div>
       </div>
       <div class="card-body">
         <!-- Read-only output (either URLs or Markdown list) -->
-        <textarea id="outputArea" readonly placeholder="Your cleaned list (or Markdown) will appear here"></textarea>
+  <textarea id="outputArea" placeholder="Your cleaned list (or Markdown) will appear here"></textarea>
       </div>
       <div class="card-footer">
         <div class="stats" id="stats">
@@ -515,6 +517,8 @@
     const btnDownload= qs('#btnDownload');
     const btnPaste   = qs('#btnPaste');
   const btnAddSpacing = qs('#btnAddSpacing');
+  const btnRemoveSpacing = qs('#btnRemoveSpacing');
+  const btnSortDomain = qs('#btnSortDomain');
     const themeToggle= qs('#themeToggle');
 
     const optStrip   = qs('#optStripTracking');
@@ -582,10 +586,60 @@
       showToast('Added blank lines between links');
     });
 
+    // Remove excess blank lines (compact to one line per link)
+    on(btnRemoveSpacing, 'click', () => {
+      const text = outputArea.value || '';
+      if (!text.trim()) { showToast('No output to trim'); return; }
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+      if (!lines.length) { showToast('No output to trim'); return; }
+      outputArea.value = lines.join('\n');
+      showToast('Removed extra blank lines');
+    });
+
+    // Sort output lines by domain name (hostname), grouping similar domains
+    on(btnSortDomain, 'click', () => {
+      const text = outputArea.value || '';
+      if (!text.trim()) { showToast('No output to sort'); return; }
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+      if (!lines.length) { showToast('No output to sort'); return; }
+
+      const URL_IN_LINE = /https?:\/\/[^\s<>"'`)+\]}]+/i;
+      function extractUrl(line){
+        const md = line.match(/\[[^\]]*\]\((https?:[^\s)]+)\)/i);
+        if (md) return md[1];
+        const m = line.match(URL_IN_LINE);
+        return m ? m[0] : '';
+      }
+      function hostKeyFromUrl(u){
+        try { const { hostname } = new URL(u); return (hostname || '').replace(/^www\./i,'').toLowerCase(); } catch { return ''; }
+      }
+
+      const enriched = lines.map((line, idx) => {
+        const url = extractUrl(line);
+        const hostKey = hostKeyFromUrl(url);
+        return { line, idx, hostKey };
+      });
+
+      enriched.sort((a,b) => {
+        if (a.hostKey && b.hostKey){
+          const c = a.hostKey.localeCompare(b.hostKey);
+          if (c !== 0) return c;
+          return a.line.localeCompare(b.line);
+        }
+        if (a.hostKey && !b.hostKey) return -1;
+        if (!a.hostKey && b.hostKey) return 1;
+        return a.line.localeCompare(b.line);
+      });
+
+      outputArea.value = enriched.map(e => e.line).join('\n');
+      showToast('Sorted by domain');
+    });
+
     function setLoading(isOn, text){
       loadingEl.classList.toggle('hidden', !isOn);
       loadingTxt.textContent = text || 'Fetching…';
-      btnTitles.disabled = !!isOn; btnClean.disabled = !!isOn; btnCopy.disabled = !!isOn; btnDownload.disabled = !!isOn; btnAddSpacing.disabled = !!isOn;
+  btnTitles.disabled = !!isOn; btnClean.disabled = !!isOn; btnCopy.disabled = !!isOn; btnDownload.disabled = !!isOn; btnAddSpacing.disabled = !!isOn; btnSortDomain.disabled = !!isOn;
+  btnRemoveSpacing.disabled = !!isOn;
     }
 
     // Clean → update UI state
