@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!--
-  File: micro-apps/text-tools/url-formatter-cleaner-with-titles.html
+  File: micro-apps/text-tools/url-formatter-cleaner-with-titles-v2.html
   Purpose: Extract only regular (non-image) HTTP/HTTPS links from large pasted text,
-           outputting one URL per line OR fetch page titles and emit Markdown links.
+           and (optionally) fetch page titles to emit Markdown links WITHOUT bullets
+           and WITHOUT any leading "Title:" prefixes.
 
   Notes:
     - Single-file Micro-App (no build step, no local assets).
@@ -10,14 +11,15 @@
     - Title fetching is best-effort: many sites block cross-origin reads (CORS).
       • We first try a normal fetch.
       • If that fails and the "Use proxy" option is ON, we fall back to https://r.jina.ai/<URL>
-        which returns a readability-friendly text version that often includes the page title.
+        which returns a readability-friendly text version that often contains the page title.
+      • We sanitize titles to strip "Title:" and leading headings/bullets.
       • If everything fails, we fall back to the URL's hostname as the title.
 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>URL Cleaner + Title Fetcher — Markdown Links</title>
+  <title>URL Cleaner + Title Fetcher — Markdown Links (No Bullets)</title>
   <style>
     /* =============== Theme tokens (easy color tweaking) =============== */
     :root{
@@ -75,7 +77,6 @@
       padding:8px 12px; border-radius:10px; box-shadow:var(--shadow); font-weight:700;
     }
     .brand svg{color:var(--accent)}
-    .top-actions{margin-left:auto; display:flex; gap:8px}
     .btn{
       appearance:none; border:1px solid var(--border);
       background:var(--panel); color:var(--text);
@@ -125,13 +126,9 @@
       background:var(--panel-2); color:var(--text); padding:12px;
       font-family:var(--mono); font-size:14px; line-height:1.45;
     }
-    .stats{
-      display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted);
-    }
+    .stats{ display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted) }
     .stats b{color:var(--text)}
-    .options{
-      display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:14px; color:var(--muted);
-    }
+    .options{ display:flex; gap:14px; flex-wrap:wrap; align-items:center; font-size:14px; color:var(--muted) }
     label.switch{
       display:inline-flex; gap:8px; align-items:center; cursor:pointer;
       background:var(--panel-2); padding:6px 10px; border:1px solid var(--border); border-radius:10px;
@@ -147,12 +144,6 @@
       max-width: 60ch; white-space: pre-wrap;
     }
     .toast.show{opacity:1; transform:translateY(0)}
-    .help{ font-size:13px; color:var(--muted) }
-    .small{font-size:12px}
-    .count-badge{
-      background:var(--panel-2); border:1px solid var(--border);
-      padding:4px 8px; border-radius:999px; font-size:12px; color:var(--muted);
-    }
     .spinner{ inline-size:14px; block-size:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite }
     @keyframes spin{ to{ transform:rotate(360deg) } }
   </style>
@@ -167,7 +158,7 @@
       </svg>
       URL Cleaner
     </div>
-    <span class="pill">Paste messy text → Clean URLs → Markdown with titles</span>
+    <span class="pill">Paste → Clean URLs → Markdown with titles (no bullets)</span>
     <div class="spacer"></div>
     <button id="themeToggle" class="btn" title="Toggle theme (dark/light)">Toggle Theme</button>
   </header>
@@ -180,12 +171,12 @@
         <h3>Input Text</h3>
         <div class="row">
           <button id="btnPaste" class="btn" title="Paste from clipboard">Paste</button>
-          <span class="help small">Tip: Press <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to clean · <span class="kbd">Ctrl</span>/<span class="kbd">Cmd</span> + <span class="kbd">Shift</span> + <span class="kbd">Enter</span> for titles</span>
+          <span class="pill"><span class="kbd">Ctrl</span>/<span class="kbd">Cmd</span> + <span class="kbd">Enter</span> clean · <span class="kbd">Shift</span> + <span class="kbd">Enter</span> titles</span>
         </div>
       </div>
       <div class="card-body">
-        <!-- This is where the user pastes all the messy text -->
-        <textarea id="inputArea" placeholder="Paste any text here (can include descriptions, HTML/Markdown, image links, etc.)"></textarea>
+        <!-- Where you paste long/messy text with URLs -->
+        <textarea id="inputArea" placeholder="Paste any text here (descriptions, HTML/Markdown, etc.)"></textarea>
       </div>
       <div class="card-footer">
         <!-- Simple options that tweak cleaning behavior -->
@@ -208,7 +199,7 @@
           </label>
         </div>
         <div class="spacer"></div>
-        <button id="btnClean" class="btn primary" title="Extract non-image links (Ctrl+Enter)">Clean Links</button>
+        <button id="btnClean" class="btn primary" title="Extract non-image links (Ctrl/Cmd+Enter)">Clean Links</button>
       </div>
     </section>
 
@@ -216,10 +207,10 @@
     <section class="card">
       <div class="card-header">
         <h3>Output</h3>
-        <div class="row">
-          <span id="counts" class="count-badge" aria-live="polite">0 kept · 0 removed</span>
+        <div class="row" style="gap:8px; align-items:center">
+          <span id="counts" class="pill" aria-live="polite">0 kept · 0 removed</span>
           <span id="loading" class="pill" style="display:none"><span class="spinner" aria-hidden="true"></span> <span id="loadingText">Fetching…</span></span>
-          <button id="btnTitles" class="btn" title="Fetch titles and output Markdown list">Titles → Markdown</button>
+          <button id="btnTitles" class="btn" title="Fetch titles and output Markdown (no bullets)">Titles → Markdown</button>
           <button id="btnCopy" class="btn" title="Copy all to clipboard">Copy All</button>
           <button id="btnDownload" class="btn" title="Download as .txt">Download</button>
         </div>
@@ -230,7 +221,6 @@
       </div>
       <div class="card-footer">
         <div class="stats" id="stats">
-          <!-- Live stats help you see what's happening at a glance -->
           <div><b>Found:</b> <span id="statFound">0</span> links</div>
           <div><b>Removed images:</b> <span id="statImg">0</span></div>
           <div><b>Removed dupes:</b> <span id="statDupes">0</span></div>
@@ -241,50 +231,47 @@
     </section>
   </main>
 
-  <!-- Tiny toast element for feedback (copy / errors / summaries) -->
+  <!-- Small toast element for feedback (copy / errors / summaries) -->
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script>
     // ===========================
-    // Small helper shortcuts
+    // Helper shortcuts (tiny DOM utilities)
     // ===========================
-    const qs  = (s, el=document) => el.querySelector(s);         // grab one element by CSS selector
-    const qsa = (s, el=document) => [...el.querySelectorAll(s)]; // grab many elements
+    const qs  = (s, el=document) => el.querySelector(s);         // select one element by CSS selector
+    const qsa = (s, el=document) => [...el.querySelectorAll(s)]; // select many elements
     const on  = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts); // attach event listener
 
     // ===========================
-    // Configuration: detection rules and utilities
+    // URL detection and cleaning utilities
     // ===========================
 
-    // Regex to find raw http/https URLs in text (keeps anything until whitespace or obvious break)
-    // Layman's terms: this looks for "http://..." or "https://..." and grabs characters until a space or quote.
+    // Find raw http/https URLs in text (keeps anything until whitespace or obvious break)
+    // Layman's terms: look for "http://..." or "https://..." and grab characters until a space or quote.
     const URL_REGEX = /https?:\/\/[^\s<>"'`)+\]}]+/gi;
 
-    // Common image file extensions we consider "direct image links"
+    // Direct image file extensions
     const IMAGE_EXT = /\.(?:png|jpe?g|gif|bmp|webp|tiff?|svg|avif|heic|heif)$/i;
 
-    // Some query parameters that usually indicate image blobs or formats
-    const IMAGE_HINT_PARAMS = ['format','fm','image','img','ext']; // e.g., ?format=jpg, ?fm=png
+    // Query params that hint an image format
+    const IMAGE_HINT_PARAMS = ['format','fm','image','img','ext'];
 
-    // Tracking parameters we strip when that option is enabled
+    // Tracking params to strip when enabled
     const TRACKING_PARAMS = [
       'utm_source','utm_medium','utm_campaign','utm_term','utm_content',
       'utm_name','utm_id','utm_creative_format','utm_creative_tactic',
       'gclid','fbclid','mc_cid','mc_eid','igshid','msclkid','vero_conv','vero_id'
     ];
 
-    // Trim trailing punctuation that often clings to copied links (like ")" or "," at the end of a sentence)
+    // Trim trailing punctuation (like ")" or ",") and angle brackets around URLs
     function trimTrailingPunctuation(url){
-      // Remove surrounding angle brackets often used in Markdown <https://...>
       url = url.replace(/^<+|>+$/g, '');
-      // Strip trailing punctuation or unmatched brackets
       const TRAIL = /[),.;:'"\]\}>]+$/;
       while (TRAIL.test(url)) {
-        // Special-case: balance a trailing ')' if there are more '(' earlier (Markdown links)
         if (url.endsWith(')')) {
           const open = (url.match(/\(/g)||[]).length;
           const close = (url.match(/\)/g)||[]).length;
-          if (close <= open) break; // if balanced, stop stripping ')'
+          if (close <= open) break;
         }
         url = url.replace(TRAIL, '');
       }
@@ -293,65 +280,59 @@
 
     // Decide if a URL points directly to an image file
     function isDirectImageURL(href){
-      // Disallow data/blob images outright
       if (/^(data|blob):/i.test(href)) return true;
-
-      let u;
-      try { u = new URL(href); } catch { return false; }
-
-      // Only consider http/https as "web links"; else treat as image if it's a data/blob (already handled)
+      let u; try { u = new URL(href); } catch { return false; }
       if (!/^https?:$/i.test(u.protocol)) return false;
-
-      // If the path ends in an image extension like .png or .jpg -> it's a direct image
       if (IMAGE_EXT.test(u.pathname)) return true;
-
-      // If query string strongly hints it's an image (e.g., ?format=jpg, ?fm=png) -> count as image
       for (const key of IMAGE_HINT_PARAMS) {
         const val = (u.searchParams.get(key) || '').toLowerCase();
         if (/(?:png|jpe?g|gif|bmp|webp|tiff?|svg|avif|heic|heif)/.test(val)) return true;
       }
-
-      // Some CDNs use "image" paths without extensions; heuristic: path segments like /images/123456 with size hints
-      // We'll be conservative and NOT remove these unless they match the above checks.
       return false;
     }
 
-    // Optionally remove common tracking parameters from a URL to "clean it up"
+    // Optionally remove common tracking parameters from a URL
     function stripTrackingParams(href){
-      let u;
-      try { u = new URL(href); } catch { return href; }
+      let u; try { u = new URL(href); } catch { return href; }
       for (const p of TRACKING_PARAMS) u.searchParams.delete(p);
-      // Edge case: leftover empty "?" or trailing "#"
       return u.toString().replace(/\?$/, '').replace(/#$/, '');
     }
 
     // ===========================
-    // NEW: Title parsing helpers (plain HTML / meta tags / plaintext proxy)
+    // Title parsing + normalization helpers
     // ===========================
 
-    // Decode HTML entities like &amp; → & using a tiny DOM trick
+    // Decode HTML entities like &amp; to &
     function decodeEntities(str){ const t=document.createElement('textarea'); t.innerHTML=str; return t.value; }
+
+    // Normalize a title: trim, collapse whitespace, remove common prefixes like "Title: " or leading hashes/bullets
+    function normalizeTitle(s){
+      if (!s) return '';
+      s = decodeEntities(String(s)).replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+      s = s.replace(/^(?:title\s*:\s*)/i, ''); // drop leading "Title: " (case-insensitive)
+      s = s.replace(/^[#>\-\s]+/, '');         // drop leading Markdown headings/bullets/arrows
+      s = s.slice(0, 160);                      // keep titles reasonably short
+      return s;
+    }
 
     // Pull a reasonable title from HTML markup (prefers og:title / twitter:title, then <title>)
     function parseTitleFromHTML(html){
       if (!html) return '';
-      // Try Open Graph / Twitter meta first
       const metaMatches = html.match(/<meta[^>]+(?:property|name)\s*=\s*["'](?:og:title|twitter:title)["'][^>]*>/gi) || [];
       for (const m of metaMatches){
         const c = /content\s*=\s*["']([^"']+)["']/i.exec(m);
-        if (c && c[1]) return decodeEntities(c[1].trim());
+        if (c && c[1]) return normalizeTitle(c[1]);
       }
-      // Fallback: classic <title> tag
       const titleMatch = /<title[^>]*>([^<]*)<\/title>/i.exec(html);
-      if (titleMatch && titleMatch[1]) return decodeEntities(titleMatch[1].trim());
+      if (titleMatch && titleMatch[1]) return normalizeTitle(titleMatch[1]);
       return '';
     }
 
     // Pull a decent title from a plaintext article (proxy output). Uses the first non-empty line.
     function parseTitleFromPlain(text){
       if (!text) return '';
-      const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      return (lines[0] || '').slice(0, 160);
+      const first = (text.split(/\r?\n/).map(s=>s.trim()).find(Boolean) || '');
+      return normalizeTitle(first);
     }
 
     // ===========================
@@ -359,39 +340,21 @@
     // ===========================
 
     function cleanLinksFromText(raw, opts){
-      // In plain terms: scan for every http(s) link, tidy it, drop image links, then optionally de-dupe and strip tracking.
       if (!raw) return { kept: [], found: 0, removedImages: 0, removedDupes: 0 };
-
       const matches = raw.match(URL_REGEX) || [];
       const foundCount = matches.length;
-
-      // Tidy up trailing punctuation/angles and normalize
       let links = matches.map(m => trimTrailingPunctuation(m));
-
-      // Optionally restrict to http/https only (ignore mailto:, ftp:, etc.)
       if (opts.httpOnly) links = links.filter(h => /^https?:\/\//i.test(h));
 
-      // Remove direct image URLs
-      const kept = [];
-      let removedImages = 0;
-      for (const href of links) {
-        if (isDirectImageURL(href)) { removedImages++; continue; }
-        kept.push(href);
-      }
+      const kept = []; let removedImages = 0;
+      for (const href of links) { if (isDirectImageURL(href)) removedImages++; else kept.push(href); }
 
-      // Strip tracking parameters if requested
       let cleaned = kept.map(h => opts.stripTracking ? stripTrackingParams(h) : h);
 
-      // De-duplicate (case-insensitive) if requested
       let removedDupes = 0;
       if (opts.dedupe) {
-        const seen = new Set();
-        const uniq = [];
-        for (const h of cleaned) {
-          const key = h.toLowerCase();
-          if (!seen.has(key)) { seen.add(key); uniq.push(h); }
-          else { removedDupes++; }
-        }
+        const seen = new Set(); const uniq = [];
+        for (const h of cleaned) { const key = h.toLowerCase(); if (!seen.has(key)) { seen.add(key); uniq.push(h); } else { removedDupes++; } }
         cleaned = uniq;
       }
 
@@ -399,24 +362,19 @@
     }
 
     // ===========================
-    // NEW: Title fetching with concurrency + proxy fallback
+    // Title fetching with concurrency + proxy fallback
     // ===========================
 
-    // Simple timeout wrapper so a single slow site doesn't block everything forever
+    // Promise with timeout so one slow site doesn't block everything
     function withTimeout(promise, ms){
-      return Promise.race([
-        promise,
-        new Promise((_, rej)=> setTimeout(()=> rej(new Error('timeout')), ms))
-      ]);
+      return Promise.race([ promise, new Promise((_, rej)=> setTimeout(()=> rej(new Error('timeout')), ms)) ]);
     }
 
     // Try to fetch a page's title. Strategy: direct fetch → proxy → fallback to hostname
     async function fetchTitleForURL(url, { useProxy=true, timeoutMs=10000 }={}){
       const u = new URL(url);
-      // Helper: nice fallback like "example.com"
       const fallback = u.hostname.replace(/^www\./, '');
 
-      // 1) Try direct fetch (CORS must allow). We only attempt 'cors'—no-cors gives an unreadable opaque response.
       try {
         const res = await withTimeout(fetch(url, { mode:'cors', redirect:'follow', credentials:'omit' }), timeoutMs);
         if (res && res.ok) {
@@ -429,10 +387,8 @@
         }
       } catch (_) { /* swallow and try proxy */ }
 
-      // 2) Proxy fallback (best compatibility)
       if (useProxy) {
         try {
-          // r.jina.ai returns a readable plaintext version. We'll take the first non-empty line as the title.
           const res2 = await withTimeout(fetch('https://r.jina.ai/' + url, { redirect:'follow' }), timeoutMs);
           if (res2 && res2.ok) {
             const text = await res2.text();
@@ -442,22 +398,18 @@
         } catch (_) { /* ignore */ }
       }
 
-      // 3) Final fallback: hostname only
       return { url, title: fallback, source: 'fallback' };
     }
 
-    // Run N fetches at a time for speed without hammering the network
+    // Map with limited concurrency
     async function mapWithConcurrency(items, limit, mapper){
-      const results = new Array(items.length);
-      let i = 0; // index of next task
-      let active = 0; // how many are currently running
+      const results = new Array(items.length); let i = 0, active = 0;
       return await new Promise((resolve)=>{
         function launch(){
           while (active < limit && i < items.length){
-            const idx = i++;
-            active++;
+            const idx = i++; active++;
             Promise.resolve(mapper(items[idx], idx))
-              .then(r => { results[idx] = { status:'fulfilled', value:r }; })
+              .then(v => { results[idx] = { status:'fulfilled', value:v }; })
               .catch(e => { results[idx] = { status:'rejected', reason:e }; })
               .finally(()=>{ active--; if (i < items.length) launch(); else if (active === 0) resolve(results); });
           }
@@ -494,44 +446,37 @@
     const loadingEl  = qs('#loading');
     const loadingTxt = qs('#loadingText');
 
-    // Simple state holder for the last clean list, so "Titles → Markdown" knows what to process
     let currentKept = [];
 
-    // Show a tiny toast for friendly feedback
-    function showToast(msg='Copied!'){ toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=> toastEl.classList.remove('show'), 1600); }
+    function showToast(msg='Copied!'){
+      toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=> toastEl.classList.remove('show'), 1600);
+    }
 
-    // Toggle dark/light theme
     on(themeToggle, 'click', () => {
       const next = app.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       app.setAttribute('data-theme', next);
     });
 
-    // PASTE helper: read plain text from clipboard (browser will ask permission)
     on(btnPaste, 'click', async () => {
-      try {
-        const txt = await navigator.clipboard.readText();
-        inputArea.value = txt || inputArea.value; inputArea.focus();
-      } catch { showToast('Clipboard read blocked by browser'); }
+      try { const txt = await navigator.clipboard.readText(); inputArea.value = txt || inputArea.value; inputArea.focus(); }
+      catch { showToast('Clipboard read blocked by browser'); }
     });
 
-    // MAIN ACTION: Clean links when user clicks the button
     on(btnClean, 'click', () => runClean());
 
-    // Keyboard shortcuts: Ctrl/Cmd + Enter to clean; +Shift to fetch titles → Markdown
+    // Keyboard shortcuts: Ctrl/Cmd + Enter to clean; +Shift to fetch titles → Markdown (no bullets)
     on(document, 'keydown', (e) => {
       const meta = e.ctrlKey || e.metaKey;
       if (meta && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runClean(); }
       if (meta && e.key === 'Enter' && e.shiftKey) { e.preventDefault(); runTitlesToMarkdown(); }
     });
 
-    // Copy all output to clipboard
     on(btnCopy, 'click', async () => {
       const txt = outputArea.value || '';
       try { await navigator.clipboard.writeText(txt); showToast('Output copied!'); }
       catch { outputArea.focus(); outputArea.select(); showToast('Press Ctrl+C to copy'); }
     });
 
-    // Download output as a .txt file for convenience
     on(btnDownload, 'click', () => {
       const blob = new Blob([outputArea.value || ''], {type:'text/plain'});
       const url  = URL.createObjectURL(blob);
@@ -539,7 +484,6 @@
       URL.revokeObjectURL(url);
     });
 
-    // NEW: Titles → Markdown handler
     on(btnTitles, 'click', () => runTitlesToMarkdown());
 
     function setLoading(isOn, text){
@@ -548,11 +492,11 @@
       btnTitles.disabled = !!isOn; btnClean.disabled = !!isOn; btnCopy.disabled = !!isOn; btnDownload.disabled = !!isOn;
     }
 
-    // The function that ties UI → cleaning logic → UI
+    // Clean → update UI state
     function runClean(){
       const opts = { stripTracking: !!optStrip.checked, dedupe: !!optDedupe.checked, httpOnly: !!optHttp.checked };
       const res = cleanLinksFromText(inputArea.value || '', opts);
-      currentKept = res.kept.slice(); // remember for Titles step
+      currentKept = res.kept.slice();
       outputArea.value = res.kept.join('\n');
       statFound.textContent = String(res.found);
       statImg.textContent   = String(res.removedImages);
@@ -562,9 +506,8 @@
       counts.textContent    = `${res.kept.length} kept · ${res.removedImages + res.removedDupes} removed`;
     }
 
-    // Fetch titles for the current list, then print a Markdown bullet list: - [Title](URL)
+    // Fetch titles for the current list, then print Markdown lines: [Title](URL)  (no bullets)
     async function runTitlesToMarkdown(){
-      // Ensure we have an up-to-date clean list
       if (!currentKept.length) runClean();
       const urls = currentKept.slice();
       if (!urls.length){ showToast('Nothing to process — paste text and Clean first'); return; }
@@ -572,42 +515,37 @@
       setLoading(true, `Fetching titles (0/${urls.length})`);
       statTitles.textContent = '0';
 
-      // Limit concurrent fetches for stability
-      const CONCURRENCY = 6;
+      const CONCURRENCY = 6; // a small pool keeps things fast without overloading
       let resolved = 0, titleHits = 0;
 
-      const results = await mapWithConcurrency(urls, CONCURRENCY, async (u, idx) => {
+      const results = await mapWithConcurrency(urls, CONCURRENCY, async (u) => {
         const r = await fetchTitleForURL(u, { useProxy: !!optProxy.checked, timeoutMs: 10000 });
         resolved++; if (r && r.title) titleHits++;
-        if (resolved % 1 === 0) { // update the tiny progress indicator often
-          setLoading(true, `Fetching titles (${resolved}/${urls.length})`);
-        }
+        if (resolved % 1 === 0) setLoading(true, `Fetching titles (${resolved}/${urls.length})`);
         return r;
       });
 
-      // Build Markdown lines, using whatever title we got (hostname fallback if needed)
+      // Build Markdown lines without bullets
       const lines = results.map((r, i) => {
         if (r && r.status === 'fulfilled') {
-          const { url, title } = r.value || {}; const safeTitle = (title || '').trim() || new URL(url).hostname;
-          return `- [${safeTitle}](${url})`;
+          const { url, title } = r.value || {}; const safeTitle = normalizeTitle(title) || new URL(url).hostname;
+          return `[${safeTitle}](${url})`;
         }
-        // If a fetch totally failed, still emit a usable line
         const url = urls[i];
         const host = new URL(url).hostname.replace(/^www\./, '');
-        return `- [${host}](${url})`;
+        return `[${host}](${url})`;
       });
 
       outputArea.value = lines.join('\n');
       statTitles.textContent = String(titleHits);
-      counts.textContent = `${urls.length} links → Markdown (titles resolved: ${titleHits})`;
+      counts.textContent = `${urls.length} links → Markdown (no bullets, titles resolved: ${titleHits})`;
       setLoading(false);
 
-      // Friendly summary toast
-      const proxyNote = optProxy.checked ? '\n(Proxy ON for best compatibility)' : '';
+      const proxyNote = optProxy.checked ? '\n(Proxy ON for better compatibility)' : '';
       showToast(`Markdown ready for ${urls.length} link(s). Titles resolved: ${titleHits}${proxyNote}`);
     }
 
-    // Optional: run once on load if the user already has text in the input (e.g., after refresh)
+    // Auto-run if input already has content (e.g., after refresh)
     if ((qs('#inputArea').value||'').trim()) runClean();
   </script>
 </body>
