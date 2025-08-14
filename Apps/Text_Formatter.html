@@ -212,6 +212,7 @@
           <span id="counts" class="pill" aria-live="polite">0 kept · 0 removed</span>
           <span id="loading" class="pill hidden"><span class="spinner" aria-hidden="true"></span> <span id="loadingText">Fetching…</span></span>
           <button id="btnTitles" class="btn" title="Fetch titles and output Markdown (no bullets)">Titles → Markdown</button>
+          <button id="btnAddSpacing" class="btn" title="Insert a blank line between each link in the output">Add spacing</button>
           <button id="btnCopy" class="btn" title="Copy all to clipboard">Copy All</button>
           <button id="btnDownload" class="btn" title="Download as .txt">Download</button>
         </div>
@@ -513,6 +514,7 @@
     const btnCopy    = qs('#btnCopy');
     const btnDownload= qs('#btnDownload');
     const btnPaste   = qs('#btnPaste');
+  const btnAddSpacing = qs('#btnAddSpacing');
     const themeToggle= qs('#themeToggle');
 
     const optStrip   = qs('#optStripTracking');
@@ -570,10 +572,20 @@
 
     on(btnTitles, 'click', () => runTitlesToMarkdown());
 
+    // Insert exactly one empty line between each non-empty line in the output
+    on(btnAddSpacing, 'click', () => {
+      const text = outputArea.value || '';
+      if (!text.trim()) { showToast('No output to space'); return; }
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+      if (!lines.length) { showToast('No output to space'); return; }
+      outputArea.value = lines.join('\n\n');
+      showToast('Added blank lines between links');
+    });
+
     function setLoading(isOn, text){
-  loadingEl.classList.toggle('hidden', !isOn);
+      loadingEl.classList.toggle('hidden', !isOn);
       loadingTxt.textContent = text || 'Fetching…';
-      btnTitles.disabled = !!isOn; btnClean.disabled = !!isOn; btnCopy.disabled = !!isOn; btnDownload.disabled = !!isOn;
+      btnTitles.disabled = !!isOn; btnClean.disabled = !!isOn; btnCopy.disabled = !!isOn; btnDownload.disabled = !!isOn; btnAddSpacing.disabled = !!isOn;
     }
 
     // Clean → update UI state
