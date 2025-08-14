@@ -315,23 +315,88 @@
       return s;
     }
 
-    // Pull a reasonable title from HTML markup (prefers og:title / twitter:title, then <title>)
-    function parseTitleFromHTML(html){
-      if (!html) return '';
-      const metaMatches = html.match(/<meta[^>]+(?:property|name)\s*=\s*["'](?:og:title|twitter:title)["'][^>]*>/gi) || [];
-      for (const m of metaMatches){
-        const c = /content\s*=\s*["']([^"']+)["']/i.exec(m);
-        if (c && c[1]) return normalizeTitle(c[1]);
-      }
-      const titleMatch = /<title[^>]*>([^<]*)<\/title>/i.exec(html);
-      if (titleMatch && titleMatch[1]) return normalizeTitle(titleMatch[1]);
-      return '';
+    // Escape [] and backslashes in Markdown link text to avoid breaking syntax
+    function markdownEscapeText(s){
+      return String(s).replace(/[\\\[\]]/g, m => `\\${m}`);
     }
 
-    // Pull a decent title from a plaintext article (proxy output). Uses the first non-empty line.
+    // Basic regex escape
+    function rxEscape(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+    // Extract a site core name from hostname (drop subdomains/TLDs where possible)
+    function hostCore(hostname){
+      const h = (hostname || '').replace(/^www\.|^m\.|^amp\.|^news\./i, '');
+      const parts = h.split('.');
+      if (parts.length <= 2) return parts[0] || h;
+      // choose the longest label as a heuristic core
+      return parts.reduce((a,b)=> (b.length>a.length?b:a), parts[0]);
+    }
+
+    // Strip trailing/leading site/brand suffixes like " - The Verge" or "| NYTimes"
+    function stripSiteSuffix(title, hostname, siteName){
+      let out = String(title || '');
+      if (!out) return '';
+      const core = hostCore(hostname);
+      const candidates = [siteName, core, hostname && hostname.replace(/^www\./i,'')].filter(Boolean)
+        .map(s => normalizeTitle(String(s))
+          .replace(/\.(com|net|org|io|dev|app|news|co|uk|de|jp|fr|es|it|nl|ru|br|au)$/i, ''))
+        .filter(Boolean)
+        .map(rxEscape);
+      if (!candidates.length) return out;
+
+      const SEP = '\\s*(?:[-–—|:•»]\\s*)';
+      const suffixRe = new RegExp(`${SEP}(?:${candidates.join('|')})\\s*$`, 'i');
+      const prefixRe = new RegExp(`^(?:${candidates.join('|')})${SEP}`, 'i');
+
+      let prev;
+      do { prev = out; out = out.replace(suffixRe, '').replace(prefixRe, ''); } while (out !== prev);
+      return out.trim();
+    }
+
+    // Derive a human-ish title from the URL slug as a last resort
+    function slugTitleFromURL(href){
+      try{
+        const u = new URL(href);
+        const segs = u.pathname.split('/').filter(Boolean);
+        let cand = segs.length ? segs[segs.length-1] : '';
+        if (!cand && segs.length > 1) cand = segs[segs.length-2];
+        cand = cand.replace(/\.(html?|php|aspx?)$/i, '');
+        cand = decodeURIComponent(cand).replace(/[\-_+]+/g, ' ');
+        if (/^\d+$/.test(cand) || cand.length < 3) return hostCore(u.hostname);
+        return normalizeTitle(cand);
+      }catch{ return ''; }
+    }
+
+    // Pull a reasonable title from HTML markup using DOMParser with multiple sources
+    function parseTitleFromHTML(html, hostname){
+      if (!html) return '';
+      let doc;
+      try { doc = new DOMParser().parseFromString(html, 'text/html'); } catch { doc = null; }
+      if (!doc) return '';
+      const pick = (sel) => {
+        const el = doc.querySelector(sel);
+        return el ? normalizeTitle(el.getAttribute('content') || el.textContent || '') : '';
+      };
+      const siteName = pick('meta[property="og:site_name"], meta[name="og:site_name"]');
+      const cands = [
+        pick('meta[property="og:title"], meta[name="og:title"]'),
+        pick('meta[name="twitter:title"], meta[property="twitter:title"], meta[name="title"], meta[property="title"]'),
+        pick('h1, h1[itemprop="headline"], [data-test-id="post-title"]'),
+        normalizeTitle(doc.title || '')
+      ].filter(Boolean);
+      let best = cands.find(Boolean) || '';
+      best = stripSiteSuffix(best, hostname, siteName);
+      return normalizeTitle(best);
+    }
+
+    // Pull a decent title from a plaintext article (proxy output). Skip obvious boilerplate.
     function parseTitleFromPlain(text){
       if (!text) return '';
-      const first = (text.split(/\r?\n/).map(s=>s.trim()).find(Boolean) || '');
+      const bad = /cookie|consent|subscribe|sign\s*in|log\s*in|adblock|advert|privacy|terms|404|not\s*found|redirecting/i;
+      const first = (text.split(/\r?\n/)
+        .map(s=>s.trim())
+        .filter(Boolean)
+        .find(s => s.length >= 3 && s.length <= 180 && !bad.test(s)) || '');
       return normalizeTitle(first);
     }
 
@@ -371,9 +436,22 @@
     }
 
     // Try to fetch a page's title. Strategy: direct fetch → proxy → fallback to hostname
+    // Simple in-session title cache
+    const titleCache = new Map();
+    (function hydrateCache(){
+      try{ const raw = sessionStorage.getItem('titleCacheV1'); if (raw) {
+        const obj = JSON.parse(raw); for (const [k,v] of Object.entries(obj)) titleCache.set(k, v);
+      }}catch{}
+    })();
+    function cacheGet(key){ return titleCache.get(key); }
+    function cacheSet(key, value){ try{ titleCache.set(key, value); sessionStorage.setItem('titleCacheV1', JSON.stringify(Object.fromEntries(titleCache))); }catch{} }
+
     async function fetchTitleForURL(url, { useProxy=true, timeoutMs=10000 }={}){
       const u = new URL(url);
-      const fallback = u.hostname.replace(/^www\./, '');
+      const fallbackHost = u.hostname.replace(/^www\./, '');
+
+      const cached = cacheGet(url);
+      if (cached) return { url, title: cached, source: 'cache' };
 
       try {
         const res = await withTimeout(fetch(url, { mode:'cors', redirect:'follow', credentials:'omit' }), timeoutMs);
@@ -381,8 +459,8 @@
           const ct = res.headers.get('content-type') || '';
           if (/text\/html|application\/(xhtml\+xml|html)/i.test(ct) || !ct) {
             const html = await res.text();
-            const t = parseTitleFromHTML(html);
-            if (t) return { url, title: t, source: 'direct' };
+            const t = parseTitleFromHTML(html, u.hostname);
+            if (t) { cacheSet(url, t); return { url, title: t, source: 'direct' }; }
           }
         }
       } catch (_) { /* swallow and try proxy */ }
@@ -392,13 +470,18 @@
           const res2 = await withTimeout(fetch('https://r.jina.ai/' + url, { redirect:'follow' }), timeoutMs);
           if (res2 && res2.ok) {
             const text = await res2.text();
-            const maybe = parseTitleFromPlain(text) || parseTitleFromHTML(text);
-            if (maybe) return { url, title: maybe, source: 'proxy' };
+            // r.jina.ai returns plain text; first try plain heuristics, then attempt HTML parse in case markup survived
+            let maybe = parseTitleFromPlain(text);
+            if (!maybe) maybe = parseTitleFromHTML(text, u.hostname);
+            if (!maybe) maybe = slugTitleFromURL(url) || fallbackHost;
+            if (maybe) { cacheSet(url, maybe); return { url, title: maybe, source: 'proxy' }; }
           }
         } catch (_) { /* ignore */ }
       }
 
-      return { url, title: fallback, source: 'fallback' };
+      const last = slugTitleFromURL(url) || fallbackHost;
+      cacheSet(url, last);
+      return { url, title: last, source: 'fallback' };
     }
 
     // Map with limited concurrency
@@ -527,13 +610,15 @@
 
       // Build Markdown lines without bullets
       const lines = results.map((r, i) => {
-        if (r && r.status === 'fulfilled') {
-          const { url, title } = r.value || {}; const safeTitle = normalizeTitle(title) || new URL(url).hostname;
-          return `[${safeTitle}](${url})`;
+        let url = urls[i];
+        let title = '';
+        if (r && r.status === 'fulfilled' && r.value) {
+          url = r.value.url || url;
+          title = r.value.title || '';
         }
-        const url = urls[i];
-        const host = new URL(url).hostname.replace(/^www\./, '');
-        return `[${host}](${url})`;
+        let safeTitle = normalizeTitle(title);
+        if (!safeTitle) safeTitle = slugTitleFromURL(url) || new URL(url).hostname.replace(/^www\./, '');
+        return `[${markdownEscapeText(safeTitle)}](${url})`;
       });
 
       outputArea.value = lines.join('\n');
