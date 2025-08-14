@@ -1,513 +1,700 @@
 <!DOCTYPE html>
+<!--
+  File: micro-apps/app_launcher_remastered.html
+  Purpose: A visually remastered app launcher that lets you load and switch between multiple
+           standalone HTML files, styled to match the "Micro-App Template".
+
+  Key Features:
+    - Drag & drop or use the file chooser to load multiple .html files.
+    - Sidebar lists all loaded apps for quick switching.
+    - Renders the selected app in a sandboxed <iframe>.
+    - Supports session export/import (saves file contents to a JSON).
+    - Resizable sidebar and keyboard shortcuts for navigation.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>HTML App Launcher — Multi‑File Viewer</title>
-  <!-- Tailwind CSS via CDN for a modern dark UI -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    // Tailwind config: lock us in dark mode for consistent look
-    tailwind.config = { theme: { extend: {} }, darkMode: "class" };
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>App Launcher (Remastered)</title>
+
   <style>
-    /* --- Minimal extras beyond Tailwind --- */
-    /* Custom thin scrollbar to match the dark theme */
-    ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-track { background: #111827; }
-    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 6px; }
-    ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    /* ====== Design System (from App Template) ====== */
+    :root {
+      --bg: #0f1115;          /* main background (dark) */
+      --panel: #151924;        /* panels/cards */
+      --panel-2: #0c0f16;      /* deeper panels */
+      --text: #e5e7eb;         /* primary text */
+      --text-muted: #a3aab8;    /* secondary text */
+      --primary: #5b9cff;      /* accent color */
+      --primary-2: #2f6fe6;    /* accent hover */
+      --border: #232836;        /* subtle borders */
+      --success: #22c55e;
+      --warning: #fbbf24;
+      --danger:  #ef4444;
+      --shadow:  rgba(0,0,0,0.4);
+      --radius:  14px;          /* rounded corners standard */
+      --radius-sm: 10px;        /* smaller radius */
+      --pad: 14px;              /* standard spacing */
+    }
 
-    /* Sidebar resizer handle */
-    .resizer { width: 6px; cursor: col-resize; background: #1f2937; }
-    .resizer:hover { background: #334155; }
+    /* ====== Global Resets & Typography ====== */
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow: hidden; /* Prevent body scroll */
+    }
 
-    /* Simple fade-in for iframe content changes */
-    .fade-enter { opacity: 0; }
-    .fade-enter-active { transition: opacity .18s ease-out; opacity: 1; }
+    /* ====== App Shell Layout ====== */
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100%;
+    }
 
-    /* Prevent text selection while dragging the resizer */
-  .no-select { -webkit-user-select: none; user-select: none; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: var(--pad);
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)) , var(--bg);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .brand svg { color: var(--primary); }
+
+    .topbar-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ====== Main Split Layout ====== */
+    .main {
+      display: flex;
+      min-height: 0; /* Important for flexbox children to scroll */
+    }
+
+    .sidebar {
+      width: 320px;
+      min-width: 220px;
+      max-width: 560px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: var(--pad);
+      display: flex;
+      flex-direction: column;
+      gap: var(--pad);
+      box-shadow: 0 10px 30px var(--shadow);
+    }
+
+    .content {
+      flex: 1;
+      min-width: 0; /* Prevents iframe from overflowing */
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .content-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--pad);
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-2);
+    }
+
+    .content-body {
+      padding: 0;
+      overflow: hidden; /* Let the iframe handle its own scroll */
+    }
+
+    /* ====== UI Components ====== */
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: var(--primary); }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: white; }
+    .btn.primary:hover { background: var(--primary-2); border-color: var(--primary-2); }
+    .btn.success { background: var(--success); border-color: var(--success); color: white; }
+    .btn.success:hover { background: #16a34a; border-color: #16a34a; }
+    .btn.danger { background: var(--danger); border-color: var(--danger); color: white; }
+    .btn.danger:hover { background: #dc2626; border-color: #dc2626; }
+
+    .input {
+        width: 100%;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: var(--radius-sm);
+        padding: 10px 12px;
+        font-size: 14px;
+    }
+    .input:focus { outline: none; border-color: var(--primary); }
+
+    .dropzone {
+        padding: var(--pad);
+        border-radius: var(--radius-sm);
+        border: 1px dashed var(--border);
+        background: var(--panel-2);
+        text-align: center;
+        transition: border-color 120ms ease, background-color 120ms ease;
+    }
+    .dropzone.active {
+        border-color: var(--primary);
+        background: rgba(91,156,255,0.1);
+    }
+    .dropzone p { margin: 0; }
+    .dropzone .muted { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .file-list {
+        flex: 1;
+        overflow-y: auto;
+        margin: 0 -4px;
+        padding: 0 4px;
+        list-style: none;
+        display: grid;
+        gap: 8px;
+        align-content: start;
+    }
+
+    .file-item button {
+        width: 100%;
+        text-align: left;
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+        color: var(--text);
+        cursor: pointer;
+        transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .file-item button:hover {
+        transform: translateY(-1px);
+        border-color: var(--primary);
+    }
+    .file-item button.active {
+        border-color: var(--primary);
+        background: linear-gradient(180deg, rgba(91,156,255,0.18), rgba(91,156,255,0.04));
+    }
+    .file-item .name { flex: 1; min-width: 0; }
+    .file-item .name .main-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-item .name .meta { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-item .actions { display: flex; gap: 6px; }
+    .file-item .actions button {
+        padding: 4px 8px;
+        font-size: 11px;
+        width: auto;
+        background: var(--panel);
+    }
+    .file-item .actions button:hover {
+        background: var(--panel-2);
+    }
+
+    /* ====== Utilities ====== */
+    .hidden { display: none !important; }
+    .spacer { flex: 1; }
+    .muted { color: var(--text-muted); }
+    .resizer {
+        width: 6px;
+        cursor: col-resize;
+        background: var(--bg);
+        border-left: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+        transition: background 120ms ease;
+    }
+    .resizer:hover { background: var(--primary-2); }
+    .no-select { -webkit-user-select: none; user-select: none; }
+
+    /* ====== Iframe styling ====== */
+    #viewer {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: white; /* Default background for loaded content */
+        opacity: 0;
+        transition: opacity 180ms ease-out;
+    }
+    #viewer.loaded {
+        opacity: 1;
+    }
   </style>
 </head>
-<body class="dark bg-gray-900 text-gray-200 min-h-screen flex flex-col">
-  <!--
-    File: public/html-app-launcher.html
 
-    WHAT THIS DOES (in plain English):
-    - Lets you load multiple standalone HTML files at once (drag & drop or file chooser).
-    - Shows them in a sidebar list so you can instantly switch which one is displayed.
-    - Renders the chosen file inside a sandboxed <iframe> that allows scripts to run.
-    - Supports quick actions (open in new tab, refresh), simple search, and session export/import.
-    - Keyboard shortcuts: see the cheat sheet at the bottom.
-  -->
-
-  <!-- ===== Top Bar (title + primary actions) ===== -->
-  <header class="w-full border-b border-gray-800 px-3 sm:px-4 py-2 flex items-center gap-2">
-    <h1 class="text-lg sm:text-xl font-semibold tracking-tight">
-      HTML App Launcher
-    </h1>
-
-    <!-- Spacer -->
-    <div class="flex-1"></div>
-
-    <!-- Upload button (hidden real input, pretty button triggers it) -->
-  <input id="file-input" type="file" accept=".html,.htm,text/html" multiple class="hidden" aria-label="Add HTML files" title="Add HTML files" />
-    <button id="btn-add" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-medium">
-      + Add HTML
-    </button>
-
-    <!-- Import/Export session (JSON with names + file contents) -->
-  <input id="session-input" type="file" accept="application/json" class="hidden" aria-label="Import session file (JSON)" title="Import session file (JSON)" />
-    <button id="btn-import" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-sm font-medium">
-      Import Session
-    </button>
-    <button id="btn-export" class="px-3 py-1.5 rounded-lg bg-emerald-700/70 hover:bg-emerald-600 active:bg-emerald-800 text-white text-sm font-medium">
-      Export Session
-    </button>
-
-    <!-- Clear all -->
-    <button id="btn-clear" class="ml-1 px-3 py-1.5 rounded-lg bg-red-600/90 hover:bg-red-500 active:bg-red-700 text-white text-sm font-medium">
-      Clear
-    </button>
-  </header>
-
-  <!-- ===== Main Split Layout: Sidebar (list) | Resizer | Viewer (iframe) ===== -->
-  <main id="main" class="flex-1 min-h-0 flex">
-    <!-- Sidebar with drag/drop + search + file list -->
-    <aside id="sidebar" class="w-[320px] min-w-[220px] max-w-[560px] border-r border-gray-800 flex flex-col">
-      <!-- Drag & drop overlay area -->
-      <div id="dropzone" class="m-3 rounded-xl border border-dashed border-gray-700 p-3 text-gray-300 bg-gray-800/40">
-        <p class="text-sm"><strong>Drop HTML files here</strong> or click <span class="underline">+ Add HTML</span>.</p>
-        <p class="text-xs text-gray-400 mt-1">Accepts .html / .htm. Files are opened locally; nothing is uploaded.</p>
+<body>
+  <!-- App Shell -->
+  <div class="app" id="app">
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="brand">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+        App Launcher
       </div>
-
-      <!-- Search input to filter list -->
-      <div class="px-3 mb-2">
-        <label class="sr-only" for="search">Search</label>
-        <input id="search" type="text" placeholder="Search files…" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600" />
+      <div class="spacer"></div>
+      <div class="topbar-actions">
+        <input id="file-input" type="file" accept=".html,.htm,text/html" multiple class="hidden" />
+        <button id="btn-add" class="btn primary">+ Add HTML</button>
+        <input id="session-input" type="file" accept="application/json" class="hidden" />
+        <button id="btn-import" class="btn success">Import</button>
+        <button id="btn-export" class="btn">Export</button>
+        <button id="btn-clear" class="btn danger">Clear</button>
       </div>
+    </header>
 
-      <!-- List of loaded files -->
-      <ul id="file-list" class="flex-1 overflow-auto px-2 pb-2 space-y-1" aria-label="Loaded HTML files"></ul>
-    </aside>
+    <!-- Main area: sidebar | resizer | content -->
+    <main class="main" id="main-container">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div id="dropzone" class="dropzone">
+          <p><strong>Drop HTML files here</strong></p>
+          <p class="muted">or click "+ Add HTML". Files are processed locally.</p>
+        </div>
+        <input id="search" type="text" placeholder="Search files…" class="input" />
+        <ul id="file-list" class="file-list" aria-label="Loaded HTML files"></ul>
+      </aside>
 
-    <!-- Vertical resizer between sidebar and viewer -->
-    <div id="resizer" class="resizer" title="Drag to resize sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar"></div>
+      <!-- Resizer -->
+      <div id="resizer" class="resizer" title="Drag to resize sidebar"></div>
 
-    <!-- Viewer pane: toolbar + iframe -->
-    <section class="flex-1 min-w-0 flex flex-col">
-      <!-- Viewer toolbar -->
-      <div class="px-3 sm:px-4 py-2 border-b border-gray-800 flex items-center gap-2">
-        <div id="current-file" class="truncate text-sm text-gray-300">No file selected</div>
-        <div class="flex-1"></div>
-        <button id="btn-open-new" class="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm">Open in New Tab</button>
-        <button id="btn-refresh" class="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm">Refresh</button>
-        <button id="btn-remove" class="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm">Remove</button>
-      </div>
-
-      <!-- The actual embedded viewer -->
-      <div class="flex-1 min-h-0">
-        <!--
-          Important: we sandbox the iframe but allow scripts + same-origin so apps can run as expected
-          without escaping into the parent page. Popups are allowed so new windows work.
-        -->
-        <iframe id="viewer" class="w-full h-full bg-gray-900 fade-enter" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads" title="HTML preview"></iframe>
-      </div>
-    </section>
-  </main>
-
-  <!-- ===== Keyboard Shortcuts / Help ===== -->
-  <footer class="border-t border-gray-800 px-3 sm:px-4 py-2 text-xs text-gray-400">
-    <div class="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-      <div>Tip: drag the divider to resize the sidebar.</div>
-      <ul class="flex flex-wrap gap-x-4 gap-y-1">
-        <li><span class="text-gray-300">Alt+→</span> next</li>
-        <li><span class="text-gray-300">Alt+←</span> previous</li>
-        <li><span class="text-gray-300">Ctrl+O</span> add files</li>
-        <li><span class="text-gray-300">Ctrl+Shift+R</span> refresh</li>
-        <li><span class="text-gray-300">Enter</span> open in new tab</li>
-        <li><span class="text-gray-300">Del</span> remove</li>
-      </ul>
-    </div>
-  </footer>
+      <!-- Content Viewer -->
+      <section class="content">
+        <div class="content-header">
+          <div id="current-file" class="muted">No file selected</div>
+          <div class="actions">
+            <button id="btn-open-new" class="btn">Open in New Tab</button>
+            <button id="btn-refresh" class="btn">Refresh</button>
+            <button id="btn-remove" class="btn">Remove</button>
+          </div>
+        </div>
+        <div class="content-body">
+          <iframe id="viewer" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads" title="HTML preview"></iframe>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <script>
     // =========================
-    // State & utilities
+    // App State & Utilities
     // =========================
+    const App = {
+      files: [], // Array of { id, name, alias, size, mtime, text, url }
+      selectedIndex: -1,
+      swapCounter: 0,
 
-    /** @type {Array<{ id:string, name:string, alias:string, size:number, mtime:number, text:string, url:string }>} */
-    const files = []; // holds the loaded HTML files in memory
-    let selectedIndex = -1; // which item in `files` is currently shown
+      // DOM element references
+      el: {
+        fileInput: document.getElementById('file-input'),
+        sessionInput: document.getElementById('session-input'),
+        addBtn: document.getElementById('btn-add'),
+        importBtn: document.getElementById('btn-import'),
+        exportBtn: document.getElementById('btn-export'),
+        clearBtn: document.getElementById('btn-clear'),
+        list: document.getElementById('file-list'),
+        search: document.getElementById('search'),
+        viewer: document.getElementById('viewer'),
+        currentFile: document.getElementById('current-file'),
+        openNewBtn: document.getElementById('btn-open-new'),
+        refreshBtn: document.getElementById('btn-refresh'),
+        removeBtn: document.getElementById('btn-remove'),
+        dropzone: document.getElementById('dropzone'),
+        sidebar: document.getElementById('sidebar'),
+        resizer: document.getElementById('resizer'),
+        main: document.getElementById('main-container'),
+      },
 
-    // Quick ID generator so each file has a stable key
-    const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+      // Generates a unique ID for each file
+      uid: () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4),
 
-    // DOM refs
-    const el = {
-      fileInput: document.getElementById('file-input'),
-      sessionInput: document.getElementById('session-input'),
-      addBtn: document.getElementById('btn-add'),
-      importBtn: document.getElementById('btn-import'),
-      exportBtn: document.getElementById('btn-export'),
-      clearBtn: document.getElementById('btn-clear'),
-      list: document.getElementById('file-list'),
-      search: document.getElementById('search'),
-      viewer: document.getElementById('viewer'),
-      current: document.getElementById('current-file'),
-      openNew: document.getElementById('btn-open-new'),
-      refresh: document.getElementById('btn-refresh'),
-      remove: document.getElementById('btn-remove'),
-      dropzone: document.getElementById('dropzone'),
-      sidebar: document.getElementById('sidebar'),
-      resizer: document.getElementById('resizer'),
-      main: document.getElementById('main'),
+      // Safely revokes a Blob URL to free up memory
+      revokeUrl(url) {
+        try { if (url) URL.revokeObjectURL(url); } catch (_) {}
+      },
+
+      // Creates a new Blob URL from file content
+      makeUrlFromText(text) {
+        const blob = new Blob([text], { type: 'text/html' });
+        return URL.createObjectURL(blob);
+      },
     };
 
-  // Guards rapid swaps to avoid out-of-order iframe replacements
-  let swapCounter = 0;
+    // =========================
+    // Core Logic
+    // =========================
 
-    // Helper to revoke an object URL safely
-    function revokeUrl(u) { try { if (u) URL.revokeObjectURL(u); } catch (_) {} }
-
-    // Build a blob URL from stored text (so we can truly refresh/bust caches)
-    function makeUrlFromText(text) {
-      const blob = new Blob([text], { type: 'text/html' });
-      return URL.createObjectURL(blob);
-    }
-
-    // Create a fresh sandboxed iframe for the viewer
-    function createViewerIframe() {
-      const iframe = document.createElement('iframe');
-      iframe.id = 'viewer';
-      iframe.className = 'w-full h-full bg-gray-900 fade-enter';
-      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads');
-      iframe.setAttribute('title', 'HTML preview');
-      return iframe;
-    }
-
-    // Swap the current iframe with a new one and load provided HTML via srcdoc
-    function swapIframeWithHtml(html) {
-      const seq = ++swapCounter;
-      const oldIframe = el.viewer;
-      // Cooperative: notify the running app it should clean up
-      try { oldIframe.contentWindow?.postMessage({ type: 'app-launcher:before-unload' }, '*'); } catch (_) {}
-
-      // Quick fade-out on the old iframe
-      try {
-        oldIframe.style.transition = 'opacity 120ms ease-out';
-        oldIframe.style.opacity = '0';
-      } catch (_) {}
-
-      const newIframe = createViewerIframe();
-
-      // Perform the swap after a short delay to allow any cleanup
-      setTimeout(() => {
-        if (seq !== swapCounter) return; // a newer swap superseded this one
-        // Replace in DOM and update reference
-        oldIframe.replaceWith(newIframe);
-        el.viewer = newIframe;
-
-        // Load new content
-        newIframe.srcdoc = html || '';
-
-        // Fade-in
-  requestAnimationFrame(() => {
-          newIframe.classList.add('fade-enter-active');
-        });
-      }, 130);
-    }
-
-    // Render the sidebar list, applying search filter
+    /**
+     * Renders the list of files in the sidebar, applying any search filter.
+     */
     function renderList() {
-      const q = el.search.value.trim().toLowerCase();
-      el.list.innerHTML = '';
+      const query = App.el.search.value.trim().toLowerCase();
+      App.el.list.innerHTML = ''; // Clear current list
 
-      files.forEach((f, i) => {
-        const label = (f.alias || f.name).toLowerCase();
-        const visible = !q || label.includes(q);
-        if (!visible) return;
+      App.files.forEach((file, index) => {
+        const label = (file.alias || file.name).toLowerCase();
+        if (query && !label.includes(query)) return; // Skip if it doesn't match search
 
         const li = document.createElement('li');
-        li.className = 'group';
+        li.className = 'file-item';
 
-        const isSelected = i === selectedIndex;
+        const isSelected = index === App.selectedIndex;
         const row = document.createElement('button');
-        row.type = 'button';
-        row.className = [
-          'w-full text-left px-3 py-2 rounded-lg border',
-          isSelected ? 'bg-blue-600/20 border-blue-600/40' : 'bg-gray-800/60 border-gray-700 hover:bg-gray-700/60',
-          'flex items-center gap-2',
-        ].join(' ');
-        row.title = `${f.name} (double‑click to rename)`;
-        row.addEventListener('click', () => selectIndex(i));
-        row.addEventListener('dblclick', () => promptRename(i));
+        row.className = isSelected ? 'active' : '';
+        row.title = `${file.name} (double-click to rename)`;
+        row.addEventListener('click', () => selectIndex(index));
+        row.addEventListener('dblclick', () => promptRename(index));
 
-        // Name/alias + size meta
+        // File name and metadata
         const nameDiv = document.createElement('div');
-        nameDiv.className = 'flex-1 min-w-0';
-        const mainName = document.createElement('div');
-        mainName.className = 'truncate text-sm';
-        mainName.textContent = f.alias || f.name;
-        const meta = document.createElement('div');
-        meta.className = 'text-[11px] text-gray-400 truncate';
-        meta.textContent = `${(f.size/1024).toFixed(1)} KB • ${new Date(f.mtime).toLocaleString()}`;
-        nameDiv.appendChild(mainName);
-        nameDiv.appendChild(meta);
+        nameDiv.className = 'name';
+        nameDiv.innerHTML = `
+          <div class="main-name">${file.alias || file.name}</div>
+          <div class="meta">${(file.size / 1024).toFixed(1)} KB • ${new Date(file.mtime).toLocaleString()}</div>
+        `;
 
-        // Quick actions (small icons as text to keep it dependency‑free)
-        const openBtn = document.createElement('button');
-        openBtn.className = 'text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600';
-        openBtn.textContent = 'Open';
-        openBtn.title = 'Open in new tab';
-        openBtn.addEventListener('click', (e) => { e.stopPropagation(); openInNewTab(i); });
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'text-xs px-2 py-1 rounded bg-gray-700 hover:bg-red-600/80';
-        delBtn.textContent = '✕';
-        delBtn.title = 'Remove from list';
-        delBtn.addEventListener('click', (e) => { e.stopPropagation(); removeIndex(i); });
+        // Action buttons (Open, Remove)
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'actions';
+        actionsDiv.innerHTML = `
+          <button class="open-action">Open</button>
+          <button class="remove-action">✕</button>
+        `;
+        actionsDiv.querySelector('.open-action').addEventListener('click', (e) => { e.stopPropagation(); openInNewTab(index); });
+        actionsDiv.querySelector('.remove-action').addEventListener('click', (e) => { e.stopPropagation(); removeIndex(index); });
 
         row.appendChild(nameDiv);
-        row.appendChild(openBtn);
-        row.appendChild(delBtn);
+        row.appendChild(actionsDiv);
         li.appendChild(row);
-        el.list.appendChild(li);
+        App.el.list.appendChild(li);
       });
     }
 
-    // Select a given index and show it in the iframe (hard reset via swap)
-    function selectIndex(i) {
-      if (i < 0 || i >= files.length) return;
-      selectedIndex = i;
-      const f = files[i];
-      el.current.textContent = f ? (f.alias || f.name) : 'No file selected';
-      // Hard swap iframe to ensure all timers/audio/etc are torn down
-      swapIframeWithHtml(f.text);
+    /**
+     * Swaps the iframe with a new one to ensure a clean environment for each app.
+     * This is more robust than just changing the `src` or `srcdoc`.
+     * @param {string} html - The HTML content to load into the new iframe.
+     */
+    function swapIframeWithHtml(html) {
+      const seq = ++App.swapCounter;
+      const oldIframe = App.el.viewer;
+
+      // Fade out the old iframe
+      oldIframe.classList.remove('loaded');
+
+      setTimeout(() => {
+        if (seq !== App.swapCounter) return; // A newer swap has started
+
+        const newIframe = document.createElement('iframe');
+        newIframe.id = 'viewer';
+        newIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads');
+        newIframe.setAttribute('title', 'HTML preview');
+
+        // Replace the old iframe in the DOM
+        oldIframe.replaceWith(newIframe);
+        App.el.viewer = newIframe; // Update the reference
+
+        // Load the new content and fade it in
+        newIframe.srcdoc = html || '';
+        newIframe.onload = () => {
+            // Use a different background for the iframe if the loaded doc has a dark theme
+            const doc = newIframe.contentDocument;
+            if (doc && (doc.body.classList.contains('dark') || doc.documentElement.getAttribute('data-theme') === 'dark')) {
+                newIframe.style.background = 'var(--bg)';
+            } else {
+                newIframe.style.background = 'white';
+            }
+            newIframe.classList.add('loaded');
+        };
+      }, 180);
+    }
+
+    /**
+     * Selects a file by its index, updates the UI, and loads it into the viewer.
+     * @param {number} index - The index of the file to select.
+     */
+    function selectIndex(index) {
+      if (index < 0 || index >= App.files.length) return;
+      App.selectedIndex = index;
+      const file = App.files[index];
+      App.el.currentFile.textContent = file ? (file.alias || file.name) : 'No file selected';
+      swapIframeWithHtml(file.text);
       renderList();
     }
 
-    // Prompt to rename the alias shown in the list (does not change original filename)
-    function promptRename(i) {
-      const current = files[i];
-      if (!current) return;
-      const alias = prompt('Rename (alias):', current.alias || current.name);
-      if (alias == null) return; // cancelled
-      current.alias = alias.trim() || current.name;
-      renderList();
-      if (i === selectedIndex) el.current.textContent = current.alias || current.name;
-    }
-
-    // Remove an entry from the list and clean its object URL
-    function removeIndex(i) {
-      const f = files[i];
-      if (!f) return;
-      revokeUrl(f.url);
-      files.splice(i, 1);
-      if (selectedIndex >= files.length) selectedIndex = files.length - 1;
-      renderList();
-      if (selectedIndex >= 0) selectIndex(selectedIndex); else showPlaceholder();
-    }
-
-    // Completely clear list
-    function clearAll() {
-      files.forEach(f => revokeUrl(f.url));
-      files.length = 0;
-      selectedIndex = -1;
-      renderList();
-      showPlaceholder();
-    }
-
-    // Open selected in a new tab
-    function openInNewTab(i = selectedIndex) {
-      const f = files[i];
-      if (!f) return;
-      const url = f.url || (f.url = makeUrlFromText(f.text));
-      window.open(url, '_blank');
-    }
-
-    // Refresh = replace iframe and re-load the same app
-    function refreshSelected() {
-      const f = files[selectedIndex];
-      if (!f) return;
-      swapIframeWithHtml(f.text);
-    }
-
-    // Simple placeholder page when nothing is selected
+    /**
+     * Shows a placeholder in the viewer when no file is selected.
+     */
     function showPlaceholder() {
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preview</title></head>
-      <body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0b1020;color:#8a93a6;font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial">
-        <div style="opacity:.85;text-align:center">
-          <div style="font-size:14px">Load HTML files to view them here.</div>
-        </div>
-      </body></html>`;
-      swapIframeWithHtml(html);
-      el.current.textContent = 'No file selected';
+      const placeholderHtml = `<!DOCTYPE html><html><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0f1115;color:#a3aab8;font-family:inherit;text-align:center;"><div>Load an HTML file to begin.</div></body></html>`;
+      swapIframeWithHtml(placeholderHtml);
+      App.el.currentFile.textContent = 'No file selected';
     }
 
-    // Core: read dropped/selected files, store their text, create URLs, add to list
+    /**
+     * Reads a list of File objects, processes them, and adds them to the state.
+     * @param {FileList} fileList - The list of files from an input or drop event.
+     */
     async function addFiles(fileList) {
       const htmlFiles = Array.from(fileList || []).filter(f => /\.(html?|txt)$/i.test(f.name));
       if (!htmlFiles.length) return;
 
-      // Read all texts in parallel
-      const texts = await Promise.all(htmlFiles.map(f => f.text().catch(() => '')));
-      htmlFiles.forEach((f, idx) => {
-        const text = texts[idx] ?? '';
-        const entry = {
-          id: uid(),
+      const newEntries = await Promise.all(htmlFiles.map(async (f) => {
+        const text = await f.text().catch(() => '');
+        return {
+          id: App.uid(),
           name: f.name,
           alias: f.name,
           size: f.size,
           mtime: f.lastModified || Date.now(),
           text,
-          url: makeUrlFromText(text),
+          url: App.makeUrlFromText(text),
         };
-        files.push(entry);
-      });
+      }));
 
-      // Auto-select the last added file for convenience
-      selectedIndex = files.length - 1;
-      renderList();
-      selectIndex(selectedIndex);
+      App.files.push(...newEntries);
+      selectIndex(App.files.length - 1); // Select the last added file
     }
 
-    // Session export: download a JSON with names + text contents
+    /**
+     * Removes a file from the list by its index.
+     * @param {number} index - The index of the file to remove.
+     */
+    function removeIndex(index) {
+      const file = App.files[index];
+      if (!file) return;
+
+      App.revokeUrl(file.url);
+      App.files.splice(index, 1);
+
+      if (App.selectedIndex >= App.files.length) {
+        App.selectedIndex = App.files.length - 1;
+      }
+
+      if (App.selectedIndex === index || App.selectedIndex === -1) {
+        if (App.files.length > 0) {
+          selectIndex(App.selectedIndex);
+        } else {
+          showPlaceholder();
+          renderList();
+        }
+      } else {
+        renderList();
+      }
+    }
+
+    /**
+     * Opens the currently selected file in a new browser tab.
+     * @param {number} index - The index of the file to open.
+     */
+    function openInNewTab(index = App.selectedIndex) {
+      const file = App.files[index];
+      if (!file) return;
+      // Re-create the URL on demand to ensure it's fresh
+      const url = App.makeUrlFromText(file.text);
+      window.open(url, '_blank');
+      // We don't revoke this one immediately, as the new tab needs it.
+    }
+
+    /**
+     * Refreshes the viewer with the current file's content.
+     */
+    function refreshSelected() {
+      if (App.selectedIndex >= 0) {
+        selectIndex(App.selectedIndex);
+      }
+    }
+
+    /**
+     * Prompts the user to enter a new alias for a file.
+     * @param {number} index - The index of the file to rename.
+     */
+    function promptRename(index) {
+      const file = App.files[index];
+      if (!file) return;
+      const newAlias = prompt('Rename (alias):', file.alias || file.name);
+      if (newAlias === null) return; // User cancelled
+      file.alias = newAlias.trim() || file.name;
+      renderList();
+      if (index === App.selectedIndex) {
+        App.el.currentFile.textContent = file.alias;
+      }
+    }
+    
+    /**
+     * Clears all loaded files and resets the UI.
+     */
+    function clearAll() {
+        if (!confirm('Are you sure you want to remove all loaded files?')) return;
+        App.files.forEach(f => App.revokeUrl(f.url));
+        App.files = [];
+        App.selectedIndex = -1;
+        renderList();
+        showPlaceholder();
+    }
+
+    // =========================
+    // Session Import/Export
+    // =========================
+
     function exportSession() {
-      if (!files.length) return alert('No files to export.');
-      const data = { version: 1, exportedAt: Date.now(), files: files.map(f => ({ name: f.name, alias: f.alias, text: f.text })) };
+      if (!App.files.length) {
+        alert('No files to export.');
+        return;
+      }
+      const data = {
+        version: 1,
+        exportedAt: Date.now(),
+        files: App.files.map(f => ({ name: f.name, alias: f.alias, text: f.text }))
+      };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = 'html-launcher-session.json';
-      document.body.appendChild(a); a.click(); a.remove();
+      a.href = url;
+      a.download = 'app-launcher-session.json';
+      a.click();
       URL.revokeObjectURL(url);
     }
 
-    // Session import: read JSON, rebuild entries
     async function importSessionFile(file) {
-      const text = await file.text();
-      let data = null;
-      try { data = JSON.parse(text); } catch (_) {}
-      if (!data || !Array.isArray(data.files)) return alert('Invalid session file.');
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data || !Array.isArray(data.files)) throw new Error('Invalid session file format.');
 
-      data.files.forEach(item => {
-        const entry = {
-          id: uid(),
+        const newEntries = data.files.map(item => ({
+          id: App.uid(),
           name: item.name || 'imported.html',
           alias: item.alias || item.name || 'imported.html',
           size: (item.text || '').length,
           mtime: Date.now(),
           text: String(item.text || ''),
-          url: makeUrlFromText(String(item.text || '')),
-        };
-        files.push(entry);
+          url: App.makeUrlFromText(String(item.text || '')),
+        }));
+
+        App.files.push(...newEntries);
+        selectIndex(App.files.length - 1);
+      } catch (e) {
+        alert(`Failed to import session: ${e.message}`);
+      }
+    }
+
+
+    // =========================
+    // Event Wiring
+    // =========================
+
+    function initEventListeners() {
+      // Top bar buttons
+      App.el.addBtn.addEventListener('click', () => App.el.fileInput.click());
+      App.el.fileInput.addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+      App.el.importBtn.addEventListener('click', () => App.el.sessionInput.click());
+      App.el.sessionInput.addEventListener('change', (e) => { if (e.target.files[0]) importSessionFile(e.target.files[0]); e.target.value = ''; });
+      App.el.exportBtn.addEventListener('click', exportSession);
+      App.el.clearBtn.addEventListener('click', clearAll);
+
+      // Search
+      App.el.search.addEventListener('input', renderList);
+
+      // Viewer controls
+      App.el.openNewBtn.addEventListener('click', () => openInNewTab());
+      App.el.refreshBtn.addEventListener('click', refreshSelected);
+      App.el.removeBtn.addEventListener('click', () => removeIndex(App.selectedIndex));
+
+      // Drag and drop
+      const dz = App.el.dropzone;
+      ['dragenter', 'dragover'].forEach(type => dz.addEventListener(type, e => {
+        e.preventDefault(); e.stopPropagation(); dz.classList.add('active');
+      }));
+      ['dragleave', 'drop'].forEach(type => dz.addEventListener(type, e => {
+        e.preventDefault(); e.stopPropagation(); dz.classList.remove('active');
+      }));
+      dz.addEventListener('drop', e => { if (e.dataTransfer) addFiles(e.dataTransfer.files); });
+
+      // Keyboard shortcuts
+      window.addEventListener('keydown', (e) => {
+        const isTyping = e.target.matches('input, textarea');
+        if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+          e.preventDefault(); App.el.fileInput.click();
+        }
+        if (isTyping) return;
+
+        if (e.altKey && e.key === 'ArrowRight') {
+          e.preventDefault(); if (App.files.length) selectIndex((App.selectedIndex + 1) % App.files.length);
+        }
+        if (e.altKey && e.key === 'ArrowLeft') {
+          e.preventDefault(); if (App.files.length) selectIndex((App.selectedIndex - 1 + App.files.length) % App.files.length);
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault(); openInNewTab();
+        }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault(); if (App.selectedIndex >= 0) removeIndex(App.selectedIndex);
+        }
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r') {
+          e.preventDefault(); refreshSelected();
+        }
       });
 
-      selectedIndex = files.length - 1;
-      renderList();
-      selectIndex(selectedIndex);
+      // Sidebar resizer
+      (function enableResizer() {
+        let dragging = false;
+        App.el.resizer.addEventListener('pointerdown', (e) => {
+          dragging = true;
+          App.el.resizer.setPointerCapture(e.pointerId);
+          document.body.classList.add('no-select');
+        });
+        window.addEventListener('pointermove', (e) => {
+          if (!dragging) return;
+          const rect = App.el.main.getBoundingClientRect();
+          const newWidth = e.clientX - rect.left;
+          App.el.sidebar.style.width = `${Math.max(220, Math.min(newWidth, 560))}px`;
+        });
+        window.addEventListener('pointerup', (e) => {
+          if (!dragging) return;
+          dragging = false;
+          App.el.resizer.releasePointerCapture(e.pointerId);
+          document.body.classList.remove('no-select');
+        });
+      })();
     }
 
     // =========================
-    // Event wiring
+    // App Initialization
     // =========================
-
-    // Buttons for file add/import/export/clear
-    el.addBtn.addEventListener('click', () => el.fileInput.click());
-    el.fileInput.addEventListener('change', (e) => { addFiles(e.target.files); el.fileInput.value = ''; });
-
-    el.importBtn.addEventListener('click', () => el.sessionInput.click());
-    el.sessionInput.addEventListener('change', (e) => {
-      const f = e.target.files?.[0];
-      if (f) importSessionFile(f);
-      el.sessionInput.value = '';
-    });
-
-    el.exportBtn.addEventListener('click', exportSession);
-    el.clearBtn.addEventListener('click', () => { if (confirm('Remove all loaded files?')) clearAll(); });
-
-    // Drag & drop
-    ;['dragenter','dragover'].forEach(type => el.dropzone.addEventListener(type, (e) => {
-      e.preventDefault(); e.stopPropagation();
-      el.dropzone.classList.add('ring-2','ring-blue-600');
-    }));
-    ;['dragleave','drop'].forEach(type => el.dropzone.addEventListener(type, (e) => {
-      e.preventDefault(); e.stopPropagation();
-      el.dropzone.classList.remove('ring-2','ring-blue-600');
-    }));
-    el.dropzone.addEventListener('drop', (e) => {
-      const dt = e.dataTransfer; if (!dt) return;
-      addFiles(dt.files);
-    });
-
-    // Search filter
-    el.search.addEventListener('input', renderList);
-
-    // Viewer toolbar
-    el.openNew.addEventListener('click', () => openInNewTab());
-    el.refresh.addEventListener('click', refreshSelected);
-    el.remove.addEventListener('click', () => removeIndex(selectedIndex));
-
-    // Keyboard shortcuts (kept simple to avoid fighting the browser)
-    window.addEventListener('keydown', (e) => {
-      // Don't hijack keys if user is typing in inputs
-      const tag = (e.target && e.target.tagName || '').toLowerCase();
-      const isTyping = tag === 'input' || tag === 'textarea';
-
-      // Ctrl+O => add files
-      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
-        e.preventDefault(); el.fileInput.click(); return;
-      }
-      // Ctrl+Shift+R => refresh
-      if (e.ctrlKey && e.shiftKey && !e.altKey && (e.key.toLowerCase() === 'r')) {
-        e.preventDefault(); refreshSelected(); return;
-      }
-      // Alt+ArrowRight => next
-      if (!isTyping && e.altKey && e.key === 'ArrowRight') {
-        e.preventDefault(); if (files.length) selectIndex((selectedIndex + 1) % files.length); return;
-      }
-      // Alt+ArrowLeft => prev
-      if (!isTyping && e.altKey && e.key === 'ArrowLeft') {
-        e.preventDefault(); if (files.length) selectIndex((selectedIndex - 1 + files.length) % files.length); return;
-      }
-      // Enter => open in new tab (if focus not in an input)
-      if (!isTyping && e.key === 'Enter') {
-        e.preventDefault(); openInNewTab(); return;
-      }
-      // Delete => remove
-      if (!isTyping && (e.key === 'Delete' || e.key === 'Backspace')) {
-        if (selectedIndex >= 0) { e.preventDefault(); removeIndex(selectedIndex); }
-      }
-    });
-
-    // Sidebar resizer logic
-    (function enableSidebarResizer(){
-      const bar = el.resizer;
-      const sidebar = el.sidebar;
-      const main = el.main;
-      let dragging = false;
-
-      const onMove = (clientX) => {
-        const rect = main.getBoundingClientRect();
-        const min = 220; const max = Math.min(560, rect.width - 320);
-        const x = Math.min(Math.max(clientX - rect.left, min), Math.max(min, max));
-        sidebar.style.width = x + 'px';
-      };
-
-      bar.addEventListener('pointerdown', (e) => {
-        dragging = true; bar.setPointerCapture?.(e.pointerId);
-        document.body.classList.add('no-select');
-      });
-      window.addEventListener('pointermove', (e) => { if (dragging) onMove(e.clientX); });
-      window.addEventListener('pointerup', (e) => {
-        if (dragging) { dragging = false; bar.releasePointerCapture?.(e.pointerId); document.body.classList.remove('no-select'); }
-      });
+    (function main() {
+      initEventListeners();
+      showPlaceholder();
+      renderList();
     })();
-
-    // Initialize with a placeholder page
-    showPlaceholder();
   </script>
 </body>
 </html>
