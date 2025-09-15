@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<!--
+  File: micro-apps/csv-editor/csv-editor.html
+  Purpose: A CSV file editor that can check for emails, remove duplicates, and download reformatted CSV
+  Notes:
+    - Single-file Micro-App (no build step, no local assets)
+    - In-line comments explain each section in plain language
+    - Uses Papa Parse for CSV parsing (via CDN)
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CSV Editor — Upload, Clean, and Export</title>
+  <style>
+    /* =============== Theme tokens (easy color tweaking) =============== */
+    :root{
+      --bg:#0f1115;           /* page background (dark) */
+      --panel:#161a23;        /* cards/panels */
+      --panel-2:#0d1118;      /* headers / subpanels */
+      --text:#e5e7eb;         /* main text */
+      --muted:#9aa3b2;        /* secondary text */
+      --accent:#5b9cff;       /* primary accent */
+      --accent-2:#2f6fe6;     /* accent hover */
+      --border:#222838;       /* subtle borders */
+      --good:#22c55e;         /* success green */
+      --warn:#f59e0b;         /* warning amber */
+      --bad:#ef4444;          /* danger red */
+      --radius-lg:16px;       /* big rounded corners */
+      --radius:12px;          /* normal rounded corners */
+      --pad:14px;             /* base padding */
+      --shadow:0 18px 50px rgba(0,0,0,.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    /* Optional light theme (toggle button) */
+    [data-theme="light"]{
+      --bg:#f6f7fb;
+      --panel:#ffffff;
+      --panel-2:#f2f5fb;
+      --text:#0f172a;
+      --muted:#5b6474;
+      --accent:#2563eb;
+      --accent-2:#1e40af;
+      --border:#e6e8ee;
+      --shadow:0 18px 50px rgba(0,0,0,.08);
+    }
+    /* =============== Page reset and layout shell =============== */
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family:var(--sans); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+    header{
+      position:sticky; top:0; z-index:10;
+      display:flex; align-items:center; gap:10px;
+      padding:var(--pad);
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)) , var(--bg);
+      border-bottom:1px solid var(--border);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      background:var(--panel); border:1px solid var(--border);
+      padding:8px 12px; border-radius:10px; box-shadow:var(--shadow); font-weight:700;
+    }
+    .brand svg{color:var(--accent)}
+    .btn{
+      appearance:none; border:1px solid var(--border);
+      background:var(--panel); color:var(--text);
+      border-radius:10px; padding:10px 12px; cursor:pointer;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .btn:hover{transform:translateY(-1px); border-color:var(--accent)}
+    .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+    .btn.primary:hover{background:var(--accent-2); border-color:var(--accent-2)}
+    .btn[disabled]{opacity:.6; cursor:not-allowed; transform:none}
+    .pill{
+      display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+      border:1px solid var(--border); background:var(--panel); padding:6px 10px; border-radius:999px;
+    }
+    .kbd{
+      font-family:var(--mono); font-size:12px; padding:2px 6px;
+      border:1px solid var(--border); border-bottom-width:3px; border-radius:6px; background:var(--panel-2);
+    }
+    main{
+      padding:var(--pad);
+      display:grid; gap:var(--pad);
+      grid-template-columns: 1fr 1fr; /* two columns: input | output */
+    }
+    @media (max-width: 1024px){ main{grid-template-columns:1fr} }
+    .card{
+      background:var(--panel); border:1px solid var(--border);
+      border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden;
+      display:grid; grid-template-rows:auto 1fr auto;
+    }
+    .card-header{
+      background:var(--panel-2); border-bottom:1px solid var(--border);
+      padding:var(--pad); display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .card-body{ padding:var(--pad); overflow:auto }
+    .card-footer{ padding:var(--pad); border-top:1px solid var(--border); background:var(--panel-2); display:flex; gap:8px; flex-wrap:wrap }
+    h1,h2,h3{margin:0}
+    .muted{color:var(--muted)}
+    .row{display:flex; gap:8px; align-items:center}
+    .spacer{flex:1}
+    .hidden{display:none}
+    
+    /* File upload styling */
+    .file-upload {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+    }
+    .file-upload input[type=file] {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+    .file-upload-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 200px;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--panel-2);
+      cursor: pointer;
+      transition: border-color .12s ease, background .12s ease;
+    }
+    .file-upload-label:hover {
+      border-color: var(--accent);
+      background: var(--panel);
+    }
+    .file-upload svg {
+      width: 48px;
+      height: 48px;
+      color: var(--muted);
+    }
+    
+    /* Table styling */
+    .table-container {
+      width: 100%;
+      overflow: auto;
+      max-height: 400px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: var(--panel-2);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    tr:hover {
+      background: rgba(91, 156, 255, 0.1);
+    }
+    .highlight {
+      background: rgba(34, 197, 94, 0.2);
+    }
+    
+    /* Stats styling */
+    .stats{ display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted) }
+    .stats b{color:var(--text)}
+    
+    /* Toast notification */
+    .toast{
+      position:fixed; bottom:16px; right:16px; z-index:50;
+      background:var(--panel); border:1px solid var(--border); border-left:6px solid var(--good);
+      padding:10px 12px; border-radius:10px; box-shadow:var(--shadow);
+      opacity:0; transform:translateY(8px); transition:opacity .18s ease, transform .18s ease;
+      max-width: 60ch; white-space: pre-wrap;
+    }
+    .toast.show{opacity:1; transform:translateY(0)}
+    .toast.error{border-left-color:var(--bad)}
+    .toast.warning{border-left-color:var(--warn)}
+    
+    .spinner{ inline-size:14px; block-size:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite }
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+
+    /* Empty state styling (replaces inline style attr) */
+    .empty-state{ display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted) }
+
+    /* Table note row (for "showing first 100 rows" message) */
+    .table-note{ text-align:center; font-style:italic; color:var(--muted) }
+
+    /* Action Log panel */
+    .span-2{ grid-column:1 / -1 }
+    .log-body{ max-height:240px; overflow:auto }
+    .log-list{ list-style:none; margin:0; padding:0; font-family:var(--mono); font-size:12px }
+    .log-list li{ padding:6px 8px; border-bottom:1px solid var(--border); border-left:4px solid var(--border) }
+    .log-info{ border-left-color:var(--accent) }
+    .log-success{ border-left-color:var(--good) }
+    .log-warning{ border-left-color:var(--warn) }
+    .log-error{ border-left-color:var(--bad) }
+  </style>
+</head>
+<body>
+  <!-- ========= Top bar with title and quick actions ========= -->
+  <header>
+    <div class="brand" role="img" aria-label="CSV Editor">
+      <!-- tiny logo -->
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" fill="currentColor" opacity="0.2"/>
+        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      CSV Editor
+    </div>
+    <span class="pill">Upload CSV → Clean Data → Download</span>
+    <div class="spacer"></div>
+    <button id="themeToggle" class="btn" title="Toggle theme (dark/light)">Toggle Theme</button>
+  </header>
+  
+  <!-- ========= Main two-panel layout: Input | Output ========= -->
+  <main id="app" data-theme="dark">
+    <!-- ========== Left: Input panel ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Upload CSV File</h3>
+      </div>
+      <div class="card-body">
+        <!-- File upload area -->
+        <div class="file-upload">
+          <input type="file" id="csvFile" accept=".csv" />
+          <label for="csvFile" class="file-upload-label">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <div>
+              <p>Click to upload or drag and drop</p>
+              <p class="muted">CSV files only</p>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="stats" id="fileStats">
+          <div><b>File:</b> <span id="fileName">None</span></div>
+          <div><b>Size:</b> <span id="fileSize">0 KB</span></div>
+          <div><b>Rows:</b> <span id="rowCount">0</span></div>
+          <div><b>Columns:</b> <span id="colCount">0</span></div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- ========== Right: Output panel ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Data Preview</h3>
+        <div class="row">
+          <span id="dataCounts" class="pill" aria-live="polite">0 rows · 0 columns</span>
+          <span id="loading" class="pill hidden"><span class="spinner" aria-hidden="true"></span> <span id="loadingText">Processing…</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Data table display -->
+        <div class="table-container">
+          <table id="dataTable" class="hidden">
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+          <div id="emptyState" class="empty-state">
+            <p>Upload a CSV file to preview data</p>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <button id="btnCheckEmails" class="btn primary" title="Check for rows with emails">Check for Emails</button>
+        <button id="btnRemoveDuplicates" class="btn" title="Remove duplicate email rows">Remove Duplicate Emails</button>
+        <button id="btnRemoveInvalids" class="btn" title="Remove rows with malformed email addresses">Remove Invalid Emails</button>
+        <button id="btnDownload" class="btn" title="Download reformatted CSV">Download CSV</button>
+      </div>
+    </section>
+  </main>
+  <!-- ========== Full-width Action Log (inside the grid, spans both columns) ========== -->
+  <section class="card span-2" id="logCard" aria-live="polite" aria-label="Action log">
+    <div class="card-header">
+      <h3>Action Log</h3>
+      <div class="row">
+        <span class="pill"><b id="logCount">0</b> entries</span>
+        <button id="btnClearLog" class="btn" title="Clear the action log">Clear Log</button>
+      </div>
+    </div>
+    <div class="card-body log-body" id="logBody">
+      <ul id="actionLog" class="log-list" aria-label="Action log entries"></ul>
+    </div>
+  </section>
+  
+  
+  
+  <!-- Small toast element for feedback (copy / errors / summaries) -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  
+  <!-- Papa Parse library for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  
+  <script>
+    // ===========================
+    // Helper shortcuts (tiny DOM utilities)
+    // ===========================
+    const qs  = (s, el=document) => el.querySelector(s);         // select one element by CSS selector
+    const qsa = (s, el=document) => [...el.querySelectorAll(s)]; // select many elements
+    const on  = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts); // attach event listener
+    
+    // ===========================
+    // Global variables
+    // ===========================
+    let csvData = [];
+    let headers = [];
+    let emailColumnIndex = -1;
+    
+    // ===========================
+    // Email validation regex
+    // ===========================
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    
+    // ===========================
+    // UI wiring
+    // ===========================
+    const app = qs('#app');
+    const csvFileInput = qs('#csvFile');
+    const dataTable = qs('#dataTable');
+    const tableHead = qs('#tableHead');
+    const tableBody = qs('#tableBody');
+    const emptyState = qs('#emptyState');
+    const btnCheckEmails = qs('#btnCheckEmails');
+    const btnRemoveDuplicates = qs('#btnRemoveDuplicates');
+  const btnRemoveInvalids = qs('#btnRemoveInvalids');
+    const btnDownload = qs('#btnDownload');
+    const themeToggle = qs('#themeToggle');
+    const btnClearLog = qs('#btnClearLog');
+    const actionLog = qs('#actionLog');
+    const logBody = qs('#logBody');
+    const logCountEl = qs('#logCount');
+    const fileName = qs('#fileName');
+    const fileSize = qs('#fileSize');
+    const rowCount = qs('#rowCount');
+    const colCount = qs('#colCount');
+    const dataCounts = qs('#dataCounts');
+    const toastEl = qs('#toast');
+    const loadingEl = qs('#loading');
+    const loadingTxt = qs('#loadingText');
+    
+    // Append an entry to the Action Log
+    function logAction(msg, type='info'){
+      const ts = new Date().toLocaleTimeString();
+      const li = document.createElement('li');
+      li.className = `log-${type}`;
+      li.textContent = `[${ts}] ${msg}`;
+      actionLog.appendChild(li);
+      // update count and auto-scroll
+      logCountEl.textContent = actionLog.children.length;
+      if (logBody) logBody.scrollTop = logBody.scrollHeight;
+    }
+
+    function showToast(msg='Success!', type='success'){
+      toastEl.textContent = msg;
+      toastEl.className = 'toast show';
+      if (type === 'error') toastEl.classList.add('error');
+      if (type === 'warning') toastEl.classList.add('warning');
+      // Log every toast as a persistent entry
+      logAction(msg, type);
+      setTimeout(()=> toastEl.classList.remove('show'), 3000);
+    }
+    
+    on(themeToggle, 'click', () => {
+      const next = app.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      app.setAttribute('data-theme', next);
+      logAction(`Theme toggled to ${next}`, 'info');
+    });
+
+    // Clear action log
+    on(btnClearLog, 'click', () => {
+      actionLog.innerHTML = '';
+      logCountEl.textContent = '0';
+      toastEl.classList.remove('show');
+      // Show a brief toast without adding back an entry
+      toastEl.textContent = 'Log cleared';
+      toastEl.className = 'toast show';
+      setTimeout(()=> toastEl.classList.remove('show'), 1500);
+    });
+    
+    // File upload handling
+    on(csvFileInput, 'change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      // Update file stats
+      fileName.textContent = file.name;
+      fileSize.textContent = formatFileSize(file.size);
+      
+      // Parse CSV
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          if (results.errors.length > 0) {
+            showToast('Error parsing CSV: ' + results.errors[0].message, 'error');
+            return;
+          }
+          
+          // Store data and headers
+          csvData = results.data;
+          headers = results.meta.fields || [];
+          
+          // Update stats
+          rowCount.textContent = csvData.length;
+          colCount.textContent = headers.length;
+          dataCounts.textContent = `${csvData.length} rows · ${headers.length} columns`;
+          
+          // Find email column
+          findEmailColumn();
+          
+          // Render table
+          renderTable();
+          
+          showToast(`Successfully loaded ${csvData.length} rows`);
+        },
+        error: function(error) {
+          showToast('Error parsing CSV: ' + error.message, 'error');
+        }
+      });
+    });
+    
+    // Format file size
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // Find the column that contains email addresses
+    function findEmailColumn() {
+      emailColumnIndex = -1;
+      
+      // If no data, return
+      if (csvData.length === 0 || headers.length === 0) return;
+      
+      // Check each column header for email-related names
+      for (let i = 0; i < headers.length; i++) {
+        const header = headers[i].toLowerCase();
+        if (header.includes('email') || header.includes('e-mail') || header.includes('mail')) {
+          emailColumnIndex = i;
+          return;
+        }
+      }
+      
+      // If no header matches, check the first few rows of each column for email patterns
+      if (emailColumnIndex === -1) {
+        const rowsToCheck = Math.min(5, csvData.length);
+        
+        for (let col = 0; col < headers.length; col++) {
+          let emailCount = 0;
+          
+          for (let row = 0; row < rowsToCheck; row++) {
+            const value = csvData[row][headers[col]];
+            if (value && EMAIL_REGEX.test(value)) {
+              emailCount++;
+            }
+          }
+          
+          // If most of the checked values look like emails, assume this is the email column
+          if (emailCount >= Math.ceil(rowsToCheck / 2)) {
+            emailColumnIndex = col;
+            return;
+          }
+        }
+      }
+    }
+    
+    // Render the data table
+    function renderTable() {
+      // Clear existing table
+      tableHead.innerHTML = '';
+      tableBody.innerHTML = '';
+      
+      // Show empty state if no data
+      if (csvData.length === 0 || headers.length === 0) {
+        emptyState.classList.remove('hidden');
+        dataTable.classList.add('hidden');
+        return;
+      }
+      
+      // Hide empty state and show table
+      emptyState.classList.add('hidden');
+      dataTable.classList.remove('hidden');
+      
+      // Create header row
+      const headerRow = document.createElement('tr');
+      headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        headerRow.appendChild(th);
+      });
+      tableHead.appendChild(headerRow);
+      
+      // Create body rows (limit to first 100 for performance)
+      const rowsToShow = Math.min(100, csvData.length);
+      for (let i = 0; i < rowsToShow; i++) {
+        const row = document.createElement('tr');
+        row.dataset.index = i;
+        
+        headers.forEach(header => {
+          const td = document.createElement('td');
+          td.textContent = csvData[i][header] || '';
+          row.appendChild(td);
+        });
+        
+        tableBody.appendChild(row);
+      }
+      
+      // If we have more rows than shown, add a message
+      if (csvData.length > 100) {
+        const messageRow = document.createElement('tr');
+        const messageCell = document.createElement('td');
+        messageCell.colSpan = headers.length;
+        messageCell.className = 'table-note';
+        messageCell.textContent = `Showing first 100 rows of ${csvData.length} total rows`;
+        messageRow.appendChild(messageCell);
+        tableBody.appendChild(messageRow);
+      }
+    }
+    
+    // Check for rows with emails
+    on(btnCheckEmails, 'click', () => {
+      if (csvData.length === 0) {
+        showToast('No data loaded. Please upload a CSV file first.', 'warning');
+        return;
+      }
+      
+      if (emailColumnIndex === -1) {
+        showToast('No email column found. Please ensure your CSV has a column with email addresses.', 'warning');
+        return;
+      }
+      
+      // Clear previous highlights
+      qsa('tr.highlight').forEach(row => row.classList.remove('highlight'));
+      
+      // Highlight rows with emails
+      let emailCount = 0;
+      const emailColumn = headers[emailColumnIndex];
+      
+      csvData.forEach((row, index) => {
+        const email = row[emailColumn];
+        if (email && EMAIL_REGEX.test(email)) {
+          emailCount++;
+          const rowElement = qs(`tr[data-index="${index}"]`);
+          if (rowElement) rowElement.classList.add('highlight');
+        }
+      });
+      
+      showToast(`Found ${emailCount} rows with valid email addresses`);
+    });
+    
+    // Remove duplicate email rows
+    on(btnRemoveDuplicates, 'click', () => {
+      if (csvData.length === 0) {
+        showToast('No data loaded. Please upload a CSV file first.', 'warning');
+        return;
+      }
+      
+      if (emailColumnIndex === -1) {
+        showToast('No email column found. Please ensure your CSV has a column with email addresses.', 'warning');
+        return;
+      }
+      
+      // Find unique emails
+      const emailColumn = headers[emailColumnIndex];
+      const uniqueEmails = new Set();
+      const uniqueData = [];
+      let duplicateCount = 0;
+      
+      csvData.forEach(row => {
+        const email = row[emailColumn];
+        if (!email || !EMAIL_REGEX.test(email)) {
+          // Keep rows without emails or with invalid emails
+          uniqueData.push(row);
+        } else if (!uniqueEmails.has(email.toLowerCase())) {
+          // First occurrence of this email
+          uniqueEmails.add(email.toLowerCase());
+          uniqueData.push(row);
+        } else {
+          // Duplicate email
+          duplicateCount++;
+        }
+      });
+      
+      // Update data and UI
+      const originalCount = csvData.length;
+      csvData = uniqueData;
+      rowCount.textContent = csvData.length;
+      dataCounts.textContent = `${csvData.length} rows · ${headers.length} columns`;
+      renderTable();
+      
+      showToast(`Removed ${duplicateCount} duplicate rows. Kept ${csvData.length} of ${originalCount} rows.`);
+    });
+
+    // Remove rows with invalid email addresses (keeps blanks)
+    on(btnRemoveInvalids, 'click', () => {
+      if (csvData.length === 0) {
+        showToast('No data loaded. Please upload a CSV file first.', 'warning');
+        return;
+      }
+
+      if (emailColumnIndex === -1) {
+        showToast('No email column found. Please ensure your CSV has a column with email addresses.', 'warning');
+        return;
+      }
+
+      const emailColumn = headers[emailColumnIndex];
+      const originalCount = csvData.length;
+      let invalidCount = 0;
+
+      const filtered = csvData.filter(row => {
+        const raw = row[emailColumn];
+        if (raw === undefined || raw === null) return true; // keep if no email field
+        const email = String(raw).trim();
+        if (email === '') return true; // keep blanks
+        const isValid = EMAIL_REGEX.test(email);
+        if (!isValid) invalidCount++;
+        return isValid; // only keep valid emails
+      });
+
+      if (invalidCount === 0) {
+        showToast('No invalid email rows found.');
+        return;
+      }
+
+      csvData = filtered;
+      rowCount.textContent = csvData.length;
+      dataCounts.textContent = `${csvData.length} rows · ${headers.length} columns`;
+      renderTable();
+
+      showToast(`Removed ${invalidCount} rows with invalid emails. Kept ${csvData.length} of ${originalCount} rows.`);
+    });
+    
+    // Download reformatted CSV
+    on(btnDownload, 'click', () => {
+      if (csvData.length === 0) {
+        showToast('No data to download. Please upload a CSV file first.', 'warning');
+        return;
+      }
+      
+      // Convert data to CSV
+      const csv = Papa.unparse(csvData, {
+        header: true,
+        skipEmptyLines: true
+      });
+      
+      // Create download link
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'reformatted_data.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showToast('CSV file downloaded successfully');
+    });
+    
+    // Initialize
+    function init() {
+      // Set initial state
+      fileName.textContent = 'None';
+      fileSize.textContent = '0 KB';
+      rowCount.textContent = '0';
+      colCount.textContent = '0';
+      dataCounts.textContent = '0 rows · 0 columns';
+    }
+    
+    init();
+  </script>
+</body>
+</html>
