@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<!--
+  File: micro-apps/mcp/registry-viewer.html
+  Purpose: Browse the official MCP Registry (servers list + details) from a single HTML file.
+
+  Update summary (fixes 422 "invalid UUID length"):
+    • Always prefer the registry-provided UUID when fetching details.
+    • Strict UUID detection (RFC 4122 regex) before calling /v0/servers/{id}.
+    • If we only have a slug/name, resolve UUID via /v0/servers?search=... then retry.
+    • Clear error output with attempted URL and tips (including CORS proxy toggle).
+
+  Notes:
+    • Single-file Micro-App (no build step, no local assets).
+    • In-line comments explain each section in plain language.
+-->
+<html lang="en" class="hf-scrub-preinit">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MCP Registry Viewer — Preview</title>
+  <script>
+    // Scrub occasional raw text injected by the hosting environment (HF Spaces)
+    // Example seen: `window.huggingface={variables:{...}};"en">` rendered at the top.
+    // We remove suspicious top-level text nodes before first paint, then reveal the page.
+    (function(){
+      try{
+        const isJunk = (t) => /window\.huggingface|SPACE_CREATOR_USER_ID/.test(t || "");
+        const rmTextChildren = (root) => {
+          if (!root) return;
+          const list = Array.from(root.childNodes || []);
+          for (const n of list){
+            if (n.nodeType === Node.TEXT_NODE && isJunk(n.textContent)){
+              n.remove();
+            }
+          }
+        };
+        // Remove from document (outside <html>), <html>, <head>, and <body>
+        rmTextChildren(document);
+        rmTextChildren(document.documentElement);
+        rmTextChildren(document.head);
+        rmTextChildren(document.body);
+        // Run once more on next tick in case injection is late
+        setTimeout(() => {
+          rmTextChildren(document);
+          rmTextChildren(document.documentElement);
+          rmTextChildren(document.head);
+          rmTextChildren(document.body);
+        }, 0);
+      } finally {
+        // Reveal content
+        document.documentElement.classList.remove('hf-scrub-preinit');
+      }
+    })();
+  </script>
+  <style>
+    /* ===================== Theme tokens (tweak here) ===================== */
+    :root{
+      --bg:#0f1115;
+      --panel:#161a23;
+      --panel-2:#0d1118;
+      --text:#e5e7eb;
+      --muted:#9aa3b2;
+      --accent:#5b9cff;
+      --accent-2:#2f6fe6;
+      --border:#222838;
+      --good:#22c55e;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+      --radius-lg:16px;
+      --radius:12px;
+      --pad:14px;
+      --shadow:0 18px 50px rgba(0,0,0,.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    [data-theme="light"]{
+      --bg:#f6f7fb;
+      --panel:#ffffff;
+      --panel-2:#f2f5fb;
+      --text:#0f172a;
+      --muted:#5b6474;
+      --accent:#2563eb;
+      --accent-2:#1e40af;
+      --border:#e6e8ee;
+      --shadow:0 18px 50px rgba(0,0,0,.08);
+    }
+
+    /* ===================== Page reset and shell ===================== */
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family:var(--sans); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+
+    header{
+      position:sticky; top:0; z-index:100;
+      display:flex; align-items:center; gap:10px; padding:var(--pad);
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)), var(--bg);
+      border-bottom:1px solid var(--border); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px; background:var(--panel);
+      border:1px solid var(--border); padding:8px 12px; border-radius:10px; box-shadow:var(--shadow);
+      font-weight:700;
+    }
+    .brand svg{color:var(--accent)}
+    .pill{
+      display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+      border:1px solid var(--border); background:var(--panel); padding:6px 10px; border-radius:999px;
+    }
+    .kbd{
+      font-family:var(--mono); font-size:12px; padding:2px 6px;
+      border:1px solid var(--border); border-bottom-width:3px; border-radius:6px; background:var(--panel-2);
+    }
+    .btn{
+      appearance:none; border:1px solid var(--border);
+      background:var(--panel); color:var(--text); border-radius:10px; padding:10px 12px; cursor:pointer;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .btn:hover{transform:translateY(-1px); border-color:var(--accent)}
+    .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+    .btn.primary:hover{background:var(--accent-2)}
+    .btn[disabled]{opacity:.6; cursor:not-allowed; transform:none}
+
+    main{
+      padding:var(--pad);
+      display:grid; gap:var(--pad);
+      grid-template-columns: 360px 1fr; /* left controls | right results */
+    }
+    @media (max-width: 1024px){ main{grid-template-columns:1fr} }
+
+    .card{
+      background:var(--panel); border:1px solid var(--border);
+      border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden;
+      display:grid; grid-template-rows:auto 1fr auto;
+    }
+    .card-header{
+      background:var(--panel-2); border-bottom:1px solid var(--border);
+      padding:var(--pad); display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .card-body{ padding:var(--pad); overflow:auto }
+    .card-footer{ padding:var(--pad); border-top:1px solid var(--border); background:var(--panel-2); display:flex; gap:8px; flex-wrap:wrap }
+
+    h1,h2,h3{margin:0}
+    .muted{color:var(--muted)}
+    .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .col{display:flex; flex-direction:column; gap:8px}
+    .spacer{flex:1}
+    .hidden{display:none}
+
+    input[type="text"], select{
+      width:100%; border-radius:10px; border:1px solid var(--border);
+      background:var(--panel-2); color:var(--text); padding:10px 12px; font-size:14px;
+    }
+    label.switch{
+      display:flex; align-items:center; gap:8px; cursor:pointer;
+      background:var(--panel-2); padding:8px 10px; border:1px solid var(--border); border-radius:10px; font-size:14px;
+    }
+    input[type="checkbox"]{ accent-color: var(--accent) }
+
+    .grid{
+      display:grid; gap:12px;
+      grid-template-columns: repeat( auto-fill, minmax(280px, 1fr) );
+    }
+    .server{
+      display:flex; flex-direction:column; gap:8px;
+      border:1px solid var(--border); border-radius:12px; background:var(--panel-2); padding:12px;
+    }
+    .server h4{margin:0; font-size:16px}
+    .badges{display:flex; gap:6px; flex-wrap:wrap}
+    .badge{
+      font-size:12px; color:var(--muted); border:1px solid var(--border);
+      background:var(--panel); padding:4px 8px; border-radius:999px;
+    }
+    .server-actions{display:flex; gap:6px; flex-wrap:wrap}
+    .server-actions .btn{padding:6px 8px; font-size:12px}
+
+    .stats{ display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted) }
+    .stats b{color:var(--text)}
+
+  /* ===================== Utility classes (replaces inline styles) ===================== */
+  .flex-1{ flex:1 }
+  .self-end{ align-self:flex-end }
+  .mt-6{ margin-top:6px }
+  .text-sm{ font-size:13px }
+  .font-mono{ font-family: var(--mono) }
+  .detail-body-grid{ display:grid; gap:12px; grid-template-rows:auto auto 1fr }
+  hr.hr-sep{ border:none; border-top:1px solid var(--border) }
+  /* Hide content until scrub runs to avoid flashing the junk line */
+  html.hf-scrub-preinit body{ visibility:hidden }
+
+    /* Drawer for details */
+    .drawer{
+      position:fixed; inset:0; display:none; z-index:200; background:rgba(0,0,0,.45);
+    }
+    .drawer.open{ display:block }
+    .drawer-panel{
+      position:absolute; right:0; top:0; bottom:0; width:min(720px, 100%);
+      background:var(--panel); border-left:1px solid var(--border); box-shadow:var(--shadow);
+      display:grid; grid-template-rows:auto 1fr auto;
+    }
+    pre{
+      background:var(--panel-2); color:var(--text); border:1px solid var(--border);
+      border-radius:12px; padding:12px; overflow:auto; font-family:var(--mono); font-size:12px; line-height:1.5;
+    }
+
+    /* Loading pill + spinner */
+    .toast{
+      position:fixed; bottom:16px; right:16px; z-index:500;
+      background:var(--panel); border:1px solid var(--border); border-left:6px solid var(--good);
+      padding:10px 12px; border-radius:10px; box-shadow:var(--shadow);
+      opacity:0; transform:translateY(8px); transition:opacity .18s ease, transform .18s ease;
+      max-width: 68ch; white-space: pre-wrap;
+    }
+    .toast.show{opacity:1; transform:translateY(0)}
+    .spinner{ inline-size:14px; block-size:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite }
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+  </style>
+</head>
+<body>
+  <!-- ===================== Top bar: title + quick actions ===================== -->
+  <header>
+    <div class="brand" role="img" aria-label="MCP Registry Viewer">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="8" fill="currentColor"></circle>
+      </svg>
+      MCP Registry Viewer
+    </div>
+    <span class="pill">Public API → Browse servers (preview)</span>
+    <div class="spacer"></div>
+    <button id="themeToggle" class="btn" title="Toggle dark/light theme">Toggle Theme</button>
+  </header>
+
+  <!-- ===================== Main layout: left controls | right results ===================== -->
+  <main id="app" data-theme="dark">
+    <!-- ========== Left: Controls / Filters ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Filters</h3>
+        <div class="row">
+          <span id="loading" class="pill hidden"><span class="spinner" aria-hidden="true"></span> <span id="loadingText">Loading…</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="col">
+          <!-- Search text -->
+          <label class="col">
+            <span class="muted">Search (name, description, tags)</span>
+            <input id="q" type="text" placeholder="e.g. github, weather, openapi, docker, npm" />
+          </label>
+
+          <!-- Client-side filter toggles (post-fetch) -->
+          <div class="row">
+            <label class="switch" title="Only show entries that list an npm package">
+              <input type="checkbox" id="fNpm" /> <span>Has npm</span>
+            </label>
+            <label class="switch" title="Only show entries that list a PyPI package">
+              <input type="checkbox" id="fPypi" /> <span>Has PyPI</span>
+            </label>
+            <label class="switch" title="Only show entries that list a NuGet package">
+              <input type="checkbox" id="fNuget" /> <span>Has NuGet</span>
+            </label>
+            <label class="switch" title="Only show entries that list a Docker image">
+              <input type="checkbox" id="fDocker" /> <span>Has Docker</span>
+            </label>
+          </div>
+
+          <!-- Query options sent to API -->
+          <div class="row">
+            <label class="switch" title="If direct fetch fails (CORS, etc.), try a read-only proxy">
+              <input type="checkbox" id="useProxy" checked /> <span>Use CORS proxy on failure</span>
+            </label>
+            <label class="switch" title="Show registry metadata if present (e.g., published_at, is_latest)">
+              <input type="checkbox" id="showMeta" /> <span>Show registry metadata</span>
+            </label>
+          </div>
+
+          <div class="row">
+            <label class="col flex-1">
+              <span class="muted">Page size</span>
+              <select id="limit">
+                <option value="20">20</option>
+                <option value="30" selected>30</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+            <button id="btnSearch" class="btn primary self-end">Search</button>
+          </div>
+
+          <div class="row mt-6">
+            <span class="pill"><span class="kbd">Enter</span> search · <span class="kbd">Ctrl/Cmd</span> + <span class="kbd">K</span> focus</span>
+          </div>
+
+          <hr class="hr-sep">
+          <div class="col">
+            <strong>About this API</strong>
+            <div class="muted text-sm">
+              The official MCP Registry (preview) exposes a public read API at
+              <code class="font-mono">/v0/servers</code> and
+              <code class="font-mono">/v0/servers/{id}</code>.
+              Results include server metadata and (optionally) registry metadata.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="stats" id="stats">
+          <div><b>Showing:</b> <span id="statShowing">0</span></div>
+          <div><b>Total in page:</b> <span id="statPage">0</span></div>
+        </div>
+        <div class="spacer"></div>
+        <button id="btnPrev" class="btn" title="Previous page">‹ Prev</button>
+        <button id="btnNext" class="btn" title="Next page">Next ›</button>
+        <button id="btnDownload" class="btn" title="Download visible list as JSON">Download</button>
+      </div>
+    </section>
+
+    <!-- ========== Right: Results ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Servers</h3>
+        <div class="row">
+          <span id="counts" class="pill" aria-live="polite">0 result(s)</span>
+          <button id="btnClear" class="btn" title="Clear filters and results">Clear</button>
+          <button id="btnReload" class="btn" title="Reload current page">Reload</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="results" class="grid" aria-live="polite" aria-busy="false"></div>
+      </div>
+      <div class="card-footer">
+        <div class="stats">
+          <div><b>npm:</b> <span id="cNpm">0</span></div>
+          <div><b>PyPI:</b> <span id="cPypi">0</span></div>
+          <div><b>NuGet:</b> <span id="cNuget">0</span></div>
+          <div><b>Docker:</b> <span id="cDocker">0</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========== Drawer: Server details ========== -->
+  <div id="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Server details">
+    <div class="drawer-panel">
+      <div class="card-header">
+        <h3 id="detailTitle">Details</h3>
+        <div class="row">
+          <button id="btnCloseDrawer" class="btn">Close</button>
+        </div>
+      </div>
+      <div class="card-body detail-body-grid">
+        <div id="detailMeta" class="row"></div>
+
+        <div class="row server-actions" id="detailActions"></div>
+
+        <pre id="detailJson" aria-label="Raw JSON"></pre>
+      </div>
+      <div class="card-footer">
+        <div class="row">
+          <button id="btnCopyJson" class="btn" title="Copy full JSON">Copy JSON</button>
+          <button id="btnCopySnippet" class="btn" title="Copy a sample .mcp.json snippet">Copy mcp.json snippet</button>
+          <a id="btnOpenApiUrl" class="btn" href="#" target="_blank" rel="noopener" title="Open the API URL in a new tab">Open API URL</a>
+        </div>
+        <div class="spacer"></div>
+        <span class="pill muted">Tip: many entries link to a repo/homepage for usage docs</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast / small status popover -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // ===========================
+    // Tiny DOM helpers
+    // ===========================
+    const qs  = (s, el=document) => el.querySelector(s);
+    const qsa = (s, el=document) => [...el.querySelectorAll(s)];
+    const on  = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts);
+
+    // ===========================
+    // Constants for API and proxies
+    // ===========================
+    // Layman's terms: the official API base path
+    const API_BASE = 'https://registry.modelcontextprotocol.io/v0';
+
+    // CORS proxies (fallback if direct request is blocked in browser)
+    // We try these in order until one works.
+    const PROXIES = [
+      (url) => `https://cors.isomorphic-git.org/${encodeURI(url)}`,              // permissive CORS proxy
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, // AllOrigins
+      (url) => `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(url)}`, // ThingProxy
+      (url) => `https://r.jina.ai/http://${url.replace(/^https?:\/\//,'')}`     // Jina (returns text; we try to parse)
+    ];
+
+    // ===========================
+    // App state
+    // ===========================
+    const app = qs('#app');
+    const resultsEl = qs('#results');
+    const toastEl = qs('#toast');
+    const loadingEl = qs('#loading');
+    const loadingTxt = qs('#loadingText');
+    const countsEl = qs('#counts');
+
+    const qEl = qs('#q');
+    const limitEl = qs('#limit');
+    const showMetaEl = qs('#showMeta');
+    const useProxyEl = qs('#useProxy');
+    const fNpmEl = qs('#fNpm');
+    const fPypiEl = qs('#fPypi');
+    const fNugetEl = qs('#fNuget');
+    const fDockerEl = qs('#fDocker');
+
+    const statShowing = qs('#statShowing');
+    const statPage = qs('#statPage');
+    const cNpm = qs('#cNpm');
+    const cPypi = qs('#cPypi');
+    const cNuget = qs('#cNuget');
+    const cDocker = qs('#cDocker');
+
+    const btnPrev = qs('#btnPrev');
+    const btnNext = qs('#btnNext');
+
+    const drawer = qs('#drawer');
+    const detailTitle = qs('#detailTitle');
+    const detailJson = qs('#detailJson');
+    const detailMeta = qs('#detailMeta');
+    const detailActions = qs('#detailActions');
+    const btnOpenApiUrl = qs('#btnOpenApiUrl');
+
+    let state = {
+      items: [],
+      filtered: [],
+      nextCursor: null,
+      prevStack: [], // keep cursors for "Prev"
+      lastQuery: { search:'', limit:30, cursor:null },
+      lastRawPage: null, // save the raw page (for download)
+    };
+
+    // ===========================
+    // Utilities: toasts, loading toggles, copy
+    // ===========================
+    function showToast(msg='Done!'){
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(()=> toastEl.classList.remove('show'), 1800);
+    }
+
+    function setLoading(on, text){
+      loadingEl.classList.toggle('hidden', !on);
+      loadingTxt.textContent = text || 'Loading…';
+      // disable action buttons while loading
+      qsa('button').forEach(b=>{
+        if (['themeToggle','btnCloseDrawer'].includes(b.id)) return;
+        if (on){ b.setAttribute('disabled',''); } else { b.removeAttribute('disabled'); }
+      });
+    }
+
+    async function copyText(text){
+      try{ await navigator.clipboard.writeText(text); showToast('Copied'); }
+      catch{ showToast('Copy blocked — select text and Ctrl/Cmd+C'); }
+    }
+
+    // ===========================
+    // Robust fetch with proxy fallback
+    // ===========================
+    async function fetchJsonWithFallback(url, { useProxy=true, timeoutMs=15000 }={}){
+      // Try a direct fetch first (normal CORS-aware request)
+      try{
+        const res = await Promise.race([
+          fetch(url, { headers:{'Accept':'application/json, application/problem+json'} }),
+          new Promise((_,rej)=> setTimeout(()=> rej(new Error('timeout')), timeoutMs))
+        ]);
+        if (res && res.ok) return await res.json();
+        const t = await res.text();
+        throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`);
+      }catch(e){
+        if (!useProxy) throw e;
+        let lastErr = e;
+        for (const make of PROXIES){
+          try{
+            const proxied = make(url);
+            const res2 = await Promise.race([
+              fetch(proxied),
+              new Promise((_,rej)=> setTimeout(()=> rej(new Error('timeout')), timeoutMs))
+            ]);
+            if (res2 && res2.ok){
+              const txt = await res2.text();
+              try { return JSON.parse(txt); }
+              catch {
+                const s = txt.indexOf('{'); const e2 = txt.lastIndexOf('}');
+                if (s !== -1 && e2 !== -1 && e2 > s){
+                  const cand = txt.slice(s, e2+1);
+                  return JSON.parse(cand);
+                }
+                throw new Error('Proxy returned non-JSON');
+              }
+            } else if (res2) {
+              const t = await res2.text();
+              lastErr = new Error(`Proxy HTTP ${res2.status}: ${t.slice(0,200)}`);
+            }
+          }catch(err){ lastErr = err; }
+        }
+        throw lastErr;
+      }
+    }
+
+    // ===========================
+    // Response normalization
+    // ===========================
+    // Layman's terms: The API may return different shapes. This function extracts
+    //  • an array of server-like objects, and
+    //  • a "next cursor" if present.
+    function normalizeListResponse(json){
+      let arr = [];
+      let cursor = null;
+      let raw = json;
+
+      // Possible container keys
+      const candidates = Array.isArray(json) ? json
+        : json.items || json.servers || json.data || json.results || json.list || json.entries;
+      if (Array.isArray(candidates)) arr = candidates;
+      else if (Array.isArray(json)) arr = json;
+
+      // Cursor candidates
+      cursor = json?.cursor || json?.next_cursor || json?.nextCursor || json?.metadata?.next_cursor || null;
+
+      // Helper to extract meta block and registry id from many possible shapes
+      const extractMetaAndRid = (obj) => {
+        // Layman's terms: find where the registry stuck its metadata with the UUID
+        const meta =
+          obj['x-io.modelcontextprotocol.registry'] ||
+          obj._meta ||
+          obj.meta ||
+          obj.registry ||
+          obj.registry_meta ||
+          {};
+        const rid = meta.id || meta.server_id || meta.registry_id || null;
+        return { meta, rid };
+      };
+
+      // Registry preview has envelope objects: { server:{...}, "<meta>": {...} }
+      const mapped = arr.map(x => {
+        if (x && typeof x === 'object' && x.server) {
+          const { meta, rid } = extractMetaAndRid(x);
+          const server = x.server || {};
+          return { __meta: meta, __rid: rid, __raw: x, ...server };
+        }
+        // Otherwise, it might just be server.json shape with optional _meta
+        const { meta, rid } = extractMetaAndRid(x);
+        const fallbackRid = rid || x.id || x.name || null;
+        return { __meta: meta, __rid: fallbackRid, __raw: x, ...x };
+      });
+
+      return { items: mapped, nextCursor: cursor, totalInPage: mapped.length, raw };
+    }
+
+    // ===========================
+    // Field helpers / safe accessors
+    // ===========================
+    const isStr = v => typeof v === 'string' && v.trim().length > 0;
+    const isArr = v => Array.isArray(v);
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i; // RFC 4122
+
+    function firstNonEmpty(...vals){
+      for (const v of vals){ if (isStr(v)) return v; }
+      return '';
+    }
+
+    // Packages: detect known registries to show badges + sample install hints
+    function parsePackages(pkgList){
+      const out = { npm:null, pypi:null, nuget:null, docker:null, other:[] };
+      if (!isArr(pkgList)) return out;
+      for (const p of pkgList){
+        const type = (p.registry_type || p.type || p.registry || '').toLowerCase();
+        const id = p.identifier || p.name || p.package || p.image || p.repo || '';
+        const ver = p.version || p.tag || '';
+        const info = { id, version: ver, raw: p };
+        if (type.includes('npm')) out.npm = info;
+        else if (type.includes('pypi') || type.includes('pip')) out.pypi = info;
+        else if (type.includes('nuget')) out.nuget = info;
+        else if (type.includes('docker')) out.docker = info;
+        else out.other.push({ type, ...info });
+      }
+      return out;
+    }
+
+    // Install command guesses (friendly helpers for the user)
+    function installHints(pkgs){
+      const hints = [];
+      if (pkgs.npm){
+        const spec = pkgs.npm.version ? `${pkgs.npm.id}@${pkgs.npm.version}` : pkgs.npm.id;
+        hints.push({ label:'Run via npx', cmd:`npx -y ${spec}` });
+      }
+      if (pkgs.pypi){
+        const spec = pkgs.pypi.version ? `${pkgs.pypi.id}==${pkgs.pypi.version}` : pkgs.pypi.id;
+        hints.push({ label:'Install (pipx)', cmd:`pipx install ${spec}` });
+      }
+      if (pkgs.nuget){
+        const spec = pkgs.nuget.version ? `${pkgs.nuget.id} -v ${pkgs.nuget.version}` : pkgs.nuget.id;
+        hints.push({ label:'Install (dotnet tool)', cmd:`dotnet tool install --global ${spec}` });
+      }
+      if (pkgs.docker){
+        const spec = pkgs.docker.version ? `${pkgs.docker.id}:${pkgs.docker.version}` : pkgs.docker.id;
+        hints.push({ label:'Pull (docker)', cmd:`docker pull ${spec}` });
+      }
+      return hints;
+    }
+
+    // Create a tiny mcp.json snippet (best-effort; user may need to tweak)
+    function buildMcpSnippet(server){
+      const pkgs = parsePackages(server.packages);
+      const short = (server.name || '').split('/').pop() || 'my-server';
+      if (pkgs.npm){
+        const spec = pkgs.npm.version ? `${pkgs.npm.id}@${pkgs.npm.version}` : pkgs.npm.id;
+        return JSON.stringify({
+          servers: {
+            [short]: { command: "npx", args: ["-y", spec] }
+          }
+        }, null, 2);
+      }
+      if (pkgs.pypi){
+        const spec = pkgs.pypi.version ? `${pkgs.pypi.id}==${pkgs.pypi.version}` : pkgs.pypi.id;
+        return JSON.stringify({
+          servers: {
+            [short]: { command: "python", args: ["-m", spec.replace(/[-]/g,'_')] }
+          }
+        }, null, 2);
+      }
+      return JSON.stringify({
+        servers: {
+          [short]: { url: "https://example.com/mcp/" }
+        }
+      }, null, 2);
+    }
+
+    // ===========================
+    // Render functions
+    // ===========================
+    function renderCounters(list){
+      let npm=0, pypi=0, nuget=0, docker=0;
+      for (const s of list){
+        const pk = parsePackages(s.packages);
+        if (pk.npm) npm++;
+        if (pk.pypi) pypi++;
+        if (pk.nuget) nuget++;
+        if (pk.docker) docker++;
+      }
+      cNpm.textContent = npm; cPypi.textContent = pypi; cNuget.textContent = nuget; cDocker.textContent = docker;
+    }
+
+    function renderList(){
+      const list = state.filtered;
+      resultsEl.innerHTML = '';
+      countsEl.textContent = `${list.length} result(s)`;
+      statShowing.textContent = String(list.length);
+      statPage.textContent = String(state.items.length);
+      renderCounters(list);
+
+      for (const s of list){
+        const card = document.createElement('div');
+        card.className = 'server';
+
+        // Pull common fields
+        const name = s.name || s.id || '(unknown)';
+        const title = firstNonEmpty(s.title, s.display_name, name);
+        const desc = firstNonEmpty(s.description, s.summary, '');
+        const tags = Array.isArray(s.tags) ? s.tags : (Array.isArray(s.keywords) ? s.keywords : []);
+        const pkgs = parsePackages(s.packages);
+        const meta = s.__meta || {}; // registry-provided fields (e.g., published_at)
+        const rid  = s.__rid || '';  // canonical registry id (should be UUID)
+
+        // Header/title
+        const h = document.createElement('h4');
+        h.textContent = title;
+        card.appendChild(h);
+
+        // Description
+        if (desc){
+          const p = document.createElement('div');
+          p.className = 'muted text-sm';
+          p.textContent = desc;
+          card.appendChild(p);
+        }
+
+        // Badges
+        const badges = document.createElement('div'); badges.className = 'badges';
+        (tags || []).slice(0,8).forEach(t=>{
+          const b = document.createElement('span');
+          b.className = 'badge'; b.textContent = `#${t}`;
+          badges.appendChild(b);
+        });
+        if (pkgs.npm){ const b = document.createElement('span'); b.className = 'badge'; b.textContent = 'npm'; badges.appendChild(b); }
+        if (pkgs.pypi){ const b = document.createElement('span'); b.className = 'badge'; b.textContent = 'PyPI'; badges.appendChild(b); }
+        if (pkgs.nuget){ const b = document.createElement('span'); b.className = 'badge'; b.textContent = 'NuGet'; badges.appendChild(b); }
+        if (pkgs.docker){ const b = document.createElement('span'); b.className = 'badge'; b.textContent = 'Docker'; badges.appendChild(b); }
+        if (showMetaEl.checked && meta && (meta.published_at || meta.is_latest !== undefined)){
+          const b = document.createElement('span'); b.className = 'badge';
+          b.textContent = `meta: ${meta.is_latest ? 'latest' : 'old'}${meta.published_at ? ' · ' + new Date(meta.published_at).toISOString().slice(0,10) : ''}`;
+          badges.appendChild(b);
+        }
+        if (rid){
+          const b = document.createElement('span'); b.className = 'badge';
+          b.textContent = `${uuidRe.test(String(rid)) ? 'uuid' : 'id'}: ${String(rid).slice(0,18)}${String(rid).length>18?'…':''}`;
+          badges.appendChild(b);
+        }
+        card.appendChild(badges);
+
+        // Actions
+        const actions = document.createElement('div'); actions.className = 'server-actions';
+
+        const btnDetails = document.createElement('button');
+        btnDetails.className = 'btn'; btnDetails.textContent = 'Details';
+        btnDetails.title = 'View full JSON and quick actions';
+        btnDetails.onclick = () => openDetails(s);
+        actions.appendChild(btnDetails);
+
+        // Install hint buttons
+        const hints = installHints(pkgs);
+        for (const hnt of hints.slice(0,3)){
+          const btn = document.createElement('button');
+          btn.className = 'btn'; btn.textContent = hnt.label;
+          btn.onclick = () => copyText(hnt.cmd);
+          actions.appendChild(btn);
+        }
+
+        card.appendChild(actions);
+        resultsEl.appendChild(card);
+      }
+    }
+
+    // Apply client-side filters on the current page results
+    function applyFilters(){
+      let list = [...state.items];
+
+      // Registry-agnostic text search across name/description/tags
+      const q = (qEl.value || '').trim().toLowerCase();
+      if (q){
+        list = list.filter(s => {
+          const name = (s.name || s.id || '').toLowerCase();
+          const desc = (s.description || s.summary || '').toLowerCase();
+          const tags = (Array.isArray(s.tags) ? s.tags : []).join(' ').toLowerCase();
+          return name.includes(q) || desc.includes(q) || tags.includes(q);
+        });
+      }
+
+      // Package presence toggles
+      list = list.filter(s => {
+        const pk = parsePackages(s.packages);
+        if (fNpmEl.checked && !pk.npm) return false;
+        if (fPypiEl.checked && !pk.pypi) return false;
+        if (fNugetEl.checked && !pk.nuget) return false;
+        if (fDockerEl.checked && !pk.docker) return false;
+        return true;
+      });
+
+      state.filtered = list;
+      renderList();
+    }
+
+    // ===========================
+    // Fetch: list + details
+    // ===========================
+    async function loadPage({ cursor=null }={}){
+      const search = (qEl.value || '').trim();
+      const limit = parseInt(limitEl.value, 10) || 30;
+      const url = new URL(API_BASE + '/servers');
+      if (search) url.searchParams.set('search', search);
+      url.searchParams.set('limit', String(limit));
+      if (cursor) url.searchParams.set('cursor', cursor);
+
+      setLoading(true, 'Loading servers…');
+      try{
+        const json = await fetchJsonWithFallback(url.toString(), { useProxy: !!useProxyEl.checked });
+        const { items, nextCursor, raw } = normalizeListResponse(json);
+        state.items = items;
+        state.filtered = items;
+        state.nextCursor = nextCursor || null;
+        state.lastQuery = { search, limit, cursor };
+        state.lastRawPage = raw;
+        applyFilters();
+      }catch(e){
+        console.error(e);
+        const demo = demoData();
+        state.items = demo.items; state.filtered = demo.items;
+        state.nextCursor = null; state.lastQuery = { search, limit, cursor };
+        state.lastRawPage = demo.raw;
+        applyFilters();
+        showToast('Network failed — showing demo data');
+      }finally{
+        setLoading(false);
+      }
+    }
+
+    // Resolve a UUID from a human-readable name/slug by searching and matching
+    async function resolveUuidByName(name){
+      const url = new URL(API_BASE + '/servers');
+      url.searchParams.set('search', name);
+      url.searchParams.set('limit', '50');
+      const json = await fetchJsonWithFallback(url.toString(), { useProxy: !!useProxyEl.checked });
+      const { items } = normalizeListResponse(json);
+      // Try exact matches first (name or id equals the slug)
+      const exact = items.find(it => (it.name && it.name === name) || (it.id && it.id === name));
+      const rid = exact?.__rid;
+      return uuidRe.test(String(rid||'')) ? rid : null;
+    }
+
+    // Try multiple ID candidates, but ONLY call /servers/{id} when it's a UUID; otherwise resolve first
+    async function fetchDetailsSmart(item){
+      // Build candidate list: prefer UUID-like strings first
+      const candidatesRaw = [];
+      const meta = item.__meta || {};
+      [item.__rid, meta.id, meta.server_id, meta.registry_id, item.id, item.name]
+        .forEach(v => { if (isStr(v) && !candidatesRaw.includes(v)) candidatesRaw.push(String(v)); });
+
+      const uuidCandidates = candidatesRaw.filter(v => uuidRe.test(v));
+      const nameCandidates = candidatesRaw.filter(v => !uuidRe.test(v));
+
+      let lastErr = null;
+
+      // 1) Try direct UUIDs we already have
+      for (const id of uuidCandidates){
+        const url = `${API_BASE}/servers/${encodeURIComponent(id)}`;
+        try{
+          const json = await fetchJsonWithFallback(url, { useProxy: !!useProxyEl.checked });
+          return { used: id, url, result: normalizeDetails(json) };
+        }catch(e){ lastErr = e; }
+      }
+
+      // 2) Resolve UUIDs from any name/slug candidates, then try again
+      for (const name of nameCandidates){
+        try{
+          const resolved = await resolveUuidByName(name);
+          if (resolved && uuidRe.test(resolved)){
+            const url = `${API_BASE}/servers/${encodeURIComponent(resolved)}`;
+            const json = await fetchJsonWithFallback(url, { useProxy: !!useProxyEl.checked });
+            return { used: resolved, url, result: normalizeDetails(json) };
+          }
+        }catch(e){ lastErr = e; }
+      }
+
+      // 3) As a last resort, if nothing worked but we have raw item data, return it
+      if (item) return { used: null, url: null, result: { server: item.__raw?.server || item, meta, raw: item.__raw || item } };
+
+      throw new Error(`Failed to fetch details. Last error: ${String(lastErr)}`);
+    }
+
+    // Normalize details response to { server, meta, raw }
+    function normalizeDetails(json){
+      if (json && json.server){
+        const meta = json['x-io.modelcontextprotocol.registry'] || json._meta || {};
+        return { server: json.server, meta, raw: json };
+      }
+      return { server: json, meta: json?._meta || {}, raw: json };
+    }
+
+    // ===========================
+    // Details drawer
+    // ===========================
+    function openDrawer(){ drawer.classList.add('open'); }
+    function closeDrawer(){ drawer.classList.remove('open'); }
+
+    async function openDetails(serverLite){
+      openDrawer();
+      detailTitle.textContent = serverLite.name || serverLite.id || 'Server';
+      detailJson.textContent = 'Loading…';
+      detailMeta.innerHTML = '';
+      detailActions.innerHTML = '';
+      btnOpenApiUrl.href = '#';
+
+      // Demo entries: just show what we have
+      if ((serverLite.id || '').startsWith('demo.')){
+        detailJson.textContent = JSON.stringify(serverLite, null, 2);
+        detailJson.dataset.snippet = buildMcpSnippet(serverLite);
+        return;
+      }
+
+      try{
+        const { used, url, result } = await fetchDetailsSmart(serverLite);
+        const { server, meta } = result;
+
+        // Meta chips (show resolved UUID if we used one)
+        const chips = [];
+        if (server.version){ chips.push(['Version', server.version]); }
+        if (server.name){ chips.push(['Name', server.name]); }
+        const resolvedId = used || meta.id || serverLite.__rid;
+        if (resolvedId){ chips.push(['Registry ID', resolvedId]); }
+        if (meta && (meta.published_at || meta.is_latest !== undefined)){
+          const when = meta.published_at ? new Date(meta.published_at).toISOString() : '';
+          chips.push(['Registry', `${meta.is_latest ? 'latest' : 'not latest'}${when? ' · '+when : ''}`]);
+        }
+        for (const [k,v] of chips){
+          const x = document.createElement('span'); x.className = 'pill'; x.textContent = `${k}: ${v}`;
+          detailMeta.appendChild(x);
+        }
+
+        // Actions: copy install hints, open repository if present
+        const pkgs = parsePackages(server.packages);
+        for (const hnt of installHints(pkgs)){
+          const b = document.createElement('button'); b.className='btn'; b.textContent = hnt.label;
+          b.onclick = () => copyText(hnt.cmd);
+          detailActions.appendChild(b);
+        }
+
+        // Guess repo/homepage links
+        const links = []
+          .concat(server.repository_url || server.repository || server.repo || [])
+          .concat(server.homepage || server.homepage_url || [])
+          .concat(server.source_url || []);
+        const firstLink = Array.isArray(links) ? links.find(isStr) : (isStr(links) ? links : null);
+        if (firstLink){
+          const a = document.createElement('a'); a.href = firstLink; a.target='_blank'; a.rel='noopener';
+          a.className='btn'; a.textContent='Open repo/homepage';
+          detailActions.appendChild(a);
+        }
+
+        // Open API URL button
+        if (url){ btnOpenApiUrl.href = url; btnOpenApiUrl.classList.remove('hidden'); }
+
+        detailJson.textContent = JSON.stringify(server, null, 2);
+        detailJson.dataset.snippet = buildMcpSnippet(server);
+      }catch(e){
+        // Show helpful failure context; this is where 422 would have appeared previously
+        const rid = serverLite.__rid || serverLite.__meta?.id || serverLite.id || serverLite.name || '(none)';
+        const guessed = uuidRe.test(String(rid)) ? rid : '(not a UUID)';
+        const url = uuidRe.test(String(rid)) ? `${API_BASE}/servers/${encodeURIComponent(rid)}` : '(needs UUID resolution via search)';
+        detailJson.textContent =
+`Failed to load details.
+
+${String(e)}
+
+Suspect cause: endpoint expects a RFC 4122 UUID.
+Best-guess ID: ${rid}  → ${guessed}
+API URL: ${url}
+
+Tips:
+• Toggle "Use CORS proxy on failure" and try again.
+• Use search to find the server by name; the app will resolve its UUID automatically.
+• Click "Open API URL" below if available to view raw JSON in a new tab.`;
+        if (uuidRe.test(String(rid))) btnOpenApiUrl.href = url;
+      }
+    }
+
+    // ===========================
+    // Demo data fallback (tiny)
+    // ===========================
+    function demoData(){
+      const demo = [
+        {
+          id: "demo.github/openapi-mcp",
+          name: "io.demo/openapi-mcp",
+          description: "Demo entry: converts OpenAPI specs into MCP tools.",
+          tags: ["openapi","tools","bridge"],
+          packages: [{ registry_type:"npm", identifier:"@demo/openapi-mcp", version:"0.1.0" }]
+        },
+        {
+          id: "demo.weather/server",
+          name: "io.demo/weather",
+          description: "Demo weather MCP server exposing get_alerts and get_forecast.",
+          tags: ["weather","example"],
+          packages: [{ registry_type:"pypi", identifier:"weather-mcp", version:"0.2.3" }]
+        }
+      ];
+      // Attach __rid so Details works in demo mode (it won’t hit the network)
+      const withRid = demo.map(x => ({ __meta:{}, __rid:x.id, __raw:x, ...x }));
+      return { items: withRid, raw: { items: withRid } };
+    }
+
+    // ===========================
+    // Wire up UI events
+    // ===========================
+    on(qEl, 'keydown', (e)=>{
+      if (e.key === 'Enter'){ e.preventDefault(); state.prevStack = []; loadPage({ cursor:null }); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); qEl.select(); }
+    });
+
+    on(qs('#btnSearch'), 'click', ()=> { state.prevStack = []; loadPage({ cursor:null }); });
+    on(qs('#btnReload'), 'click', ()=> loadPage({ cursor: state.lastQuery.cursor || null }));
+    on(qs('#btnClear'), 'click', ()=> {
+      qEl.value=''; fNpmEl.checked=fPypiEl.checked=fNugetEl.checked=fDockerEl.checked=false; showMetaEl.checked=false;
+      state.items=[]; state.filtered=[]; state.nextCursor=null; state.prevStack=[];
+      resultsEl.innerHTML=''; countsEl.textContent='0 result(s)';
+      statShowing.textContent='0'; statPage.textContent='0'; renderCounters([]);
+    });
+
+    [fNpmEl, fPypiEl, fNugetEl, fDockerEl, showMetaEl].forEach(el => on(el,'change', applyFilters));
+    on(limitEl, 'change', ()=> { state.prevStack=[]; loadPage({ cursor:null }); });
+
+    // Pagination
+    on(btnNext, 'click', () => {
+      if (!state.nextCursor){ showToast('No next page'); return; }
+      state.prevStack.push(state.lastQuery.cursor || '');
+      loadPage({ cursor: state.nextCursor });
+    });
+    on(btnPrev, 'click', () => {
+      const prev = state.prevStack.pop();
+      if (prev === undefined){ showToast('No previous page'); return; }
+      loadPage({ cursor: prev || null });
+    });
+
+    // Theme
+    on(qs('#themeToggle'), 'click', ()=>{
+      const next = app.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      app.setAttribute('data-theme', next);
+    });
+
+    // Drawer controls
+    on(qs('#btnCloseDrawer'), 'click', closeDrawer);
+    on(drawer, 'click', (e)=> { if (e.target === drawer) closeDrawer(); });
+
+    // Copy buttons
+    on(qs('#btnCopyJson'), 'click', ()=> copyText(detailJson.textContent || ''));
+    on(qs('#btnCopySnippet'), 'click', ()=> copyText(detailJson.dataset.snippet || ''));
+
+    // Download visible list
+    on(qs('#btnDownload'), 'click', ()=>{
+      const blob = new Blob([JSON.stringify(state.filtered, null, 2)], { type:'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'mcp-servers-page.json'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Initial load
+    loadPage({ cursor:null });
+  </script>
+</body>
+</html>
