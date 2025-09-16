@@ -1,7 +1,4 @@
-# Micro-Apps
-A collection of small apps and games I've collected by vibe coding
-
-## Micro-App Specification
+# Micro-App Specification
 
 **Definition**  
 A Micro-App is a single, self-contained HTML file that operates as an independent application or game.  

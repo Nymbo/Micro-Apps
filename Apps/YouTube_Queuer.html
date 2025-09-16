@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en" class="hf-scrub-preinit">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>YouTube Queuer — Micro‑App</title>
+  <script>
+    // =======================
+    // Pre‑paint scrubber (layman's: some hosts inject junk text before paint)
+    // =======================
+    (function(){
+      try{
+        const isJunk = (t) => /window\.huggingface|SPACE_CREATOR_USER_ID/.test(t || "");
+        const rmTextChildren = (root) => {
+          if (!root) return;
+          for (const n of Array.from(root.childNodes || [])){
+            if (n.nodeType === Node.TEXT_NODE && isJunk(n.textContent)) n.remove();
+          }
+        };
+        rmTextChildren(document);
+        rmTextChildren(document.documentElement);
+        rmTextChildren(document.head);
+        rmTextChildren(document.body);
+        setTimeout(() => {
+          rmTextChildren(document);
+          rmTextChildren(document.documentElement);
+          rmTextChildren(document.head);
+          rmTextChildren(document.body);
+        }, 0);
+      } finally {
+        document.documentElement.classList.remove('hf-scrub-preinit');
+      }
+    })();
+  </script>
+  <style>
+    /* ===================== Theme tokens (tweak as needed) ===================== */
+    :root{
+      --bg:#0f1115;       /* page background */
+      --panel:#161a23;    /* primary card color */
+      --panel-2:#0d1118;  /* secondary surface */
+      --text:#e5e7eb;     /* primary text color */
+      --muted:#9aa3b2;    /* subdued text color */
+      --accent:#ff4f5e;   /* brand color */
+      --accent-2:#d63b49; /* brand hover */
+      --border:#222838;   /* thin borders */
+      --good:#22c55e;     /* success */
+      --warn:#f59e0b;     /* warning */
+      --bad:#ef4444;      /* error */
+      --radius-lg:16px;   /* big corners */
+      --radius:12px;      /* small corners */
+      --pad:14px;         /* standard spacing */
+      --shadow:0 18px 50px rgba(0,0,0,.35); /* soft drop shadow */
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    [data-theme="light"]{
+      --bg:#f6f7fb; --panel:#ffffff; --panel-2:#f2f5fb; --text:#0f172a; --muted:#5b6474;
+      --accent:#ef4444; --accent-2:#b91c1c; --border:#e6e8ee; --shadow:0 18px 50px rgba(0,0,0,.08);
+    }
+
+    /* ===================== Page reset and shell ===================== */
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family:var(--sans); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+
+    header{
+      position:sticky; top:0; z-index:100; display:flex; align-items:center; gap:10px; padding:var(--pad);
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)), var(--bg);
+      border-bottom:1px solid var(--border); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    }
+    .brand{ display:flex; align-items:center; gap:10px; background:var(--panel);
+      border:1px solid var(--border); padding:8px 12px; border-radius:10px; box-shadow:var(--shadow); font-weight:700; }
+    .brand svg{ color:var(--accent) }
+    .pill{ display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+      border:1px solid var(--border); background:var(--panel); padding:6px 10px; border-radius:999px; }
+    .kbd{ font-family:var(--mono); font-size:12px; padding:2px 6px; border:1px solid var(--border); border-bottom-width:3px; border-radius:6px; background:var(--panel-2); }
+    .btn{
+      appearance:none; border:1px solid var(--border); background:var(--panel); color:var(--text);
+      border-radius:10px; padding:10px 12px; cursor:pointer;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .btn:hover{ transform:translateY(-1px); border-color:var(--accent) }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff }
+    .btn.primary:hover{ background:var(--accent-2) }
+    .btn[disabled]{ opacity:.6; cursor:not-allowed; transform:none }
+
+    main{ padding:var(--pad); display:grid; gap:var(--pad); grid-template-columns: 420px 1fr; }
+    @media (max-width: 1080px){ main{ grid-template-columns:1fr } }
+
+    .card{ background:var(--panel); border:1px solid var(--border);
+      border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden; display:grid; grid-template-rows:auto 1fr auto; }
+    .card-header{ background:var(--panel-2); border-bottom:1px solid var(--border); padding:var(--pad);
+      display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .card-body{ padding:var(--pad); overflow:auto }
+    .card-footer{ padding:var(--pad); border-top:1px solid var(--border); background:var(--panel-2); display:flex; gap:8px; flex-wrap:wrap }
+
+    h1,h2,h3{margin:0}
+    .muted{color:var(--muted)}
+    .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .col{display:flex; flex-direction:column; gap:8px}
+    .spacer{flex:1}
+    .hidden{display:none}
+
+    textarea, input[type="text"], select{ width:100%; border-radius:10px; border:1px solid var(--border);
+      background:var(--panel-2); color:var(--text); padding:10px 12px; font-size:14px; }
+    label.switch{ display:flex; align-items:center; gap:8px; cursor:pointer; background:var(--panel-2);
+      padding:8px 10px; border:1px solid var(--border); border-radius:10px; font-size:14px; }
+    input[type="checkbox"]{ accent-color: var(--accent) }
+
+    .grid{ display:grid; gap:12px; grid-template-columns: repeat( auto-fill, minmax(320px, 1fr) ); }
+
+    .video{ display:flex; flex-direction:column; gap:10px; border:1px solid var(--border); border-radius:12px; background:var(--panel-2); padding:12px; }
+    .video h4{ margin:0; font-size:16px; }
+    .video .meta{ display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--muted) }
+    .video .actions{ display:flex; gap:6px; flex-wrap:wrap }
+    .thumb{ border-radius:10px; overflow:hidden; border:1px solid var(--border); width:100%; aspect-ratio:16/9; background:#000; display:block }
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block }
+
+    .stats{ display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted) }
+    .stats b{ color:var(--text) }
+
+    .toast{ position:fixed; bottom:16px; right:16px; z-index:500; background:var(--panel);
+      border:1px solid var(--border); border-left:6px solid var(--good); padding:10px 12px; border-radius:10px; box-shadow:var(--shadow);
+      opacity:0; transform:translateY(8px); transition:opacity .18s ease, transform .18s ease; max-width: 68ch; white-space: pre-wrap; }
+    .toast.show{ opacity:1; transform:translateY(0) }
+
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+    /* Spinner utility (replaces inline style) */
+    .spinner{ inline-size:14px; block-size:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; display:inline-block; animation:spin 1s linear infinite }
+    /* Small utilities for layout (replace inline styles) */
+    .u-flex1{ flex:1 }
+    .u-w120{ width:120px }
+    /* Title link appearance without inline styles */
+    .video h4 a{ text-decoration:none; color:inherit }
+    /* Hide content until scrub runs to avoid flashing the junk line */
+    html.hf-scrub-preinit body{ visibility:hidden }
+  </style>
+</head>
+<body>
+  <!-- ===================== Top bar: title + quick actions ===================== -->
+  <header>
+    <div class="brand" role="img" aria-label="YouTube Queuer">
+      <!-- simple dot logo -->
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="currentColor"></circle></svg>
+      YouTube Queuer
+    </div>
+    <span class="pill">Paste links → Get thumbnails, titles, creator, views, duration</span>
+    <div class="spacer"></div>
+    <button id="themeToggle" class="btn" title="Toggle dark/light theme">Toggle Theme</button>
+  </header>
+
+  <!-- ===================== Main layout: left controls | right results ===================== -->
+  <main id="app" data-theme="dark">
+    <!-- ========== Left: Controls / Input ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Input</h3>
+        <div class="row">
+          <span id="loading" class="pill hidden"><span class="spinner" aria-hidden="true"></span> <span id="loadingText">Loading…</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="col">
+          <!-- Textarea for pasted lines (layman's: put your links here, one per line) -->
+          <label class="col">
+            <span class="muted">Paste lines (Markdown links or raw URLs; one per line)</span>
+            <textarea id="input" rows="10" placeholder="[Title](https://www.youtube.com/watch?v=nbUycoMYaDY&t=3s)&#10;https://youtu.be/A23RV1SkP2g?t=1&#10;https://www.youtube.com/watch?v=zte_vg0D8Z4&#10;..."></textarea>
+          </label>
+
+          <!-- Options -->
+          <div class="row">
+            <label class="switch" title="If direct fetch is blocked by CORS, try via proxy">
+              <input type="checkbox" id="useProxy" checked /> <span>Use CORS proxy on failure</span>
+            </label>
+            <label class="switch" title="Avoid duplicate video IDs">
+              <input type="checkbox" id="dedupe" checked /> <span>Remove duplicates</span>
+            </label>
+          </div>
+
+          <!-- Sorting -->
+          <div class="row">
+            <label class="col u-flex1">
+              <span class="muted">Sort by</span>
+              <select id="sortBy">
+                <option value="order">Pasted order</option>
+                <option value="title">Title (A→Z)</option>
+                <option value="views">Views (high→low)</option>
+                <option value="duration">Duration (long→short)</option>
+              </select>
+            </label>
+            <label class="col u-w120">
+              <span class="muted">Limit</span>
+              <select id="limit">
+                <option value="0">No limit</option>
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="row">
+            <button id="btnParse" class="btn primary">Parse & Fetch</button>
+            <button id="btnClear" class="btn">Clear</button>
+            <button id="btnExport" class="btn" title="Copy results JSON to clipboard">Copy JSON</button>
+            <button id="btnTests" class="btn" title="Run built‑in test cases">Run Tests</button>
+          </div>
+
+          <div class="row">
+            <span class="pill"><span class="kbd">Cmd/Ctrl+Enter</span> submits · <span class="kbd">Cmd/Ctrl+A</span> select all</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="stats">
+          <div><b>Parsed:</b> <span id="statParsed">0</span></div>
+          <div><b>Fetched:</b> <span id="statFetched">0</span></div>
+        </div>
+        <div class="spacer"></div>
+        <button id="btnOpenAll" class="btn" title="Open visible videos in new tabs (may be blocked by popup blocker)">Open All (YouTube)</button>
+      </div>
+    </section>
+
+    <!-- ========== Right: Results ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Videos</h3>
+        <div class="row">
+          <span id="counts" class="pill" aria-live="polite">0 result(s)</span>
+          <button id="theme2" class="btn" title="Also toggles theme">Theme</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="results" class="grid" aria-live="polite" aria-busy="false"></div>
+      </div>
+      <div class="card-footer">
+        <div class="stats">
+          <div><b>Total duration:</b> <span id="statTotal">00:00</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast / small status popover -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // ===========================
+    // Tiny DOM helpers
+    // ===========================
+    const qs  = (s, el=document) => el.querySelector(s);
+    const qsa = (s, el=document) => [...el.querySelectorAll(s)];
+    const on  = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts);
+
+    // ===========================
+    // App elements
+    // ===========================
+    const app = qs('#app');
+    const resultsEl = qs('#results');
+    const inputEl = qs('#input');
+    const toastEl = qs('#toast');
+    const loadingEl = qs('#loading');
+    const loadingTxt = qs('#loadingText');
+    const countsEl = qs('#counts');
+    const statParsed = qs('#statParsed');
+    const statFetched = qs('#statFetched');
+    const statTotal = qs('#statTotal');
+    const useProxyEl = qs('#useProxy');
+    const dedupeEl = qs('#dedupe');
+    const sortByEl = qs('#sortBy');
+    const limitEl = qs('#limit');
+
+    // ===========================
+    // CORS proxy helpers (layman's: if a site blocks us, try via a mirror)
+    // ===========================
+    const PROXIES = [
+      (url) => `https://cors.isomorphic-git.org/${encodeURI(url)}`,
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url) => `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(url)}`,
+      (url) => `https://r.jina.ai/http://${url.replace(/^https?:\/\//,'')}` // returns text; we'll try to JSON-parse
+    ];
+
+    async function fetchTextWithFallback(url, { useProxy=true, timeoutMs=15000 }={}){
+      // Try direct
+      try{
+        const res = await Promise.race([
+          fetch(url),
+          new Promise((_,rej)=> setTimeout(()=> rej(new Error('timeout')), timeoutMs))
+        ]);
+        if (res && res.ok) return await res.text();
+        const t = await res.text();
+        throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`);
+      }catch(e){
+        if (!useProxy) throw e;
+        let lastErr = e;
+        for (const make of PROXIES){
+          try{
+            const proxied = make(url);
+            const res2 = await Promise.race([
+              fetch(proxied),
+              new Promise((_,rej)=> setTimeout(()=> rej(new Error('timeout')), timeoutMs))
+            ]);
+            if (res2 && res2.ok){ return await res2.text(); }
+            else if (res2){ lastErr = new Error(`Proxy HTTP ${res2.status}`); }
+          }catch(err){ lastErr = err; }
+        }
+        throw lastErr;
+      }
+    }
+
+    async function fetchJsonWithFallback(url, opts={}){
+      const txt = await fetchTextWithFallback(url, opts);
+      try{ return JSON.parse(txt); }
+      catch{
+        const s = txt.indexOf('{'); const e2 = txt.lastIndexOf('}');
+        if (s !== -1 && e2 !== -1 && e2 > s){
+          const cand = txt.slice(s, e2+1);
+          return JSON.parse(cand);
+        }
+        throw new Error('Non‑JSON response');
+      }
+    }
+
+    // ===========================
+    // YouTube adapter (no regex flags anywhere)
+    // ===========================
+
+    // Layman's: safely pull video ID + start time from a URL (watch/shorts/youtu.be)
+    function parseYoutube(url){
+      try{
+        const u = new URL(url);
+        const host = u.hostname.toLowerCase();
+        const path = u.pathname;
+        const tRaw = u.searchParams.get('t') || u.searchParams.get('start') || '';
+        const t = normalizeTimeParam(tRaw);
+        if (host.includes('youtube.com')){
+          if (path === '/watch'){
+            const id = u.searchParams.get('v');
+            if (id) return { id, t, url: `https://www.youtube.com/watch?v=${id}${t?`&t=${t}`:''}` };
+          }
+          if (path.startsWith('/shorts/')){
+            const id = path.split('/').filter(Boolean).pop();
+            if (id) return { id, t, url: `https://www.youtube.com/watch?v=${id}${t?`&t=${t}`:''}` };
+          }
+        }
+        if (host.includes('youtu.be')){
+          const id = path.split('/').filter(Boolean).shift();
+          if (id) return { id, t, url: `https://www.youtube.com/watch?v=${id}${t?`&t=${t}`:''}` };
+        }
+      }catch{}
+      return null;
+    }
+
+    // Layman's: convert "1h2m3s" or "90" into seconds string for t= param (no /i regex)
+    function normalizeTimeParam(t){
+      if (!t) return '';
+      if (/^\d+$/.test(t)) return String(parseInt(t,10)); // plain seconds
+      const s = String(t).toLowerCase();
+      let hours = 0, mins = 0, secs = 0;
+      // naive walk: extract segments like 1h 2m 3s
+      const rx = /(\d+)([hms])/g; // uses only 'g' flag (safe and supported)
+      let m;
+      while ((m = rx.exec(s))){
+        const num = parseInt(m[1],10);
+        const unit = m[2];
+        if (unit === 'h') hours = num;
+        else if (unit === 'm') mins = num;
+        else if (unit === 's') secs = num;
+      }
+      const total = hours*3600 + mins*60 + secs;
+      return total ? String(total) : '';
+    }
+
+    // Extract first URL from a line; prefer Markdown link (no regex flags used)
+    function extractUrlFromLine(line){
+      // Markdown [text](url) — simple index scan to avoid regex flags entirely
+      const open = line.indexOf('(');
+      const close = line.indexOf(')', open+1);
+      if (open !== -1 && close !== -1){
+        const maybe = line.slice(open+1, close);
+        if (maybe.startsWith('http://') || maybe.startsWith('https://')) return maybe;
+      }
+      // Fallback: find first http(s) occurrence and read until whitespace or ')'
+      const idx = line.indexOf('http://') !== -1 ? line.indexOf('http://') : line.indexOf('https://');
+      if (idx !== -1){
+        let j = idx;
+        while (j < line.length && !/\s|\)/.test(line[j])) j++;
+        return line.slice(idx, j);
+      }
+      return '';
+    }
+
+    // Parse all lines into candidate items
+    function parseInputLines(text){
+      const lines = String(text||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      const items = [];
+      for (const line of lines){
+        const url = extractUrlFromLine(line);
+        if (!url) continue;
+        const yt = parseYoutube(url);
+        if (yt && yt.id){ items.push({ service:'youtube', id: yt.id, url: yt.url, t: yt.t, raw: line }); }
+      }
+      return items;
+    }
+
+    // ===========================
+    // Formatters
+    // ===========================
+    const fmtInt = (n) => (n==null||isNaN(n))? '—' : n.toLocaleString();
+    function fmtDuration(sec){
+      if (!sec || !isFinite(sec)) return '—';
+      sec = Math.max(0, Math.floor(sec));
+      const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+      return [h?String(h).padStart(2,'0'):null, String(m).padStart(2,'0'), String(s).padStart(2,'0')].filter(Boolean).join(':');
+    }
+
+    // ===========================
+    // External endpoints (no API keys)
+    // ===========================
+    const YT_OEMBED = (id) => `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}&format=json`;
+
+    const PIPED = [ 'https://piped.video', 'https://piped.mha.fi', 'https://piped.namazso.de' ];
+    const pipedVideo = (base, id) => `${base.replace(/\/$/,'')}/api/v1/video/${encodeURIComponent(id)}`;
+
+    const INVIDIOUS = [ 'https://yewtu.be', 'https://inv.n8pjl.ca', 'https://iv.ggtyler.dev' ];
+    const invidiousVideo = (base, id) => `${base.replace(/\/$/,'')}/api/v1/videos/${encodeURIComponent(id)}`;
+
+    // ===========================
+    // Fetch a single video's info from multiple sources, then merge
+    // ===========================
+    async function fetchYoutubeInfo(id, { useProxy }){
+      // Start with trivial thumbnail (works even if APIs fail)
+      const base = { id, title:'', author:'', views:null, durationSeconds:null, thumbnail:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`, sources:{} };
+
+      // 1) oEmbed for title/author/thumbnail
+      try{
+        const o = await fetchJsonWithFallback(YT_OEMBED(id), { useProxy });
+        base.title = o.title || base.title;
+        base.author = o.author_name || base.author;
+        base.thumbnail = o.thumbnail_url || base.thumbnail;
+        base.sources.oembed = true;
+      }catch{}
+
+      // 2) Piped for views/duration/uploader if available
+      for (const host of PIPED){
+        try{
+          const p = await fetchJsonWithFallback(pipedVideo(host, id), { useProxy });
+          if (p){
+            if (!base.title && p.title) base.title = p.title;
+            if (!base.author && (p.uploader || p.channel || p.uploaderName)) base.author = p.uploader || p.channel || p.uploaderName;
+            if (p.duration != null) base.durationSeconds = Number(p.duration);
+            if (p.views != null) base.views = Number(p.views);
+            if (p.thumbnailUrl) base.thumbnail = p.thumbnailUrl;
+            base.sources.piped = host; break;
+          }
+        }catch{}
+      }
+
+      // 3) Invidious as additional fallback
+      if (base.views==null || base.durationSeconds==null || !base.author){
+        for (const host of INVIDIOUS){
+          try{
+            const v = await fetchJsonWithFallback(invidiousVideo(host, id), { useProxy });
+            if (v){
+              if (!base.title && v.title) base.title = v.title;
+              if (!base.author && v.author) base.author = v.author;
+              if (base.views==null && (v.viewCount || v.view_count)) base.views = Number(v.viewCount || v.view_count);
+              if (base.durationSeconds==null && (v.lengthSeconds || v.length_seconds)) base.durationSeconds = Number(v.lengthSeconds || v.length_seconds);
+              if (Array.isArray(v.videoThumbnails)){
+                const best = v.videoThumbnails.find(t => (t.quality && (String(t.quality).includes('hq') || String(t.quality).includes('max')))) || v.videoThumbnails[0];
+                if (best && best.url) base.thumbnail = best.url;
+              }
+              base.sources.invidious = host; break;
+            }
+          }catch{}
+        }
+      }
+
+      return base;
+    }
+
+    // ===========================
+    // Rendering helpers
+    // ===========================
+    function showToast(msg='Done!'){
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(()=> toastEl.classList.remove('show'), 1800);
+    }
+
+    function setLoading(on, text){
+      loadingEl.classList.toggle('hidden', !on);
+      loadingTxt.textContent = text || 'Loading…';
+      qsa('button').forEach(b=>{
+        if (['themeToggle','theme2','btnTests'].includes(b.id)) return;
+        if (on){ b.setAttribute('disabled',''); } else { b.removeAttribute('disabled'); }
+      });
+    }
+
+    function sumDur(list){
+      const s = list.reduce((a,b)=> a + (b.durationSeconds||0), 0);
+      statTotal.textContent = fmtDuration(s);
+    }
+
+    function render(list){
+      resultsEl.innerHTML = '';
+      countsEl.textContent = `${list.length} result(s)`;
+      const fetchedCount = list.filter(v => v.title || v.author || v.views!=null || v.durationSeconds!=null).length;
+      statFetched.textContent = String(fetchedCount);
+      sumDur(list);
+
+      for (const v of list){
+        const card = document.createElement('div'); card.className = 'video';
+
+        // Thumbnail (clickable to YouTube)
+        const aThumb = document.createElement('a'); aThumb.href = v.url; aThumb.target = '_blank'; aThumb.rel='noopener'; aThumb.className = 'thumb'; aThumb.title = 'Open on YouTube';
+        const img = document.createElement('img'); img.loading='lazy'; img.src = v.thumbnail; img.alt = v.title? `Thumbnail for ${v.title}` : `Video thumbnail (${v.id})`;
+        aThumb.appendChild(img); card.appendChild(aThumb);
+
+        // Title
+  const h = document.createElement('h4');
+  const aTitle = document.createElement('a'); aTitle.href = v.url; aTitle.target='_blank'; aTitle.rel='noopener'; aTitle.textContent = v.title || v.id;
+        h.appendChild(aTitle); card.appendChild(h);
+
+        // Meta line (creator · duration · views)
+        const meta = document.createElement('div'); meta.className = 'meta';
+        const m1 = document.createElement('span'); m1.textContent = v.author ? `by ${v.author}` : 'by —'; meta.appendChild(m1);
+        const m2 = document.createElement('span'); m2.textContent = `⏱ ${fmtDuration(v.durationSeconds)}`; meta.appendChild(m2);
+        const m3 = document.createElement('span'); m3.textContent = `👁️ ${fmtInt(v.views)} views`; meta.appendChild(m3);
+        card.appendChild(meta);
+
+        // Actions row: open in different frontends, copy URL
+        const actions = document.createElement('div'); actions.className = 'actions';
+        const btnYt = document.createElement('button'); btnYt.className='btn'; btnYt.textContent='Open YouTube'; btnYt.onclick=()=> window.open(v.url,'_blank','noopener'); actions.appendChild(btnYt);
+        const btnInv = document.createElement('button'); btnInv.className='btn'; btnInv.textContent='Open Invidious'; btnInv.onclick=()=> window.open(`https://yewtu.be/watch?v=${v.id}${v.t?`&t=${v.t}`:''}`,'_blank','noopener'); actions.appendChild(btnInv);
+        const btnPiped = document.createElement('button'); btnPiped.className='btn'; btnPiped.textContent='Open Piped'; btnPiped.onclick=()=> window.open(`https://piped.video/watch?v=${v.id}${v.t?`&t=${v.t}`:''}`,'_blank','noopener'); actions.appendChild(btnPiped);
+        const btnCopy = document.createElement('button'); btnCopy.className='btn'; btnCopy.textContent='Copy URL'; btnCopy.onclick=()=> navigator.clipboard.writeText(v.url).then(()=>showToast('Copied URL')); actions.appendChild(btnCopy);
+
+        card.appendChild(actions);
+        resultsEl.appendChild(card);
+      }
+    }
+
+    // ===========================
+    // Pipeline: parse → fetch (concurrent) → sort → render
+    // ===========================
+    async function run(){
+      const lines = parseInputLines(inputEl.value);
+      statParsed.textContent = String(lines.length);
+      if (!lines.length){ resultsEl.innerHTML=''; countsEl.textContent='0 result(s)'; statFetched.textContent='0'; statTotal.textContent='00:00'; return; }
+
+      // Dedupe by video id if requested
+      const seen = new Set();
+      const baseList = [];
+      for (const x of lines){
+        if (dedupeEl.checked){ if (seen.has(x.id)) continue; seen.add(x.id); }
+        baseList.push({ id:x.id, url:x.url, t:x.t, title:'', author:'', views:null, durationSeconds:null, thumbnail:`https://i.ytimg.com/vi/${x.id}/hqdefault.jpg` });
+      }
+
+      // Limit if needed (preserve order)
+      let max = parseInt(limitEl.value,10)||0; if (max>0) baseList.splice(max);
+
+      // Render placeholders immediately
+      render(baseList);
+
+      // Fetch in small batches to keep the browser happy
+      setLoading(true, 'Fetching video metadata…');
+      const CONCURRENCY = 6;
+      let idx = 0;
+      async function next(){
+        if (idx >= baseList.length) return;
+        const i = idx++;
+        try{
+          const info = await fetchYoutubeInfo(baseList[i].id, { useProxy: !!useProxyEl.checked });
+          Object.assign(baseList[i], info);
+        }catch(e){ /* ignore individual failures */ }
+        render(sortList([...baseList]));
+        await next();
+      }
+      const workers = Array.from({length: Math.min(CONCURRENCY, baseList.length)}, () => next());
+      await Promise.all(workers);
+      setLoading(false);
+
+      // Final sort & render
+      const sorted = sortList(baseList);
+      render(sorted);
+    }
+
+    function sortList(list){
+      const by = sortByEl.value;
+      const copy = [...list];
+      if (by === 'title') copy.sort((a,b)=> String(a.title||'').localeCompare(String(b.title||'')) );
+      else if (by === 'views') copy.sort((a,b)=> (b.views||-1) - (a.views||-1));
+      else if (by === 'duration') copy.sort((a,b)=> (b.durationSeconds||-1) - (a.durationSeconds||-1));
+      return copy;
+    }
+
+    // ===========================
+    // Built‑in tests (ALWAYS add tests when there were none)
+    // ===========================
+    function runTests(){
+      const cases = [
+        { in: 'https://www.youtube.com/watch?v=nbUycoMYaDY&t=3s', id:'nbUycoMYaDY', t:'3' },
+        { in: 'https://youtu.be/A23RV1SkP2g?t=1m30s', id:'A23RV1SkP2g', t:'90' },
+        { in: 'https://www.youtube.com/shorts/zte_vg0D8Z4', id:'zte_vg0D8Z4', t:'' },
+        { in: '[Title](https://www.youtube.com/watch?v=dY0371q1qnU)', id:'dY0371q1qnU', t:'' },
+        { in: '[X](https://www.youtube.com/watch?v=M75eqFthl_U&t=2s)', id:'M75eqFthl_U', t:'2' }
+      ];
+      const results = [];
+      for (const c of cases){
+        const url = extractUrlFromLine(c.in);
+        const obj = parseYoutube(url);
+        const ok = obj && obj.id === c.id && String(obj.t||'') === c.t;
+        results.push({case:c.in, got: obj, pass: !!ok});
+      }
+      const failed = results.filter(r=>!r.pass);
+      if (failed.length){
+        console.error('Test failures:', failed);
+        showToast(`Tests: ${results.length - failed.length}/${results.length} passed`);
+      }else{
+        showToast('All tests passed');
+      }
+    }
+
+    // ===========================
+    // Wire up UI
+    // ===========================
+    on(qs('#btnParse'), 'click', run);
+    on(qs('#btnTests'), 'click', runTests);
+    on(inputEl, 'keydown', (e)=>{ if (e.key==='Enter' && (e.metaKey||e.ctrlKey)) { e.preventDefault(); run(); } });
+    on(qs('#btnClear'), 'click', ()=>{ inputEl.value=''; resultsEl.innerHTML=''; countsEl.textContent='0 result(s)'; statParsed.textContent='0'; statFetched.textContent='0'; statTotal.textContent='00:00'; });
+    on(qs('#btnExport'), 'click', ()=>{
+      // Layman's: copy a compact JSON list of the current results to your clipboard
+      const data = Array.from(resultsEl.children).map(card => {
+        const a = card.querySelector('a.thumb');
+        const title = (card.querySelector('h4 a')||{}).textContent || '';
+        const url = a ? a.href : '';
+        const thumb = a ? (a.querySelector('img')||{}).src : '';
+        const spans = card.querySelectorAll('.meta span');
+        const author = spans[0]?.textContent?.replace(/^by\s+/,'') || '';
+        const duration = spans[1]?.textContent?.replace(/^\D+/,'') || '';
+        const views = spans[2]?.textContent?.replace(/\D+/g,'') || '';
+        return { title, url, thumbnail: thumb, author, duration, views };
+      });
+      navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(()=> showToast('Copied results JSON'));
+    });
+
+    on(qs('#btnOpenAll'), 'click', ()=>{
+      // Layman's: try to open all visible videos in new tabs (browsers may block some)
+      const links = qsa('.video a.thumb').map(a=>a.href);
+      let opened = 0;
+      links.forEach((href, i)=> setTimeout(()=> { const w = window.open(href, '_blank', 'noopener'); if (w) opened++; if (i===links.length-1) showToast(`Tried to open ${links.length}. Opened ${opened}.`); }, i*150));
+    });
+
+    // Theme toggles
+    on(qs('#themeToggle'), 'click', ()=>{ app.setAttribute('data-theme', app.getAttribute('data-theme')==='dark' ? 'light' : 'dark'); });
+    on(qs('#theme2'), 'click', ()=>{ app.setAttribute('data-theme', app.getAttribute('data-theme')==='dark' ? 'light' : 'dark'); });
+  </script>
+</body>
+</html>
