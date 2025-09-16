@@ -290,7 +290,7 @@
           </div>
 
           <div class="row mt-6">
-            <span class="pill"><span class="kbd">Enter</span> search · <span class="kbd">Ctrl/Cmd</span> + <span class="kbd">K</span> focus</span>
+            <span class="pill"><span class="kbd">Enter</span> search · Press <span class="kbd">F</span> to focus</span>
           </div>
 
           <hr class="hr-sep">
@@ -361,7 +361,6 @@
         <div class="row">
           <button id="btnCopyJson" class="btn" title="Copy full JSON">Copy JSON</button>
           <button id="btnCopySnippet" class="btn" title="Copy a sample .mcp.json snippet">Copy mcp.json snippet</button>
-          <a id="btnOpenApiUrl" class="btn" href="#" target="_blank" rel="noopener" title="Open the API URL in a new tab">Open API URL</a>
         </div>
         <div class="spacer"></div>
         <span class="pill muted">Tip: many entries link to a repo/homepage for usage docs</span>
@@ -429,7 +428,7 @@
     const detailJson = qs('#detailJson');
     const detailMeta = qs('#detailMeta');
     const detailActions = qs('#detailActions');
-    const btnOpenApiUrl = qs('#btnOpenApiUrl');
+  // const btnOpenApiUrl = null; // removed button
 
     let state = {
       items: [],
@@ -610,31 +609,95 @@
       return hints;
     }
 
+    // Heuristic URL detection: find best HTTP(S) endpoint in server details
+    function isHttpUrl(v){
+      if (!isStr(v)) return false;
+      try{ const u = new URL(v); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; }
+    }
+
+    function findBestEndpointUrl(server){
+      if (!server || typeof server !== 'object') return null;
+
+      // Quick candidates from common fields
+      const quick = [
+        server.url, server.api_url, server.base_url, server.server_url,
+        server.endpoint, server.http_url, server.sse_url, server.ws_url,
+        server.mcp_url, server.remote_url
+      ].filter(isHttpUrl);
+      if (quick.length) return quick[0];
+
+      // Deep scan: look for any nested { key: *url* } with http(s) values
+      const candidates = [];
+      const seen = new Set();
+      const maxDepth = 5;
+      const walk = (obj, depth, keyHint) => {
+        if (!obj || depth > maxDepth) return;
+        if (typeof obj === 'string'){
+          if (isHttpUrl(obj)){
+            const val = obj;
+            if (!seen.has(val)){
+              seen.add(val);
+              const k = String(keyHint || '').toLowerCase();
+              let score = 1;
+              if (val.includes('/mcp')) score += 5;
+              if (k.includes('sse') || k.includes('http') || k.includes('server') || k.includes('endpoint')) score += 2;
+              if (k.includes('ws')) score -= 1; // de-prefer ws in favor of http/s
+              try { if (new URL(val).protocol === 'https:') score += 1; } catch {}
+              candidates.push({ url: val, score, key: k });
+            }
+          }
+          return;
+        }
+        if (Array.isArray(obj)){
+          for (const v of obj) walk(v, depth+1, keyHint);
+          return;
+        }
+        if (typeof obj === 'object'){
+          for (const [k,v] of Object.entries(obj)){
+            const kh = keyHint ? `${keyHint}.${k}` : k;
+            if (k.toLowerCase().includes('url') && isHttpUrl(v)){
+              walk(String(v), depth+1, kh);
+            } else {
+              walk(v, depth+1, kh);
+            }
+          }
+        }
+      };
+      walk(server, 0, '');
+      if (!candidates.length) return null;
+      candidates.sort((a,b)=> b.score - a.score);
+      return candidates[0].url;
+    }
+
     // Create a tiny mcp.json snippet (best-effort; user may need to tweak)
     function buildMcpSnippet(server){
       const pkgs = parsePackages(server.packages);
-      const short = (server.name || '').split('/').pop() || 'my-server';
+      // Prefer direct install if package is specified
       if (pkgs.npm){
         const spec = pkgs.npm.version ? `${pkgs.npm.id}@${pkgs.npm.version}` : pkgs.npm.id;
-        return JSON.stringify({
-          servers: {
-            [short]: { command: "npx", args: ["-y", spec] }
-          }
-        }, null, 2);
+        const name = (server.name || server.id || '').split(/[\/:]/).pop() || 'my-server';
+        return JSON.stringify({ mcpServers: { [name]: { command: "npx", args: ["-y", spec] } } }, null, 2);
       }
       if (pkgs.pypi){
         const spec = pkgs.pypi.version ? `${pkgs.pypi.id}==${pkgs.pypi.version}` : pkgs.pypi.id;
-        return JSON.stringify({
-          servers: {
-            [short]: { command: "python", args: ["-m", spec.replace(/[-]/g,'_')] }
-          }
-        }, null, 2);
+        const name = (server.name || server.id || '').split(/[\/:]/).pop() || 'my-server';
+        return JSON.stringify({ mcpServers: { [name]: { command: "python", args: ["-m", spec.replace(/[-]/g,'_')] } } }, null, 2);
       }
-      return JSON.stringify({
-        servers: {
-          [short]: { url: "https://example.com/mcp/" }
-        }
-      }, null, 2);
+
+      // Otherwise, try to discover a remote HTTP(S) endpoint
+      const endpoint = findBestEndpointUrl(server);
+      let short = (server.name || server.id || '').split(/[\/:]/).pop() || '';
+      if (!short && endpoint){
+        try{
+          const u = new URL(endpoint);
+          const segs = u.pathname.split('/').filter(Boolean);
+          short = segs[0] || u.hostname.split('.').filter(Boolean)[0] || 'server';
+        }catch{ short = 'server'; }
+      }
+      if (!short) short = 'my-server';
+
+      const url = endpoint || 'https://example.com/mcp/';
+      return JSON.stringify({ mcpServers: { [short]: { url } } }, null, 2);
     }
 
     // ===========================
@@ -869,7 +932,7 @@
       detailJson.textContent = 'Loading…';
       detailMeta.innerHTML = '';
       detailActions.innerHTML = '';
-      btnOpenApiUrl.href = '#';
+  // removed Open API URL button
 
       // Demo entries: just show what we have
       if ((serverLite.id || '').startsWith('demo.')){
@@ -917,8 +980,7 @@
           detailActions.appendChild(a);
         }
 
-        // Open API URL button
-        if (url){ btnOpenApiUrl.href = url; btnOpenApiUrl.classList.remove('hidden'); }
+  // Open API URL button removed
 
         detailJson.textContent = JSON.stringify(server, null, 2);
         detailJson.dataset.snippet = buildMcpSnippet(server);
@@ -940,7 +1002,9 @@ Tips:
 • Toggle "Use CORS proxy on failure" and try again.
 • Use search to find the server by name; the app will resolve its UUID automatically.
 • Click "Open API URL" below if available to view raw JSON in a new tab.`;
-        if (uuidRe.test(String(rid))) btnOpenApiUrl.href = url;
+  // Still provide a best-effort snippet from the lite data
+  detailJson.dataset.snippet = buildMcpSnippet(serverLite.__raw || serverLite);
+  // Open API URL button removed
       }
     }
 
@@ -974,7 +1038,19 @@ Tips:
     // ===========================
     on(qEl, 'keydown', (e)=>{
       if (e.key === 'Enter'){ e.preventDefault(); state.prevStack = []; loadPage({ cursor:null }); }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); qEl.select(); }
+    });
+
+    // Global keybind: 'F' focuses the search box and selects text
+    on(document, 'keydown', (e) => {
+      // Ignore when typing in inputs/textareas or with modifiers
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+      const editable = tag === 'input' || tag === 'textarea' || (e.target && e.target.isContentEditable);
+      if (editable) return;
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'f'){
+        e.preventDefault();
+        qEl.focus();
+        qEl.select();
+      }
     });
 
     on(qs('#btnSearch'), 'click', ()=> { state.prevStack = []; loadPage({ cursor:null }); });
