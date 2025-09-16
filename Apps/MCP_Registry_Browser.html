@@ -1,18 +1,4 @@
 <!DOCTYPE html>
-<!--
-  File: micro-apps/mcp/registry-viewer.html
-  Purpose: Browse the official MCP Registry (servers list + details) from a single HTML file.
-
-  Update summary (fixes 422 "invalid UUID length"):
-    • Always prefer the registry-provided UUID when fetching details.
-    • Strict UUID detection (RFC 4122 regex) before calling /v0/servers/{id}.
-    • If we only have a slug/name, resolve UUID via /v0/servers?search=... then retry.
-    • Clear error output with attempted URL and tips (including CORS proxy toggle).
-
-  Notes:
-    • Single-file Micro-App (no build step, no local assets).
-    • In-line comments explain each section in plain language.
--->
 <html lang="en" class="hf-scrub-preinit">
 <head>
   <meta charset="UTF-8" />
