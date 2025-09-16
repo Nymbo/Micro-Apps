@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en" class="hf-scrub-preinit">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Video Queuer — Micro-App</title>
+
+  <script>
+    // =======================
+    // Pre-paint scrubber (layman's: some hosts inject junk text before paint)
+    // =======================
+    (function(){
+      try{
+        const isJunk = (t) => /window\.huggingface|SPACE_CREATOR_USER_ID/.test(t || "");
+        const rmTextChildren = (root) => {
+          if (!root) return;
+          for (const n of Array.from(root.childNodes || [])){
+            if (n.nodeType === Node.TEXT_NODE && isJunk(n.textContent)) n.remove();
+          }
+        };
+        rmTextChildren(document);
+        rmTextChildren(document.documentElement);
+        rmTextChildren(document.head);
+        rmTextChildren(document.body);
+        setTimeout(() => {
+          rmTextChildren(document);
+          rmTextChildren(document.documentElement);
+          rmTextChildren(document.head);
+          rmTextChildren(document.body);
+        }, 0);
+      } finally {
+        document.documentElement.classList.remove('hf-scrub-preinit');
+      }
+    })();
+  </script>
+
+  <style>
+    /* ===================== Theme tokens (tweak as needed) ===================== */
+    :root{
+      --bg:#0f1115;       /* page background */
+      --panel:#161a23;    /* primary card color */
+      --panel-2:#0d1118;  /* secondary surface */
+      --text:#e5e7eb;     /* primary text color */
+      --muted:#9aa3b2;    /* subdued text color */
+      --accent:#ff4f5e;   /* brand color */
+      --accent-2:#d63b49; /* brand hover */
+      --border:#222838;   /* thin borders */
+      --good:#22c55e;     /* success */
+      --warn:#f59e0b;     /* warning */
+      --bad:#ef4444;      /* error */
+      --radius-lg:16px;   /* big corners */
+      --radius:12px;      /* small corners */
+      --pad:14px;         /* standard spacing */
+      --shadow:0 18px 50px rgba(0,0,0,.35); /* soft drop shadow */
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    [data-theme="light"]{
+      --bg:#f6f7fb; --panel:#ffffff; --panel-2:#f2f5fb; --text:#0f172a; --muted:#5b6474;
+      --accent:#ef4444; --accent-2:#b91c1c; --border:#e6e8ee; --shadow:0 18px 50px rgba(0,0,0,.08);
+    }
+
+    /* ===================== Page reset and shell ===================== */
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family:var(--sans); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+
+    header{
+      position:sticky; top:0; z-index:100; display:flex; align-items:center; gap:10px; padding:var(--pad);
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)), var(--bg);
+      border-bottom:1px solid var(--border); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    }
+    .brand{ display:flex; align-items:center; gap:10px; background:var(--panel);
+      border:1px solid var(--border); padding:8px 12px; border-radius:10px; box-shadow:var(--shadow); font-weight:700; }
+    .brand svg{ color:var(--accent) }
+    .pill{ display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+      border:1px solid var(--border); background:var(--panel); padding:6px 10px; border-radius:999px; }
+    .kbd{ font-family:var(--mono); font-size:12px; padding:2px 6px; border:1px solid var(--border); border-bottom-width:3px; border-radius:6px; background:var(--panel-2); }
+    .btn{
+      appearance:none; border:1px solid var(--border); background:var(--panel); color:var(--text);
+      border-radius:10px; padding:10px 12px; cursor:pointer;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .btn:hover{ transform:translateY(-1px); border-color:var(--accent) }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff }
+    .btn.primary:hover{ background:var(--accent-2) }
+    .btn[disabled]{ opacity:.6; cursor:not-allowed; transform:none }
+
+    main{ padding:var(--pad); display:grid; gap:var(--pad); grid-template-columns: 420px 1fr; }
+    @media (max-width: 1080px){ main{ grid-template-columns:1fr } }
+
+    .card{ background:var(--panel); border:1px solid var(--border);
+      border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden; display:grid; grid-template-rows:auto 1fr auto; }
+    .card-header{ background:var(--panel-2); border-bottom:1px solid var(--border); padding:var(--pad);
+      display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .card-body{ padding:var(--pad); overflow:auto }
+    .card-footer{ padding:var(--pad); border-top:1px solid var(--border); background:var(--panel-2); display:flex; gap:8px; flex-wrap:wrap }
+
+    h1,h2,h3{margin:0}
+    .muted{color:var(--muted)}
+    .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .col{display:flex; flex-direction:column; gap:8px}
+    .spacer{flex:1}
+    .hidden{display:none}
+
+    textarea, input[type="text"], select{ width:100%; border-radius:10px; border:1px solid var(--border);
+      background:var(--panel-2); color:var(--text); padding:10px 12px; font-size:14px; }
+    label.switch{ display:flex; align-items:center; gap:8px; cursor:pointer; background:var(--panel-2);
+      padding:8px 10px; border:1px solid var(--border); border-radius:10px; font-size:14px; }
+    input[type="checkbox"]{ accent-color: var(--accent) }
+
+    .grid{ display:grid; gap:12px; grid-template-columns: repeat( auto-fill, minmax(320px, 1fr) ); }
+
+    .video{ display:flex; flex-direction:column; gap:10px; border:1px solid var(--border); border-radius:12px; background:var(--panel-2); padding:12px; }
+    .video h4{ margin:0; font-size:16px; }
+    .video .meta{ display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--muted) }
+    .video .actions{ display:flex; gap:6px; flex-wrap:wrap }
+    .thumb{ border-radius:10px; overflow:hidden; border:1px solid var(--border); width:100%; aspect-ratio:16/9; background:#000; display:block }
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block }
+
+    .tag{font-size:11px; color:var(--muted); border:1px solid var(--border); background:var(--panel); padding:3px 8px; border-radius:999px}
+
+    .stats{ display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted) }
+    .stats b{ color:var(--text) }
+
+    .toast{ position:fixed; bottom:16px; right:16px; z-index:500; background:var(--panel);
+      border:1px solid var(--border); border-left:6px solid var(--good); padding:10px 12px; border-radius:10px; box-shadow:var(--shadow);
+      opacity:0; transform:translateY(8px); transition:opacity .18s ease, transform .18s ease; max-width: 68ch; white-space: pre-wrap; }
+    .toast.show{ opacity:1; transform:translateY(0) }
+
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+    .spinner{ inline-size:14px; block-size:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; display:inline-block; animation:spin 1s linear infinite }
+    .u-flex1{ flex:1 }
+    .u-w120{ width:120px }
+    .video h4 a{ text-decoration:none; color:inherit }
+    html.hf-scrub-preinit body{ visibility:hidden }
+  </style>
+</head>
+<body>
+  <!-- ===================== Top bar: title + quick actions ===================== -->
+  <header>
+    <div class="brand" role="img" aria-label="Video Queuer">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="currentColor"></circle></svg>
+      Video Queuer
+    </div>
+    <span class="pill">Paste links → Get thumbnail, title, creator, views, duration</span>
+    <div class="spacer"></div>
+    <button id="themeToggle" class="btn" title="Toggle dark/light theme">Toggle Theme</button>
+  </header>
+
+  <!-- ===================== Main layout: left controls | right results ===================== -->
+  <main id="app" data-theme="dark">
+    <!-- ========== Left: Controls / Input ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Input</h3>
+        <div class="row">
+          <span id="loading" class="pill hidden"><span class="spinner" aria-hidden="true"></span> <span id="loadingText">Loading…</span></span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="col">
+          <!-- Textarea for pasted lines (layman's: put your links here, one per line) -->
+          <label class="col">
+            <span class="muted">Paste lines (Markdown links or raw URLs; one per line)</span>
+            <textarea id="input" rows="10" placeholder="[Title](https://www.youtube.com/watch?v=nbUycoMYaDY&t=3s)&#10;https://vimeo.com/76979871&#10;https://www.dailymotion.com/video/x84sh64&#10;https://www.tiktok.com/@scout2015/video/6718335390845095173&#10;https://www.twitch.tv/clip/StormyAltruisticSamosaCeilingCat-abc123&#10;https://www.pornhub.com/view_video.php?viewkey=ph5e1f0b1cf0f06"></textarea>
+          </label>
+
+          <!-- Options -->
+          <div class="row">
+            <label class="switch" title="If direct fetch is blocked by CORS, try via proxy">
+              <input type="checkbox" id="useProxy" checked /> <span>Use CORS proxy on failure</span>
+            </label>
+            <label class="switch" title="Avoid duplicate URLs (canonicalized)">
+              <input type="checkbox" id="dedupe" checked /> <span>Remove duplicates</span>
+            </label>
+          </div>
+
+          <!-- Sorting -->
+          <div class="row">
+            <label class="col u-flex1">
+              <span class="muted">Sort by</span>
+              <select id="sortBy">
+                <option value="order">Pasted order</option>
+                <option value="title">Title (A→Z)</option>
+                <option value="views">Views (high→low)</option>
+                <option value="duration">Duration (long→short)</option>
+                <option value="domain">Domain (A→Z)</option>
+              </select>
+            </label>
+            <label class="col u-w120">
+              <span class="muted">Limit</span>
+              <select id="limit">
+                <option value="0">No limit</option>
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="row">
+            <button id="btnParse" class="btn primary">Parse & Fetch</button>
+            <button id="btnClear" class="btn">Clear</button>
+            <button id="btnExport" class="btn" title="Copy results JSON to clipboard">Copy JSON</button>
+            <button id="btnTests" class="btn" title="Run built-in test cases">Run Tests</button>
+            <button id="btnSample" class="btn" title="Fill textarea with example links">Sample</button>
+          </div>
+
+          <div class="row">
+            <span class="pill"><span class="kbd">Cmd/Ctrl+Enter</span> submits · <span class="kbd">Cmd/Ctrl+A</span> select all</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="stats">
+          <div><b>Parsed:</b> <span id="statParsed">0</span></div>
+          <div><b>Fetched:</b> <span id="statFetched">0</span></div>
+        </div>
+        <div class="spacer"></div>
+        <button id="btnOpenAll" class="btn" title="Open visible videos in new tabs (may be blocked by popup blocker)">Open All</button>
+      </div>
+    </section>
+
+    <!-- ========== Right: Results ========== -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Videos</h3>
+        <div class="row">
+          <span id="counts" class="pill" aria-live="polite">0 result(s)</span>
+          <button id="theme2" class="btn" title="Also toggles theme">Theme</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="results" class="grid" aria-live="polite" aria-busy="false"></div>
+      </div>
+      <div class="card-footer">
+        <div class="stats">
+          <div><b>Total duration:</b> <span id="statTotal">00:00</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast / small status popover -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // ===========================
+    // Tiny DOM helpers
+    // ===========================
+    const qs  = (s, el=document) => el.querySelector(s);
+    const qsa = (s, el=document) => [...el.querySelectorAll(s)];
+    const on  = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts);
+
+    // ===========================
+    // App elements
+    // ===========================
+    const app = qs('#app');
+    const resultsEl = qs('#results');
+    const inputEl = qs('#input');
+    const toastEl = qs('#toast');
+    const loadingEl = qs('#loading');
+    const loadingTxt = qs('#loadingText');
+    const countsEl = qs('#counts');
+    const statParsed = qs('#statParsed');
+    const statFetched = qs('#statFetched');
+    const statTotal = qs('#statTotal');
+    const useProxyEl = qs('#useProxy');
+    const dedupeEl = qs('#dedupe');
+    const sortByEl = qs('#sortBy');
+    const limitEl = qs('#limit');
+
+    // ===========================
+    // CORS proxy helpers (layman's: if a site blocks us, try via a mirror)
+    // ===========================
+    const PROXIES = [
+      (url) => `https://cors.isomorphic-git.org/${encodeURI(url)}`,
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url) => `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(url)}`,
+      (url) => `https://r.jina.ai/http://${url.replace(/^https?:\/\//,'')}` // text extractor (last resort)
+    ];
+
+    async function fetchTextWithFallback(url, { useProxy=true, timeoutMs=15000 }={}){
+      // Try direct fetch first
+      try{
+        const res = await Promise.race([
+          fetch(url),
+          new Promise((_,rej)=> setTimeout(()=> rej(new Error('timeout')), timeoutMs))
+        ]);
+        if (res && res.ok) return await res.text();
+        const t = await res.text();
+        throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`);
+      }catch(e){
+        if (!useProxy) throw e;
+        let lastErr = e;
+        for (const make of PROXIES){
+          try{
+            const proxied = make(url);
+            const res2 = await Promise.race([
+              fetch(proxied),
+              new Promise((_,rej)=> setTimeout(()=> rej(new Error('timeout')), timeoutMs))
+            ]);
+            if (res2 && res2.ok){ return await res2.text(); }
+            else if (res2){ lastErr = new Error(`Proxy HTTP ${res2.status}`); }
+          }catch(err){ lastErr = err; }
+        }
+        throw lastErr;
+      }
+    }
+
+    async function fetchJsonWithFallback(url, opts={}){
+      // Layman's: some proxies return plain text; try to JSON-parse safely
+      const txt = await fetchTextWithFallback(url, opts);
+      try{ return JSON.parse(txt); }
+      catch{
+        const s = txt.indexOf('{'); const e2 = txt.lastIndexOf('}');
+        if (s !== -1 && e2 !== -1 && e2 > s){
+          const cand = txt.slice(s, e2+1);
+          return JSON.parse(cand);
+        }
+        throw new Error('Non-JSON response');
+      }
+    }
+
+    async function fetchHtmlWithFallback(url, opts={}){
+      // Layman's: ensure we actually got HTML; skip Jina text if not HTML-like
+      const html = await fetchTextWithFallback(url, opts);
+      if (/<(html|meta|head|body)/i.test(html)) return html;
+      // If we landed on a non-HTML text (e.g., Jina text), treat as failure when parsing HTML
+      return html; // we'll still try to parse; DOMParser will just yield a minimal doc
+    }
+
+    // ===========================
+    // URL + Service helpers (layman's: detect site, tidy URLs)
+    // ===========================
+    function firstUrlInLine(line){
+      // Prefer Markdown [text](url)
+      const open = line.indexOf('(');
+      const close = line.indexOf(')', open+1);
+      if (open !== -1 && close !== -1){
+        const maybe = line.slice(open+1, close);
+        if (maybe.startsWith('http://') || maybe.startsWith('https://')) return maybe.trim();
+      }
+      // Fallback: find http(s) substring
+      const idx = line.indexOf('http://') !== -1 ? line.indexOf('http://') : line.indexOf('https://');
+      if (idx !== -1){
+        let j = idx;
+        while (j < line.length && !/\s|\)/.test(line[j])) j++;
+        return line.slice(idx, j).trim();
+      }
+      return '';
+    }
+
+    function hostnameOf(url){
+      try{ return new URL(url).hostname.toLowerCase(); }catch{ return ''; }
+    }
+
+    function serviceOf(url){
+      const h = hostnameOf(url);
+      if (!h) return 'unknown';
+      if (h.includes('youtube.com') || h.includes('youtu.be')) return 'youtube';
+      if (h.includes('vimeo.com')) return 'vimeo';
+      if (h.includes('dailymotion.com')) return 'dailymotion';
+      if (h.includes('twitch.tv')) return 'twitch';
+      if (h.includes('tiktok.com')) return 'tiktok';
+      if (h.includes('facebook.com') || h.includes('fb.watch')) return 'facebook';
+      if (h.includes('twitter.com') || h.includes('x.com')) return 'twitter';
+      if (h.includes('instagram.com')) return 'instagram';
+      // Adult/common video portals
+      if (h.includes('pornhub.com')) return 'pornhub';
+      if (h.includes('xvideos.com')) return 'xvideos';
+      if (h.includes('redtube.com')) return 'redtube';
+      if (h.includes('xhamster.com')) return 'xhamster';
+      if (h.includes('spankbang.com')) return 'spankbang';
+      return h.split('.').slice(-2).join('.'); // fallback: "example.com"
+    }
+
+    function stripTrackingParams(u){
+      // Layman's: remove analytics junk so duplicates collapse nicely
+      const drop = /^(utm_|fbclid|gclid|gclsrc|mc_cid|mc_eid|spm|igshid|feature|si|pp|tchd|twclid|yclid|mkt_tok|vero_id|ref|ref_src)$/i;
+      try{
+        const url = new URL(u);
+        // Special: keep t/start only for YouTube but not for dedupe key
+        const keepParams = new Set(['t','start']);
+        [...url.searchParams.keys()].forEach(k=>{
+          if (keepParams.has(k)) return; // we'll strip later for dedupe
+          if (drop.test(k)) url.searchParams.delete(k);
+        });
+        url.hash = ''; // hashes don't change the actual video
+        return url.toString();
+      }catch{ return u; }
+    }
+
+    function canonicalizeUrl(u){
+      // Layman's: unify different URL shapes into a single canonical form per service
+      try{
+        const url = new URL(u);
+        const host = url.hostname.toLowerCase();
+        // YouTube: map youtu.be + shorts -> watch?v=
+        if (host.includes('youtube.com') || host.includes('youtu.be')){
+          let id = '';
+          if (host.includes('youtu.be')){
+            id = url.pathname.split('/').filter(Boolean)[0] || '';
+          } else if (url.pathname === '/watch'){
+            id = url.searchParams.get('v') || '';
+          } else if (url.pathname.startsWith('/shorts/')){
+            id = url.pathname.split('/').filter(Boolean).pop() || '';
+          }
+          if (id){
+            const start = url.searchParams.get('t') || url.searchParams.get('start') || '';
+            const watch = new URL('https://www.youtube.com/watch');
+            watch.searchParams.set('v', id);
+            if (start) watch.searchParams.set('t', normalizeTimeParam(start));
+            return watch.toString();
+          }
+        }
+        // Other sites: just strip tracking
+        return stripTrackingParams(u);
+      }catch{ return u; }
+    }
+
+    function dedupeKey(u){
+      // Layman's: use canonical URL without start time so the same video isn't doubled
+      try{
+        const url = new URL(canonicalizeUrl(u));
+        url.searchParams.delete('t'); url.searchParams.delete('start');
+        return url.toString();
+      }catch{ return u; }
+    }
+
+    // ===========================
+    // Time & number helpers
+    // ===========================
+    function normalizeTimeParam(t){
+      if (!t) return '';
+      if (/^\d+$/.test(String(t))) return String(parseInt(t,10)); // plain seconds
+      const s = String(t).toLowerCase();
+      let h=0,m=0,sec=0;
+      const rx = /(\d+)([hms])/g;
+      let mobj;
+      while ((mobj = rx.exec(s))){
+        const num = parseInt(mobj[1],10);
+        const unit = mobj[2];
+        if (unit==='h') h=num; else if (unit==='m') m=num; else if (unit==='s') sec=num;
+      }
+      const total = h*3600 + m*60 + sec;
+      return total ? String(total) : '';
+    }
+
+    function parseISODuration(dur){
+      // Layman's: turn "PT1H2M3S" into seconds
+      if (!dur) return null;
+      const s = String(dur).trim();
+      const m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i.exec(s) || /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i.exec(s);
+      if (!m) return null;
+      const day = parseInt(m[1]||0,10);
+      const h = parseInt((m[2] ?? m[1])||0,10); // handle alt match groups
+      const min = parseInt((m[3] ?? m[2])||0,10);
+      const sec = parseInt((m[4] ?? m[3])||0,10);
+      return (day*86400) + (h*3600) + (min*60) + sec;
+    }
+
+    const fmtInt = (n) => (n==null||isNaN(n))? '—' : n.toLocaleString();
+    function fmtDuration(sec){
+      if (!sec || !isFinite(sec)) return '—';
+      sec = Math.max(0, Math.floor(sec));
+      const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+      return [h?String(h).padStart(2,'0'):null, String(m).padStart(2,'0'), String(s).padStart(2,'0')].filter(Boolean).join(':');
+    }
+
+    function toNumberLoose(val){
+      // Layman's: convert "1.2M" / "1,234,567" / 1234 to a number
+      if (val == null) return null;
+      if (typeof val === 'number' && isFinite(val)) return val;
+      const str = String(val).trim().replace(/,/g,'');
+      const k = /^([\d.]+)\s*([kmb])$/i.exec(str);
+      if (k){
+        const num = parseFloat(k[1]);
+        const mul = k[2].toLowerCase()==='k'?1e3 : k[2].toLowerCase()==='m'?1e6 : 1e9;
+        return Math.round(num * mul);
+      }
+      const n = parseInt(str.replace(/[^\d]/g,''),10);
+      return isNaN(n) ? null : n;
+    }
+
+    function resolveUrl(base, href){
+      try{ return new URL(href, base).toString(); }catch{ return href; }
+    }
+
+    // ===========================
+    // YouTube adapter (extra sources with no keys)
+    // ===========================
+    function parseYoutube(url){
+      try{
+        const u = new URL(url);
+        const host = u.hostname.toLowerCase();
+        const path = u.pathname;
+        const tRaw = u.searchParams.get('t') || u.searchParams.get('start') || '';
+        const t = normalizeTimeParam(tRaw);
+        if (host.includes('youtube.com')){
+          if (path === '/watch'){
+            const id = u.searchParams.get('v');
+            if (id) return { id, t, url: `https://www.youtube.com/watch?v=${id}${t?`&t=${t}`:''}` };
+          }
+          if (path.startsWith('/shorts/')){
+            const id = path.split('/').filter(Boolean).pop();
+            if (id) return { id, t, url: `https://www.youtube.com/watch?v=${id}${t?`&t=${t}`:''}` };
+          }
+        }
+        if (host.includes('youtu.be')){
+          const id = path.split('/').filter(Boolean).shift();
+          if (id) return { id, t, url: `https://www.youtube.com/watch?v=${id}${t?`&t=${t}`:''}` };
+        }
+      }catch{}
+      return null;
+    }
+
+    const YT_OEMBED = (id) => `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}&format=json`;
+    const PIPED = [ 'https://piped.video', 'https://piped.mha.fi', 'https://piped.namazso.de' ];
+    const pipedVideo = (base, id) => `${base.replace(/\/$/,'')}/api/v1/video/${encodeURIComponent(id)}`;
+    const INVIDIOUS = [ 'https://yewtu.be', 'https://inv.n8pjl.ca', 'https://iv.ggtyler.dev' ];
+    const invidiousVideo = (base, id) => `${base.replace(/\/$/,'')}/api/v1/videos/${encodeURIComponent(id)}`;
+
+    async function fetchYoutubeInfo(yurl, { useProxy }){
+      // Layman's: get ID, then merge oEmbed, Piped, Invidious
+      const y = parseYoutube(yurl);
+      if (!y) return null;
+      const id = y.id;
+      const base = { url:y.url, id, service:'youtube', title:'', author:'', views:null, durationSeconds:null, thumbnail:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`, sources:{} };
+
+      // 1) oEmbed for title/author/thumbnail
+      try{
+        const o = await fetchJsonWithFallback(YT_OEMBED(id), { useProxy });
+        base.title = o.title || base.title;
+        base.author = o.author_name || base.author;
+        base.thumbnail = o.thumbnail_url || base.thumbnail;
+        base.sources.oembed = true;
+      }catch{}
+
+      // 2) Piped for views/duration/uploader if available
+      for (const host of PIPED){
+        try{
+          const p = await fetchJsonWithFallback(pipedVideo(host, id), { useProxy });
+          if (p){
+            if (!base.title && p.title) base.title = p.title;
+            if (!base.author && (p.uploader || p.channel || p.uploaderName)) base.author = p.uploader || p.channel || p.uploaderName;
+            if (p.duration != null) base.durationSeconds = Number(p.duration);
+            if (p.views != null) base.views = Number(p.views);
+            if (p.thumbnailUrl) base.thumbnail = p.thumbnailUrl;
+            base.sources.piped = host; break;
+          }
+        }catch{}
+      }
+
+      // 3) Invidious as additional fallback
+      if (base.views==null || base.durationSeconds==null || !base.author){
+        for (const host of INVIDIOUS){
+          try{
+            const v = await fetchJsonWithFallback(invidiousVideo(host, id), { useProxy });
+            if (v){
+              if (!base.title && v.title) base.title = v.title;
+              if (!base.author && v.author) base.author = v.author;
+              if (base.views==null && (v.viewCount || v.view_count)) base.views = Number(v.viewCount || v.view_count);
+              if (base.durationSeconds==null && (v.lengthSeconds || v.length_seconds)) base.durationSeconds = Number(v.lengthSeconds || v.length_seconds);
+              if (Array.isArray(v.videoThumbnails)){
+                const best = v.videoThumbnails.find(t => (t.quality && (String(t.quality).includes('hq') || String(t.quality).includes('max')))) || v.videoThumbnails[0];
+                if (best && best.url) base.thumbnail = best.url;
+              }
+              base.sources.invidious = host; break;
+            }
+          }catch{}
+        }
+      }
+      return base;
+    }
+
+    // ===========================
+    // Generic fetchers (layman's: work for most sites, including adult)
+    // ===========================
+    // Known oEmbed providers we can hit directly without discovery
+    const OEMBED_MAP = [
+      { test: h => h.includes('vimeo.com'),    ep: u => `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(u)}` },
+      { test: h => h.includes('dailymotion.'), ep: u => `https://www.dailymotion.com/services/oembed?format=json&url=${encodeURIComponent(u)}` },
+      { test: h => h.includes('tiktok.com'),   ep: u => `https://www.tiktok.com/oembed?url=${encodeURIComponent(u)}` },
+      { test: h => h.includes('twitch.tv'),    ep: u => `https://www.twitch.tv/oembed?url=${encodeURIComponent(u)}` },
+      // YouTube still supported here, but we prefer the richer YT adapter above when possible
+      { test: h => h.includes('youtube.com') || h.includes('youtu.be'), ep: u => `https://www.youtube.com/oembed?url=${encodeURIComponent(u)}&format=json` }
+    ];
+
+    function pickOEmbedEndpoint(u){
+      const host = hostnameOf(u);
+      const m = OEMBED_MAP.find(x => x.test(host));
+      return m ? m.ep(u) : null;
+    }
+
+    function parseMeta(doc, sel, attr='content'){
+      const el = doc.querySelector(sel);
+      return el ? (el.getAttribute(attr) || '').trim() : '';
+    }
+
+    function parseAllJsonLd(doc){
+      const out = [];
+      const nodes = doc.querySelectorAll('script[type="application/ld+json"]');
+      nodes.forEach(n=>{
+        const txt = n.textContent || '';
+        try{
+          const data = JSON.parse(txt.trim());
+          if (Array.isArray(data)){ data.forEach(d=> out.push(d)); }
+          else out.push(data);
+        }catch{ /* ignore broken ld+json */ }
+      });
+      return out;
+    }
+
+    function findVideoObject(ld){
+      // Layman's: locate the piece that describes the video itself
+      const isVideoType = (t) => {
+        if (!t) return false;
+        if (typeof t === 'string') return /VideoObject|Movie|TVEpisode|Clip/i.test(t);
+        if (Array.isArray(t)) return t.some(isVideoType);
+        return false;
+      };
+      for (const obj of ld){
+        if (isVideoType(obj['@type'])) return obj;
+        // Some pages wrap VideoObject inside NewsArticle/Article
+        if (obj && obj.video && (typeof obj.video === 'object')){
+          if (isVideoType(obj.video['@type'])) return obj.video;
+          if (Array.isArray(obj.video)){
+            const v = obj.video.find(vv=> isVideoType(vv['@type']));
+            if (v) return v;
+          }
+        }
+      }
+      return null;
+    }
+
+    function extractFromVideoObject(v, baseUrl){
+      const title = v.name || v.headline || v.caption || '';
+      const author = (typeof v.author === 'string') ? v.author
+                    : (v.author && (v.author.name || (Array.isArray(v.author) && v.author[0]?.name))) || 
+                      (v.creator && (v.creator.name || (Array.isArray(v.creator) && v.creator[0]?.name))) ||
+                      (v.publisher && (v.publisher.name || (Array.isArray(v.publisher) && v.publisher[0]?.name))) || '';
+      const durationSeconds = v.duration ? parseISODuration(v.duration) : null;
+      const views = (()=> {
+        if (v.interactionStatistic){
+          const arr = Array.isArray(v.interactionStatistic) ? v.interactionStatistic : [v.interactionStatistic];
+          for (const it of arr){
+            if (it && (it.interactionType?.includes('WatchAction') || it['@type']==='InteractionCounter' || it.interactionType==='http://schema.org/WatchAction')){
+              const n = toNumberLoose(it.userInteractionCount || it.interactionCount);
+              if (n!=null) return n;
+            }
+          }
+        }
+        const vc = v.viewCount || v.views || v.interactionCount;
+        return toNumberLoose(vc);
+      })();
+      const thumb = (()=> {
+        const t = v.thumbnailUrl || v.thumbnailURL || v.thumbnail || v.image;
+        if (Array.isArray(t)) return resolveUrl(baseUrl, t[0]);
+        if (typeof t === 'string') return resolveUrl(baseUrl, t);
+        if (t && typeof t === 'object' && t.url) return resolveUrl(baseUrl, t.url);
+        return '';
+      })();
+      return { title, author, durationSeconds, views, thumbnail: thumb };
+    }
+
+    function extractFromOpenGraph(doc, baseUrl){
+      const title = parseMeta(doc, 'meta[property="og:title"]') || parseMeta(doc, 'meta[name="twitter:title"]') || '';
+      const image = parseMeta(doc, 'meta[property="og:image"]') || parseMeta(doc, 'meta[name="twitter:image"]') || '';
+      const creator = parseMeta(doc, 'meta[name="twitter:creator"]') || parseMeta(doc, 'meta[property="og:site_name"]') || '';
+      const dur = parseInt(parseMeta(doc, 'meta[property="og:video:duration"]') || parseMeta(doc, 'meta[name="duration"]') || '', 10);
+      return {
+        title,
+        author: creator.replace(/^@/,''),
+        durationSeconds: isNaN(dur)? null : dur,
+        views: toNumberLoose(parseMeta(doc, 'meta[itemprop="interactionCount"]') || parseMeta(doc, 'meta[property="video:view_count"]')),
+        thumbnail: image ? resolveUrl(baseUrl, image) : ''
+      };
+    }
+
+    async function fetchViaOEmbedDiscovery(url, { useProxy }){
+      try{
+        const html = await fetchHtmlWithFallback(url, { useProxy });
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const link = doc.querySelector('link[rel="alternate"][type*="json+oembed"], link[type="application/json+oembed"]');
+        if (link && link.getAttribute('href')){
+          const ep = resolveUrl(url, link.getAttribute('href'));
+          const data = await fetchJsonWithFallback(ep, { useProxy });
+          return data;
+        }
+      }catch{}
+      return null;
+    }
+
+    async function fetchGenericInfo(url, { useProxy }){
+      // Layman's: try oEmbed (direct map → discovery) → JSON-LD → OpenGraph
+      const service = serviceOf(url);
+      const base = { url, id:'', service, title:'', author:'', views:null, durationSeconds:null, thumbnail:'', sources:{} };
+
+      // 0) If it's YouTube, hand over to the rich adapter
+      if (service === 'youtube'){
+        const y = await fetchYoutubeInfo(url, { useProxy });
+        if (y) return y;
+      }
+
+      // 1) Direct oEmbed endpoint if known
+      let oembedData = null;
+      try{
+        const ep = pickOEmbedEndpoint(url);
+        if (ep){
+          oembedData = await fetchJsonWithFallback(ep, { useProxy });
+        }
+      }catch{ /* ignore */ }
+
+      // 2) oEmbed discovery from the page if not found
+      if (!oembedData){
+        oembedData = await fetchViaOEmbedDiscovery(url, { useProxy });
+      }
+
+      if (oembedData){
+        base.title = oembedData.title || base.title;
+        base.author = oembedData.author_name || base.author;
+        base.thumbnail = oembedData.thumbnail_url ? resolveUrl(url, oembedData.thumbnail_url) : base.thumbnail;
+        // Some oEmbed responses include numerical fields (rare)
+        base.durationSeconds = base.durationSeconds ?? toNumberLoose(oembedData.duration);
+        base.views = base.views ?? toNumberLoose(oembedData.view_count || oembedData.views);
+        base.sources.oembed = true;
+      }
+
+      // 3) Fetch HTML once for JSON-LD and OG (we may need it anyway)
+      let doc = null;
+      try{
+        const html = await fetchHtmlWithFallback(url, { useProxy });
+        doc = new DOMParser().parseFromString(html, 'text/html');
+      }catch{}
+
+      // 4) JSON-LD VideoObject
+      if (doc){
+        const ld = parseAllJsonLd(doc);
+        const vo = findVideoObject(ld);
+        if (vo){
+          const v = extractFromVideoObject(vo, url);
+          base.title = base.title || v.title;
+          base.author = base.author || v.author;
+          base.durationSeconds = base.durationSeconds ?? v.durationSeconds;
+          base.views = base.views ?? v.views;
+          base.thumbnail = base.thumbnail || v.thumbnail;
+          base.sources.ld = true;
+        }
+
+        // 5) OpenGraph/twitter meta as fallback/patch
+        const og = extractFromOpenGraph(doc, url);
+        base.title = base.title || og.title;
+        base.author = base.author || og.author;
+        base.durationSeconds = base.durationSeconds ?? og.durationSeconds;
+        base.views = base.views ?? og.views;
+        base.thumbnail = base.thumbnail || og.thumbnail;
+        base.sources.og = true;
+
+        // 6) Try to guess an ID for some sites (purely cosmetic)
+        if (!base.id){
+          // For Dailymotion
+          if (service==='dailymotion'){
+            const m = /\/video\/([a-zA-Z0-9]+)/.exec(url);
+            if (m) base.id = m[1];
+          }
+          // For Vimeo
+          if (service==='vimeo'){
+            const m = /vimeo\.com\/(\d+)/.exec(url);
+            if (m) base.id = m[1];
+          }
+          // For TikTok
+          if (service==='tiktok'){
+            const m = /\/video\/(\d+)/.exec(url);
+            if (m) base.id = m[1];
+          }
+        }
+      }
+
+      // 7) Ensure we at least have a thumbnail placeholder (domain favicon fallback)
+      if (!base.thumbnail){
+        try{ base.thumbnail = `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=128`; }catch{}
+      }
+
+      return base;
+    }
+
+    // ===========================
+    // Parsing input → items to fetch
+    // ===========================
+    function parseInputLines(text){
+      const lines = String(text||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      const items = [];
+      for (const line of lines){
+        const url = firstUrlInLine(line);
+        if (!url) continue;
+        items.push({ url: canonicalizeUrl(url), raw: line, service: serviceOf(url) });
+      }
+      return items;
+    }
+
+    // ===========================
+    // Rendering helpers
+    // ===========================
+    function showToast(msg='Done!'){
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(()=> toastEl.classList.remove('show'), 1800);
+    }
+
+    function setLoading(on, text){
+      loadingEl.classList.toggle('hidden', !on);
+      loadingTxt.textContent = text || 'Loading…';
+      qsa('button').forEach(b=>{
+        if (['themeToggle','theme2','btnTests','btnSample'].includes(b.id)) return;
+        if (on){ b.setAttribute('disabled',''); } else { b.removeAttribute('disabled'); }
+      });
+    }
+
+    function sumDur(list){
+      const s = list.reduce((a,b)=> a + (b.durationSeconds||0), 0);
+      statTotal.textContent = fmtDuration(s);
+    }
+
+    function render(list){
+      resultsEl.innerHTML = '';
+      countsEl.textContent = `${list.length} result(s)`;
+      const fetchedCount = list.filter(v => v.title || v.author || v.views!=null || v.durationSeconds!=null || v.thumbnail).length;
+      statFetched.textContent = String(fetchedCount);
+      sumDur(list);
+
+      for (const v of list){
+        const card = document.createElement('div'); card.className = 'video';
+
+        // Service/domain tag (layman's: small label showing the site)
+        const tag = document.createElement('div'); tag.className = 'tag'; tag.textContent = v.service || 'unknown';
+        card.appendChild(tag);
+
+        // Thumbnail (clickable to original)
+        const aThumb = document.createElement('a'); aThumb.href = v.url; aThumb.target = '_blank'; aThumb.rel='noopener'; aThumb.className = 'thumb'; aThumb.title = 'Open video';
+        const img = document.createElement('img'); img.loading='lazy'; img.src = v.thumbnail || ''; img.alt = v.title? `Thumbnail for ${v.title}` : `Video thumbnail`;
+        aThumb.appendChild(img); card.appendChild(aThumb);
+
+        // Title
+        const h = document.createElement('h4');
+        const aTitle = document.createElement('a'); aTitle.href = v.url; aTitle.target='_blank'; aTitle.rel='noopener'; aTitle.textContent = v.title || new URL(v.url).hostname;
+        h.appendChild(aTitle); card.appendChild(h);
+
+        // Meta line (creator · duration · views)
+        const meta = document.createElement('div'); meta.className = 'meta';
+        const m1 = document.createElement('span'); m1.textContent = v.author ? `by ${v.author}` : 'by —'; meta.appendChild(m1);
+        const m2 = document.createElement('span'); m2.textContent = `⏱ ${fmtDuration(v.durationSeconds)}`; meta.appendChild(m2);
+        const m3 = document.createElement('span'); m3.textContent = `👁️ ${fmtInt(v.views)} views`; meta.appendChild(m3);
+        card.appendChild(meta);
+
+        // Actions row: open original, copy URL, and per-site extras
+        const actions = document.createElement('div'); actions.className = 'actions';
+        const btnOpen = document.createElement('button'); btnOpen.className='btn'; btnOpen.textContent='Open'; btnOpen.onclick=()=> window.open(v.url,'_blank','noopener'); actions.appendChild(btnOpen);
+        const btnCopy = document.createElement('button'); btnCopy.className='btn'; btnCopy.textContent='Copy URL'; btnCopy.onclick=()=> navigator.clipboard.writeText(v.url).then(()=>showToast('Copied URL')); actions.appendChild(btnCopy);
+
+        // YouTube: alternate frontends (privacy/resilience)
+        if (v.service === 'youtube' && v.id){
+          const btnInv = document.createElement('button'); btnInv.className='btn'; btnInv.textContent='Open Invidious'; btnInv.onclick=()=> window.open(`https://yewtu.be/watch?v=${v.id}`,'_blank','noopener'); actions.appendChild(btnInv);
+          const btnPiped = document.createElement('button'); btnPiped.className='btn'; btnPiped.textContent='Open Piped'; btnPiped.onclick=()=> window.open(`https://piped.video/watch?v=${v.id}`,'_blank','noopener'); actions.appendChild(btnPiped);
+        }
+
+        card.appendChild(actions);
+        resultsEl.appendChild(card);
+      }
+    }
+
+    // ===========================
+    // Sorting + totals
+    // ===========================
+    function sortList(list){
+      const by = sortByEl.value;
+      const copy = [...list];
+      if (by === 'title') copy.sort((a,b)=> String(a.title||'').localeCompare(String(b.title||'')) );
+      else if (by === 'views') copy.sort((a,b)=> (b.views||-1) - (a.views||-1));
+      else if (by === 'duration') copy.sort((a,b)=> (b.durationSeconds||-1) - (a.durationSeconds||-1));
+      else if (by === 'domain') copy.sort((a,b)=> String(a.service||'').localeCompare(String(b.service||'')) );
+      return copy;
+    }
+
+    // ===========================
+    // Pipeline: parse → fetch (concurrent) → sort → render
+    // ===========================
+    async function run(){
+      const lines = parseInputLines(inputEl.value);
+      // Dedupe by canonical URL if requested
+      const seen = new Set();
+      const items = [];
+      for (const x of lines){
+        const key = dedupeKey(x.url);
+        if (dedupeEl.checked && seen.has(key)) continue;
+        seen.add(key);
+        items.push({ url:x.url, service:x.service, id:null, title:'', author:'', views:null, durationSeconds:null, thumbnail:'' });
+      }
+
+      statParsed.textContent = String(items.length);
+      if (!items.length){ resultsEl.innerHTML=''; countsEl.textContent='0 result(s)'; statFetched.textContent='0'; statTotal.textContent='00:00'; return; }
+
+      // Limit if needed (preserve order)
+      let max = parseInt(limitEl.value,10)||0; if (max>0) items.splice(max);
+
+      // Render placeholders immediately
+      render(items);
+
+      // Fetch in small batches
+      setLoading(true, 'Fetching video metadata…');
+      const CONCURRENCY = 6;
+      let idx = 0;
+      async function worker(){
+        while (idx < items.length){
+          const i = idx++;
+          try{
+            const it = items[i];
+            let info = null;
+            if (it.service === 'youtube'){
+              info = await fetchYoutubeInfo(it.url, { useProxy: !!useProxyEl.checked });
+            }
+            if (!info){
+              info = await fetchGenericInfo(it.url, { useProxy: !!useProxyEl.checked });
+            }
+            if (info) Object.assign(items[i], info);
+          }catch(e){ /* ignore individual failures */ }
+          render(sortList([...items]));
+        }
+      }
+      await Promise.all(Array.from({length: Math.min(CONCURRENCY, items.length)}, worker));
+      setLoading(false);
+
+      // Final sort & render
+      const sorted = sortList(items);
+      render(sorted);
+    }
+
+    // ===========================
+    // Built-in tests (quick sanity checks)
+    // ===========================
+    function runTests(){
+      const tests = [];
+
+      // URL extraction tests
+      tests.push({name:'Markdown URL', pass: firstUrlInLine('[A](https://example.com/abc?x=1)') === 'https://example.com/abc?x=1' });
+      tests.push({name:'Raw URL', pass: firstUrlInLine('https://example.com/abc) trailing') === 'https://example.com/abc' });
+
+      // YouTube time normalization
+      tests.push({name:'t=90', pass: normalizeTimeParam('90') === '90' });
+      tests.push({name:'t=1m30s', pass: normalizeTimeParam('1m30s') === '90' });
+      tests.push({name:'t=2h', pass: normalizeTimeParam('2h') === '7200' });
+
+      // ISO8601 duration parsing
+      tests.push({name:'PT1H2M3S', pass: parseISODuration('PT1H2M3S') === 3723 });
+      tests.push({name:'PT15M', pass: parseISODuration('PT15M') === 900 });
+
+      // Number parsing
+      tests.push({name:'1,234,567', pass: toNumberLoose('1,234,567') === 1234567 });
+      tests.push({name:'1.5M', pass: toNumberLoose('1.5M') === 1500000 });
+
+      const ok = tests.filter(t=>t.pass).length;
+      showToast(`Tests: ${ok}/${tests.length} passed`);
+      if (ok !== tests.length){
+        console.warn('Failed tests:', tests.filter(t=>!t.pass));
+      }
+    }
+
+    // ===========================
+    // Wire up UI
+    // ===========================
+    on(qs('#btnParse'), 'click', run);
+    on(qs('#btnTests'), 'click', runTests);
+    on(qs('#btnSample'), 'click', ()=>{
+      inputEl.value = [
+        '[Why Fast Food Sucks Now - YouTube](https://www.youtube.com/watch?v=nbUycoMYaDY&t=3s)',
+        'https://youtu.be/A23RV1SkP2g?t=1',
+        'https://vimeo.com/76979871',
+        'https://www.dailymotion.com/video/x84sh64',
+        'https://www.tiktok.com/@scout2015/video/6718335390845095173',
+        'https://www.twitch.tv/clip/PluckyDaintyClip-abcdef',
+        'https://www.pornhub.com/view_video.php?viewkey=ph5e1f0b1cf0f06',
+        'https://www.xvideos.com/video58574963/_example_clip'
+      ].join('\n');
+      showToast('Sample links added');
+    });
+    on(inputEl, 'keydown', (e)=>{ if (e.key==='Enter' && (e.metaKey||e.ctrlKey)) { e.preventDefault(); run(); } });
+    on(qs('#btnClear'), 'click', ()=>{ inputEl.value=''; resultsEl.innerHTML=''; countsEl.textContent='0 result(s)'; statParsed.textContent='0'; statFetched.textContent='0'; statTotal.textContent='00:00'; });
+    on(qs('#btnExport'), 'click', ()=>{
+      // Layman's: copy a compact JSON list of the current results to your clipboard
+      const data = Array.from(resultsEl.children).map(card => {
+        const tag = card.querySelector('.tag')?.textContent || '';
+        const a = card.querySelector('a.thumb');
+        const title = (card.querySelector('h4 a')||{}).textContent || '';
+        const url = a ? a.href : '';
+        const thumb = a ? (a.querySelector('img')||{}).src : '';
+        const spans = card.querySelectorAll('.meta span');
+        const author = spans[0]?.textContent?.replace(/^by\s+/,'') || '';
+        const duration = spans[1]?.textContent?.replace(/^\D+/,'') || '';
+        const views = spans[2]?.textContent?.replace(/\D+/g,'') || '';
+        return { service: tag, title, url, thumbnail: thumb, author, duration, views };
+      });
+      navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(()=> showToast('Copied results JSON'));
+    });
+
+    on(qs('#btnOpenAll'), 'click', ()=>{
+      // Layman's: try to open all visible videos in new tabs (browsers may block some)
+      const links = qsa('.video a.thumb').map(a=>a.href);
+      let opened = 0;
+      links.forEach((href, i)=> setTimeout(()=> { const w = window.open(href, '_blank', 'noopener'); if (w) opened++; if (i===links.length-1) showToast(`Tried to open ${links.length}. Opened ${opened}.`); }, i*150));
+    });
+
+    // Theme toggles
+    on(qs('#themeToggle'), 'click', ()=>{ app.setAttribute('data-theme', app.getAttribute('data-theme')==='dark' ? 'light' : 'dark'); });
+    on(qs('#theme2'), 'click', ()=>{ app.setAttribute('data-theme', app.getAttribute('data-theme')==='dark' ? 'light' : 'dark'); });
+  </script>
+</body>
+</html>
