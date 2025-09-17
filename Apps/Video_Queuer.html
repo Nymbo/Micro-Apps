@@ -275,6 +275,11 @@
     const sortByEl = qs('#sortBy');
     const limitEl = qs('#limit');
 
+  // ===========================
+  // Simple app state (persist items for per-card reloads)
+  // ===========================
+  const appState = { items: [] };
+
     // ===========================
     // CORS proxy helpers (layman's: if a site blocks us, try via a mirror)
     // ===========================
@@ -863,6 +868,11 @@
         const btnOpen = document.createElement('button'); btnOpen.className='btn'; btnOpen.textContent='Open'; btnOpen.onclick=()=> window.open(v.url,'_blank','noopener'); actions.appendChild(btnOpen);
         const btnCopy = document.createElement('button'); btnCopy.className='btn'; btnCopy.textContent='Copy URL'; btnCopy.onclick=()=> navigator.clipboard.writeText(v.url).then(()=>showToast('Copied URL')); actions.appendChild(btnCopy);
 
+        // Per-item reload (refetch metadata without clearing the list)
+        const btnReload = document.createElement('button'); btnReload.className='btn'; btnReload.textContent='Reload';
+        btnReload.onclick = () => reloadItem(v.url, btnReload);
+        actions.appendChild(btnReload);
+
         // YouTube: alternate frontends (privacy/resilience)
         if (v.service === 'youtube' && v.id){
           const btnInv = document.createElement('button'); btnInv.className='btn'; btnInv.textContent='Open Invidious'; btnInv.onclick=()=> window.open(`https://yewtu.be/watch?v=${v.id}`,'_blank','noopener'); actions.appendChild(btnInv);
@@ -888,6 +898,38 @@
     }
 
     // ===========================
+    // Single-item reload (no global wipe)
+    // ===========================
+    async function reloadItem(url, btn){
+      try{
+        if (btn){ btn.setAttribute('disabled',''); btn.textContent = 'Reloading…'; }
+        const idx = appState.items.findIndex(it => it.url === url);
+        if (idx === -1){ showToast('Item not found'); return; }
+        const current = appState.items[idx];
+        let info = null;
+        const svc = current.service || serviceOf(url);
+        if (svc === 'youtube'){
+          info = await fetchYoutubeInfo(url, { useProxy: !!useProxyEl.checked });
+        }
+        if (!info){
+          info = await fetchGenericInfo(url, { useProxy: !!useProxyEl.checked });
+        }
+        if (info){
+          appState.items[idx] = { ...current, ...info };
+          render(sortList([...appState.items]));
+          showToast('Reloaded');
+        } else {
+          showToast('No metadata found');
+        }
+      }catch(e){
+        console.error('Reload failed', e);
+        showToast('Reload failed');
+      }finally{
+        if (btn){ btn.removeAttribute('disabled'); btn.textContent = 'Reload'; }
+      }
+    }
+
+    // ===========================
     // Pipeline: parse → fetch (concurrent) → sort → render
     // ===========================
     async function run(){
@@ -908,6 +950,9 @@
       // Limit if needed (preserve order)
       let max = parseInt(limitEl.value,10)||0; if (max>0) items.splice(max);
 
+      // Save into app state for per-item reloads
+      appState.items = items;
+
       // Render placeholders immediately
       render(items);
 
@@ -916,10 +961,10 @@
       const CONCURRENCY = 6;
       let idx = 0;
       async function worker(){
-        while (idx < items.length){
+        while (idx < appState.items.length){
           const i = idx++;
           try{
-            const it = items[i];
+            const it = appState.items[i];
             let info = null;
             if (it.service === 'youtube'){
               info = await fetchYoutubeInfo(it.url, { useProxy: !!useProxyEl.checked });
@@ -927,16 +972,16 @@
             if (!info){
               info = await fetchGenericInfo(it.url, { useProxy: !!useProxyEl.checked });
             }
-            if (info) Object.assign(items[i], info);
+            if (info) Object.assign(appState.items[i], info);
           }catch(e){ /* ignore individual failures */ }
-          render(sortList([...items]));
+          render(sortList([...appState.items]));
         }
       }
-      await Promise.all(Array.from({length: Math.min(CONCURRENCY, items.length)}, worker));
+      await Promise.all(Array.from({length: Math.min(CONCURRENCY, appState.items.length)}, worker));
       setLoading(false);
 
       // Final sort & render
-      const sorted = sortList(items);
+      const sorted = sortList(appState.items);
       render(sorted);
     }
 
