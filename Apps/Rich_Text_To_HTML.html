@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<!--
+  File: Apps/Rich_Text_HTML_Extractor.html
+  Purpose: Paste rich (formatted) text and extract the underlying HTML. Copy with one click and preview safely.
+  Notes:
+    - Single-file Micro-App (no build step, no local assets).
+    - Matches repo design sensibilities (dark/light theme, header, cards, pills, buttons).
+    - Preview uses a sandboxed iframe via srcdoc to avoid running scripts from pasted content.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rich Text → HTML Extractor</title>
+  <style>
+    :root{
+      --bg:#0f1115;
+      --panel:#161a23;
+      --panel-2:#0d1118;
+      --text:#e5e7eb;
+      --muted:#9aa3b2;
+      --accent:#5b9cff;
+      --accent-2:#2f6fe6;
+      --border:#222838;
+      --good:#22c55e;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+      --radius-lg:16px;
+      --radius:12px;
+      --pad:14px;
+      --shadow:0 18px 50px rgba(0,0,0,.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    [data-theme="light"]{
+      --bg:#f6f7fb;
+      --panel:#ffffff;
+      --panel-2:#f2f5fb;
+      --text:#0f172a;
+      --muted:#5b6474;
+      --accent:#2563eb;
+      --accent-2:#1e40af;
+      --border:#e6e8ee;
+      --shadow:0 18px 50px rgba(0,0,0,.08);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family:var(--sans); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+
+    header{
+      position:sticky; top:0; z-index:10;
+      display:flex; align-items:center; gap:10px;
+      padding:var(--pad);
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)) , var(--bg);
+      border-bottom:1px solid var(--border);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      background:var(--panel); border:1px solid var(--border);
+      padding:8px 12px; border-radius:10px; box-shadow:var(--shadow); font-weight:700;
+    }
+    .brand svg{color:var(--accent)}
+    .pill{
+      display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+      border:1px solid var(--border); background:var(--panel); padding:6px 10px; border-radius:999px;
+    }
+    .kbd{font-family:var(--mono); font-size:12px; padding:2px 6px; border:1px solid var(--border); border-bottom-width:3px; border-radius:6px; background:var(--panel-2);}
+    .spacer{flex:1}
+
+    .btn{
+      appearance:none; border:1px solid var(--border);
+      background:var(--panel); color:var(--text);
+      border-radius:10px; padding:10px 12px; cursor:pointer;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .btn:hover{transform:translateY(-1px); border-color:var(--accent)}
+    .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+    .btn.primary:hover{background:var(--accent-2); border-color:var(--accent-2)}
+    .btn[disabled]{opacity:.6; cursor:not-allowed; transform:none}
+
+    main{ padding:var(--pad); display:grid; gap:var(--pad); grid-template-columns: 1.2fr .8fr; }
+    @media (max-width: 1024px){ main{grid-template-columns:1fr} }
+
+    .card{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden; display:grid; grid-template-rows:auto 1fr auto; }
+    .card-header{ background:var(--panel-2); border-bottom:1px solid var(--border); padding:var(--pad); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .card-body{ padding:var(--pad); overflow:auto }
+    .card-footer{ padding:var(--pad); border-top:1px solid var(--border); background:var(--panel-2); display:flex; gap:8px; flex-wrap:wrap }
+
+    h1,h2,h3{margin:0}
+    .muted{color:var(--muted)}
+  .mt-10{ margin-top:10px }
+  .mt-16{ margin-top:16px }
+
+    /* Paste target */
+    .paste-zone{
+      width:100%; min-height:180px; border-radius:12px; border:1px dashed var(--border);
+      background:var(--panel-2); color:var(--text); padding:12px; outline:none; overflow:auto;
+    }
+    .paste-zone:focus{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(91,156,255,.15) inset }
+
+    textarea.code{
+      width:100%; min-height:260px; resize:vertical;
+      border-radius:12px; border:1px solid var(--border);
+      background:var(--panel-2); color:var(--text); padding:12px;
+      font-family:var(--mono); font-size:14px; line-height:1.45;
+    }
+
+    /* Preview */
+    .preview-frame{ width:100%; height:380px; border:1px solid var(--border); border-radius:12px; background:var(--panel-2); }
+
+    /* Toast */
+    .toast{ position:fixed; bottom:16px; right:16px; z-index:50; background:var(--panel); border:1px solid var(--border); border-left:6px solid var(--good); padding:10px 12px; border-radius:10px; box-shadow:var(--shadow); opacity:0; transform:translateY(8px); transition:opacity .18s ease, transform .18s ease; }
+    .toast.show{opacity:1; transform:translateY(0)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand" role="img" aria-label="Rich Text → HTML Extractor">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="currentColor"></circle></svg>
+      Rich Text → HTML
+    </div>
+    <span class="pill">Paste rich content to extract HTML</span>
+    <div class="spacer"></div>
+    <button id="themeToggle" class="btn" title="Toggle theme (dark/light)">Toggle Theme</button>
+  </header>
+
+  <main id="app" data-theme="dark">
+    <!-- Left: Paste + HTML Output -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Paste Area</h3>
+        <span class="pill"><span class="kbd">Ctrl</span>/<span class="kbd">Cmd</span> + <span class="kbd">V</span> to paste</span>
+      </div>
+      <div class="card-body">
+        <div id="pasteZone" class="paste-zone" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Paste rich text here"></div>
+  <p class="muted mt-10">Tip: You can also paste directly from web pages or apps that copy rich text.</p>
+  <h3 class="mt-16">Extracted HTML</h3>
+        <textarea id="htmlOutput" class="code" readonly placeholder="The HTML from your paste will appear here"></textarea>
+      </div>
+      <div class="card-footer">
+        <button id="btnCopy" class="btn primary">Copy HTML</button>
+        <button id="btnClear" class="btn">Clear</button>
+        <span id="status" class="pill" aria-live="polite">Waiting for paste…</span>
+      </div>
+    </section>
+
+    <!-- Right: Live Preview (sandboxed) -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Preview</h3>
+        <span class="pill">Sandboxed (scripts blocked)</span>
+      </div>
+      <div class="card-body">
+        <iframe id="preview" class="preview-frame" title="Preview of pasted HTML" sandbox=""></iframe>
+      </div>
+      <div class="card-footer">
+        <span class="muted">The preview renders your HTML inside an isolated frame for safety.</span>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // Tiny DOM helpers
+    const qs = (s, el=document) => el.querySelector(s);
+    const on = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts);
+
+    const app = qs('#app');
+    const themeToggle = qs('#themeToggle');
+    const pasteZone = qs('#pasteZone');
+    const htmlOutput = qs('#htmlOutput');
+    const preview = qs('#preview');
+    const btnCopy = qs('#btnCopy');
+    const btnClear = qs('#btnClear');
+    const status = qs('#status');
+    const toast = qs('#toast');
+
+    function showToast(msg){
+      toast.textContent = msg; toast.classList.add('show');
+      setTimeout(()=> toast.classList.remove('show'), 1500);
+    }
+
+    on(themeToggle, 'click', () => {
+      const next = app.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      app.setAttribute('data-theme', next);
+    });
+
+    function setPreview(html){
+      // Render inside a sandboxed iframe using srcdoc (blocks scripts/styles from affecting parent)
+      preview.setAttribute('srcdoc', String(html || ''));
+    }
+
+    function setStatus(msg, ok=true){
+      status.textContent = msg;
+      status.style.borderLeft = ok ? '6px solid var(--good)' : '6px solid var(--bad)';
+    }
+
+    function handlePasteData(html, plain){
+      const hasHtml = !!(html && html.trim());
+      const derivedHtml = hasHtml ? html : (plain ? plain.replace(/\n/g, '<br>') : '');
+      htmlOutput.value = derivedHtml;
+      setPreview(derivedHtml);
+      setStatus(hasHtml ? 'HTML extracted' : 'Plain text converted to simple HTML');
+      // Give visual feedback in the zone without keeping the pasted content there
+      pasteZone.innerHTML = '<span style="color: var(--good)">Content pasted. HTML extracted.</span>';
+    }
+
+    // Paste handler: prefer raw HTML from clipboard when available
+    on(pasteZone, 'paste', (e) => {
+      try{
+        e.preventDefault();
+        const cb = e.clipboardData || window.clipboardData;
+        const html = cb ? cb.getData('text/html') : '';
+        const text = cb ? cb.getData('text/plain') : '';
+        handlePasteData(html, text);
+      }catch(err){
+        // Fallback: let browser paste, then read innerHTML on next tick
+        setTimeout(() => {
+          handlePasteData(pasteZone.innerHTML, pasteZone.textContent || '');
+        }, 0);
+      }
+    });
+
+    // If the zone regains focus after success message, clear it for a fresh paste
+    on(pasteZone, 'focus', () => {
+      if (/HTML extracted|Content pasted/i.test(pasteZone.textContent || '')) pasteZone.innerHTML = '';
+    });
+
+    on(btnCopy, 'click', async () => {
+      const txt = htmlOutput.value || '';
+      if (!txt.trim()) { showToast('Nothing to copy'); return; }
+      try { await navigator.clipboard.writeText(txt); showToast('HTML copied!'); }
+      catch { htmlOutput.focus(); htmlOutput.select(); showToast('Press Ctrl+C to copy'); }
+    });
+
+    on(btnClear, 'click', () => {
+      pasteZone.innerHTML = '';
+      htmlOutput.value = '';
+      setPreview('');
+      setStatus('Cleared. Waiting for paste…');
+    });
+
+    // If page loads with existing text (rare), reflect it
+    if ((htmlOutput.value||'').trim()) setPreview(htmlOutput.value);
+  </script>
+</body>
+</html>
