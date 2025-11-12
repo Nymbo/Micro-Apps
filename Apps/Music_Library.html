@@ -148,6 +148,44 @@
       transform: translateY(0);
     }
 
+    /* Charts layout */
+    .charts {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .charts:not(.hidden) {
+      opacity: 1;
+    }
+
+    .chart-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .chart-title {
+      margin: 0 0 12px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: 320px;
+    }
+
+    .chart-card canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
     .stat-card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -362,6 +400,7 @@
       }
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div class="app">
@@ -397,6 +436,25 @@
       </div>
     </section>
 
+    <section id="chartsSection" class="charts hidden" aria-label="Library charts">
+      <div class="chart-card">
+        <h3 class="chart-title">Top Artists by Tracks</h3>
+        <div class="chart-wrapper"><canvas id="topArtistsChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3 class="chart-title">Top Albums by Tracks</h3>
+        <div class="chart-wrapper"><canvas id="topAlbumsChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3 class="chart-title">Total Size by Artist</h3>
+        <div class="chart-wrapper"><canvas id="artistSizeChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3 class="chart-title">Track Distribution by Artist</h3>
+        <div class="chart-wrapper"><canvas id="artistDistributionChart"></canvas></div>
+      </div>
+    </section>
+
     <div id="treeToolbar" class="toolbar hidden">
       <button type="button" class="btn" id="expandAll">Expand all</button>
       <button type="button" class="btn" id="collapseAll">Collapse all</button>
@@ -424,6 +482,14 @@
       const selectionLabel = document.getElementById('selectionLabel');
       const expandAllBtn = document.getElementById('expandAll');
       const collapseAllBtn = document.getElementById('collapseAll');
+      const chartsSection = document.getElementById('chartsSection');
+
+      const chartInstances = {
+        topArtists: null,
+        topAlbums: null,
+        artistSize: null,
+        artistDistribution: null
+      };
 
       if (!('webkitdirectory' in folderInput)) {
         showMessage('This browser does not support folder uploads. Please try Chrome, Edge, or another Chromium-based browser.', 'warning');
@@ -450,6 +516,7 @@
             renderTree(tree);
             updateStats(mp3Files);
             updateSelectionLabel(Array.from(tree.keys()));
+            renderCharts(mp3Files);
             clearMessage();
           } catch (error) {
             console.error('Failed to build library tree:', error);
@@ -469,6 +536,8 @@
         treeContainer.classList.add('hidden');
         toolbar.classList.add('hidden');
         statsPanel.classList.add('hidden');
+        destroyCharts();
+        chartsSection.classList.add('hidden');
         selectionLabel.textContent = '';
       }
 
@@ -668,6 +737,175 @@
             detail.setAttribute('open', '');
           } else {
             detail.removeAttribute('open');
+          }
+        });
+      }
+
+      // --- Charts & Analytics ---
+      function prepareAnalytics(files) {
+        const artistCounts = new Map();
+        const albumCounts = new Map();
+        const artistSizes = new Map();
+
+        files.forEach((file) => {
+          const segments = normaliseSegments(file.webkitRelativePath || file.name, '(selected files)');
+          if (segments.length >= 3) {
+            const artist = segments[1];
+            artistCounts.set(artist, (artistCounts.get(artist) || 0) + 1);
+            artistSizes.set(artist, (artistSizes.get(artist) || 0) + file.size);
+            if (segments.length >= 4) {
+              const album = segments[2];
+              const albumKey = artist + ' — ' + album;
+              albumCounts.set(albumKey, (albumCounts.get(albumKey) || 0) + 1);
+            }
+          }
+        });
+
+        return { artistCounts, albumCounts, artistSizes };
+      }
+
+      function topEntriesFromMap(map, limit) {
+        return Array.from(map.entries())
+          .sort((a, b) => Number(b[1]) - Number(a[1]))
+          .slice(0, limit);
+      }
+
+      function destroyCharts() {
+        Object.keys(chartInstances).forEach((key) => {
+          if (chartInstances[key]) {
+            try { chartInstances[key].destroy(); } catch (_) {}
+            chartInstances[key] = null;
+          }
+        });
+      }
+
+      function renderCharts(files) {
+        const { artistCounts, albumCounts, artistSizes } = prepareAnalytics(files);
+        destroyCharts();
+
+        const topArtistsByTracks = topEntriesFromMap(artistCounts, 20);
+        const topAlbumsByTracks = topEntriesFromMap(albumCounts, 20);
+        const topArtistsBySize = topEntriesFromMap(artistSizes, 20);
+
+        // Show section only if we have artist data
+        if (!topArtistsByTracks.length && !topAlbumsByTracks.length && !topArtistsBySize.length) {
+          chartsSection.classList.add('hidden');
+          return;
+        }
+        chartsSection.classList.remove('hidden');
+
+        // Horizontal bar: Top Artists by Tracks
+        chartInstances.topArtists = createHorizontalBarChart(
+          'topArtistsChart',
+          topArtistsByTracks.map(([name]) => name),
+          {
+            label: 'Tracks',
+            data: topArtistsByTracks.map(([, count]) => count),
+            backgroundColor: 'rgba(56, 189, 248, 0.7)',
+            borderColor: 'rgba(56, 189, 248, 1)',
+            borderWidth: 1
+          },
+          {
+            plugins: { tooltip: { callbacks: { label: (ctx) => 'Tracks: ' + ctx.parsed.x } } },
+            scales: { x: { ticks: { precision: 0 } } }
+          }
+        );
+
+        // Horizontal bar: Top Albums by Tracks
+        chartInstances.topAlbums = createHorizontalBarChart(
+          'topAlbumsChart',
+          topAlbumsByTracks.map(([name]) => name),
+          {
+            label: 'Tracks',
+            data: topAlbumsByTracks.map(([, count]) => count),
+            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+            borderColor: 'rgba(16, 185, 129, 1)',
+            borderWidth: 1
+          },
+          {
+            plugins: { tooltip: { callbacks: { label: (ctx) => 'Tracks: ' + ctx.parsed.x } } },
+            scales: { x: { ticks: { precision: 0 } } }
+          }
+        );
+
+        // Horizontal bar: Total Size by Artist
+        chartInstances.artistSize = createHorizontalBarChart(
+          'artistSizeChart',
+          topArtistsBySize.map(([name]) => name),
+          {
+            label: 'Total Size',
+            data: topArtistsBySize.map(([, size]) => size),
+            backgroundColor: 'rgba(239, 68, 68, 0.7)',
+            borderColor: 'rgba(239, 68, 68, 1)',
+            borderWidth: 1
+          },
+          {
+            plugins: { tooltip: { callbacks: { label: (ctx) => 'Size: ' + formatBytes(ctx.parsed.x) } } },
+            scales: { x: { ticks: { callback: (v) => formatBytes(v) } } }
+          }
+        );
+
+        // Pie: Track Distribution by Artist (top 12 + Others)
+        const sortedArtists = Array.from(artistCounts.entries()).sort((a, b) => b[1] - a[1]);
+        const top = sortedArtists.slice(0, 12);
+        const othersTotal = sortedArtists.slice(12).reduce((sum, [, v]) => sum + v, 0);
+        const pieLabels = top.map(([name]) => name).concat(othersTotal ? ['Others'] : []);
+        const pieData = top.map(([, v]) => v).concat(othersTotal ? [othersTotal] : []);
+        chartInstances.artistDistribution = renderPieChart('artistDistributionChart', pieLabels, pieData);
+      }
+
+      function createHorizontalBarChart(canvasId, labels, dataset, options = {}) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        const defaultOptions = {
+          indexAxis: 'y',
+          maintainAspectRatio: false,
+          responsive: true,
+          resizeDelay: 200,
+          animation: false,
+          scales: {
+            x: { beginAtZero: true, ticks: { color: 'rgba(226, 232, 240, 0.8)' }, grid: { color: 'rgba(148, 163, 184, 0.15)' } },
+            y: { ticks: { color: 'rgba(226, 232, 240, 0.8)' }, grid: { color: 'rgba(148, 163, 184, 0.1)' } }
+          },
+          plugins: { legend: { display: false } }
+        };
+        return new Chart(ctx, {
+          type: 'bar',
+          data: { labels, datasets: [dataset] },
+          options: { ...defaultOptions, ...options }
+        });
+      }
+
+      function renderPieChart(canvasId, labels, data) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        return new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels,
+            datasets: [{
+              data,
+              backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#06B6D4', '#D97706', '#65A30D', '#4F46E5', '#F97316', '#14B8A6']
+            }]
+          },
+          options: {
+            maintainAspectRatio: false,
+            responsive: true,
+            resizeDelay: 200,
+            animation: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: 'rgba(226, 232, 240, 0.8)' } },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const label = context.label || '';
+                    const value = context.parsed || 0;
+                    const total = (context.dataset.data || []).reduce((s, v) => s + v, 0) || 0;
+                    const pct = total ? ((value / total) * 100).toFixed(1) : '0.0';
+                    return label + ': ' + value + ' tracks (' + pct + '%)';
+                  }
+                }
+              }
+            }
           }
         });
       }
