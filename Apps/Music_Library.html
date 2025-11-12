@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Music Library Explorer</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --panel: #101a36;
+      --panel-light: #152450;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --border: #1e2a47;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+
+    .app {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .header {
+      text-align: center;
+      padding: 24px;
+      background: var(--panel);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 40px rgba(8, 25, 70, 0.45);
+    }
+
+    .header h1 {
+      margin: 0 0 12px;
+      font-size: 2rem;
+    }
+
+    .header p {
+      margin: 0;
+      color: var(--text-muted);
+      max-width: 640px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .picker {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .picker-label {
+      display: block;
+      width: 100%;
+      max-width: 420px;
+      padding: 20px;
+      border-radius: 14px;
+      border: 1px dashed var(--border);
+      background: var(--panel);
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .picker-label:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .picker-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .picker-subtitle {
+      display: block;
+      margin-top: 6px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .hidden-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      border: 0;
+      clip: rect(0, 0, 0, 0);
+      overflow: hidden;
+    }
+
+    .hint {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .message {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 14px 18px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: var(--panel);
+      color: var(--text);
+    }
+
+    .message[data-variant="info"] {
+      border-color: rgba(56, 189, 248, 0.35);
+      background: rgba(15, 118, 195, 0.15);
+    }
+
+    .message[data-variant="warning"] {
+      border-color: rgba(251, 191, 36, 0.4);
+      background: rgba(120, 70, 0, 0.2);
+    }
+
+    .message[data-variant="danger"] {
+      border-color: rgba(248, 113, 113, 0.4);
+      background: rgba(127, 29, 29, 0.25);
+    }
+
+    .stats {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.2s;
+    }
+
+    .stats:not(.hidden) {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 600;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 16px;
+    }
+
+    .toolbar .btn {
+      margin: 0;
+    }
+
+    .toolbar-spacer {
+      flex: 1;
+    }
+
+    .selection-label {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel-light);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s, background 0.2s;
+      font-size: 0.95rem;
+    }
+
+    .btn:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+      background: var(--panel);
+    }
+
+    .tree {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+
+    .tree-folder {
+      border-left: 1px solid rgba(56, 189, 248, 0.18);
+      margin-left: 0;
+      padding-left: 12px;
+    }
+
+    .tree-folder:first-of-type {
+      border-left: none;
+      padding-left: 0;
+    }
+
+    .tree-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      background: transparent;
+      transition: background 0.2s;
+    }
+
+    .tree-summary:hover {
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .tree-label {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .tree-meta {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-left: 12px;
+    }
+
+    .tree-children {
+      padding-left: 12px;
+      margin-left: 8px;
+      border-left: 1px solid rgba(148, 163, 184, 0.15);
+      display: grid;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .file-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 6px 0 0 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.45);
+      border: 1px solid transparent;
+    }
+
+    .file-item:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    .file-name {
+      font-family: "Segoe UI", "Inter", -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
+    }
+
+    .file-size {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-left: 12px;
+      white-space: nowrap;
+    }
+
+    .empty-indicator {
+      margin: 4px 0 0 0;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.4);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    @media (max-width: 720px) {
+      .tree {
+        padding: 16px;
+      }
+
+      .picker-label {
+        padding: 16px;
+      }
+
+      .tree-summary {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .selection-label {
+        white-space: normal;
+      }
+
+      .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .toolbar .btn {
+        width: 100%;
+      }
+
+      .toolbar-spacer {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>Music Library Explorer</h1>
+      <p>Scan your local music folder to browse artists, albums, and MP3 tracks in a nested tree view. The scan is read-only and stays on this page.</p>
+    </header>
+
+    <section class="picker" aria-labelledby="pickerTitle">
+      <h2 class="visually-hidden" id="pickerTitle">Select Music Folder</h2>
+      <label for="folderPicker" class="picker-label">
+        <span class="picker-title">Choose Music Folder</span>
+        <span class="picker-subtitle">Click to pick the root folder of your library. Subfolders are scanned automatically.</span>
+      </label>
+      <input type="file" id="folderPicker" class="hidden-input" webkitdirectory multiple />
+      <p class="hint">Only MP3 files are listed. Other file types are ignored.</p>
+    </section>
+
+    <div id="message" class="message hidden" role="status" aria-live="polite"></div>
+
+    <section id="stats" class="stats hidden" aria-label="Library summary">
+      <div class="stat-card">
+        <span class="stat-label">Artists</span>
+        <span class="stat-value" id="artistCount">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Albums</span>
+        <span class="stat-value" id="albumCount">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Tracks</span>
+        <span class="stat-value" id="trackCount">0</span>
+      </div>
+    </section>
+
+    <div id="treeToolbar" class="toolbar hidden">
+      <button type="button" class="btn" id="expandAll">Expand all</button>
+      <button type="button" class="btn" id="collapseAll">Collapse all</button>
+      <span class="toolbar-spacer"></span>
+      <span class="selection-label" id="selectionLabel"></span>
+    </div>
+
+    <section id="treeContainer" class="tree hidden" aria-label="Music library tree"></section>
+  </div>
+
+  <noscript>
+    <div class="message" data-variant="warning">JavaScript is required to scan and display the music library.</div>
+  </noscript>
+
+  <script>
+    (function () {
+      const folderInput = document.getElementById('folderPicker');
+      const messageEl = document.getElementById('message');
+      const treeContainer = document.getElementById('treeContainer');
+      const statsPanel = document.getElementById('stats');
+      const artistCountEl = document.getElementById('artistCount');
+      const albumCountEl = document.getElementById('albumCount');
+      const trackCountEl = document.getElementById('trackCount');
+      const toolbar = document.getElementById('treeToolbar');
+      const selectionLabel = document.getElementById('selectionLabel');
+      const expandAllBtn = document.getElementById('expandAll');
+      const collapseAllBtn = document.getElementById('collapseAll');
+
+      if (!('webkitdirectory' in folderInput)) {
+        showMessage('This browser does not support folder uploads. Please try Chrome, Edge, or another Chromium-based browser.', 'warning');
+      }
+
+      folderInput.addEventListener('change', (event) => {
+        const files = Array.from(event.target.files || []);
+        if (!files.length) {
+          showMessage('No folder selected.', 'warning');
+          clearOutput();
+          return;
+        }
+        showMessage('Scanning selected folder...', 'info');
+        requestAnimationFrame(() => {
+          try {
+            const mp3Files = files.filter((file) => file.name.toLowerCase().endsWith('.mp3'));
+            if (!mp3Files.length) {
+              showMessage('No MP3 files were found in the selected folder.', 'warning');
+              clearOutput();
+              folderInput.value = '';
+              return;
+            }
+            const tree = buildTree(mp3Files);
+            renderTree(tree);
+            updateStats(mp3Files);
+            updateSelectionLabel(Array.from(tree.keys()));
+            clearMessage();
+          } catch (error) {
+            console.error('Failed to build library tree:', error);
+            showMessage('Something went wrong while scanning the folder.', 'danger');
+            clearOutput();
+          } finally {
+            folderInput.value = '';
+          }
+        });
+      });
+
+      expandAllBtn.addEventListener('click', () => setTreeOpen(true));
+      collapseAllBtn.addEventListener('click', () => setTreeOpen(false));
+
+      function clearOutput() {
+        treeContainer.innerHTML = '';
+        treeContainer.classList.add('hidden');
+        toolbar.classList.add('hidden');
+        statsPanel.classList.add('hidden');
+        selectionLabel.textContent = '';
+      }
+
+      function showMessage(text, variant) {
+        messageEl.textContent = text;
+        messageEl.dataset.variant = variant || 'info';
+        messageEl.classList.remove('hidden');
+      }
+
+      function clearMessage() {
+        messageEl.textContent = '';
+        messageEl.classList.add('hidden');
+      }
+
+      function plural(count, singular, pluralForm) {
+        return count === 1 ? singular : (pluralForm || singular + 's');
+      }
+
+      function formatBytes(bytes) {
+        if (!bytes) {
+          return '0 B';
+        }
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+        const value = bytes / Math.pow(1024, index);
+        const fixed = value >= 100 ? value.toFixed(0) : value.toFixed(1);
+        return fixed + ' ' + units[index];
+      }
+
+      function createFolder(name, fullPath) {
+        return { name, fullPath, children: new Map(), files: [] };
+      }
+
+      function normaliseSegments(path, fallbackRoot) {
+        if (!path) {
+          return [fallbackRoot || '(selected files)'];
+        }
+        const parts = path.split('/').filter(Boolean);
+        if (!parts.length) {
+          return [fallbackRoot || '(selected files)'];
+        }
+        if (parts.length === 1) {
+          return [fallbackRoot || '(selected files)', parts[0]];
+        }
+        return parts;
+      }
+
+      function buildTree(files) {
+        const roots = new Map();
+        files.forEach((file) => {
+          const segments = normaliseSegments(file.webkitRelativePath || file.name, '(selected files)');
+          const rootName = segments.shift();
+          const fileName = segments.pop() || file.name;
+          if (!roots.has(rootName)) {
+            roots.set(rootName, createFolder(rootName, rootName));
+          }
+          let current = roots.get(rootName);
+          let currentPath = current.fullPath;
+          segments.forEach((segment) => {
+            currentPath = currentPath ? currentPath + '/' + segment : segment;
+            if (!current.children.has(segment)) {
+              current.children.set(segment, createFolder(segment, currentPath));
+            }
+            current = current.children.get(segment);
+          });
+          const fullPath = currentPath ? currentPath + '/' + fileName : fileName;
+          current.files.push({
+            name: fileName,
+            size: file.size,
+            fullPath: fullPath
+          });
+        });
+        return roots;
+      }
+
+      function renderTree(roots) {
+        const fragment = document.createDocumentFragment();
+        const sortedRoots = Array.from(roots.values()).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+        sortedRoots.forEach((rootNode) => {
+          fragment.appendChild(renderFolder(rootNode, 0));
+        });
+        treeContainer.innerHTML = '';
+        treeContainer.appendChild(fragment);
+        treeContainer.classList.remove('hidden');
+        toolbar.classList.remove('hidden');
+      }
+
+      function renderFolder(node, depth) {
+        const details = document.createElement('details');
+        details.className = 'tree-folder';
+        details.dataset.depth = String(depth);
+        if (depth <= 1) {
+          details.open = true;
+        }
+
+        const summary = document.createElement('summary');
+        summary.className = 'tree-summary';
+
+        const label = document.createElement('span');
+        label.className = 'tree-label';
+        label.textContent = node.name || (depth === 0 ? 'Root' : '(unnamed)');
+
+        const meta = document.createElement('span');
+        meta.className = 'tree-meta';
+        const folderCount = node.children.size;
+        const trackCount = node.files.length;
+        const segments = [];
+        if (folderCount) {
+          segments.push(folderCount + ' ' + plural(folderCount, 'folder'));
+        }
+        if (trackCount) {
+          segments.push(trackCount + ' ' + plural(trackCount, 'track'));
+        }
+        meta.textContent = segments.join(' | ') || 'Empty';
+
+        summary.appendChild(label);
+        summary.appendChild(meta);
+        details.appendChild(summary);
+
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'tree-children';
+
+        const childFolders = Array.from(node.children.values()).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+        childFolders.forEach((child) => {
+          childrenContainer.appendChild(renderFolder(child, depth + 1));
+        });
+
+        if (node.files.length) {
+          const list = document.createElement('ul');
+          list.className = 'file-list';
+          const sortedFiles = node.files.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
+          sortedFiles.forEach((file) => {
+            const item = document.createElement('li');
+            item.className = 'file-item';
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'file-name';
+            nameSpan.textContent = file.name;
+            const sizeSpan = document.createElement('span');
+            sizeSpan.className = 'file-size';
+            sizeSpan.textContent = formatBytes(file.size);
+            item.appendChild(nameSpan);
+            item.appendChild(sizeSpan);
+            item.title = file.fullPath + ' (' + formatBytes(file.size) + ')';
+            list.appendChild(item);
+          });
+          childrenContainer.appendChild(list);
+        }
+
+        if (!childFolders.length && !node.files.length) {
+          const emptyNote = document.createElement('p');
+          emptyNote.className = 'empty-indicator';
+          emptyNote.textContent = 'No tracks in this folder.';
+          childrenContainer.appendChild(emptyNote);
+        }
+
+        details.appendChild(childrenContainer);
+        return details;
+      }
+
+      function updateStats(files) {
+        const artists = new Set();
+        const albums = new Set();
+        files.forEach((file) => {
+          const segments = normaliseSegments(file.webkitRelativePath || file.name, '(selected files)');
+          if (segments.length >= 3) {
+            artists.add(segments[1]);
+          }
+          if (segments.length >= 4) {
+            albums.add(segments[1] + '::' + segments[2]);
+          }
+        });
+        artistCountEl.textContent = artists.size;
+        albumCountEl.textContent = albums.size;
+        trackCountEl.textContent = files.length;
+        statsPanel.classList.remove('hidden');
+      }
+
+      function updateSelectionLabel(rootNames) {
+        if (!rootNames.length) {
+          selectionLabel.textContent = '';
+          return;
+        }
+        if (rootNames.length === 1) {
+          selectionLabel.textContent = 'Selected folder: ' + rootNames[0];
+        } else {
+          selectionLabel.textContent = 'Selected folders: ' + rootNames.join(', ');
+        }
+      }
+
+      function setTreeOpen(open) {
+        const detailsList = treeContainer.querySelectorAll('details.tree-folder');
+        detailsList.forEach((detail) => {
+          const depth = Number(detail.dataset.depth || 0);
+          if (open) {
+            detail.setAttribute('open', '');
+          } else if (depth === 0) {
+            detail.setAttribute('open', '');
+          } else {
+            detail.removeAttribute('open');
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
