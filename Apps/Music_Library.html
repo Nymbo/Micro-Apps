@@ -457,6 +457,7 @@
 
     <div id="treeToolbar" class="toolbar hidden">
       <button type="button" class="btn" id="expandAll">Expand all</button>
+      <button type="button" class="btn" id="expandArtists">Expand Artists</button>
       <button type="button" class="btn" id="collapseAll">Collapse all</button>
       <span class="toolbar-spacer"></span>
       <span class="selection-label" id="selectionLabel"></span>
@@ -482,6 +483,7 @@
       const selectionLabel = document.getElementById('selectionLabel');
       const expandAllBtn = document.getElementById('expandAll');
       const collapseAllBtn = document.getElementById('collapseAll');
+      const expandArtistsBtn = document.getElementById('expandArtists');
       const chartsSection = document.getElementById('chartsSection');
 
       const chartInstances = {
@@ -530,6 +532,7 @@
 
       expandAllBtn.addEventListener('click', () => setTreeOpen(true));
       collapseAllBtn.addEventListener('click', () => setTreeOpen(false));
+      expandArtistsBtn.addEventListener('click', () => setArtistsExpanded());
 
       function clearOutput() {
         treeContainer.innerHTML = '';
@@ -734,6 +737,19 @@
           if (open) {
             detail.setAttribute('open', '');
           } else if (depth === 0) {
+            detail.setAttribute('open', '');
+          } else {
+            detail.removeAttribute('open');
+          }
+        });
+      }
+
+      // Expand artists (depth 0 and 1), collapse deeper levels to hide tracks
+      function setArtistsExpanded() {
+        const detailsList = treeContainer.querySelectorAll('details.tree-folder');
+        detailsList.forEach((detail) => {
+          const depth = Number(detail.dataset.depth || 0);
+          if (depth <= 1) {
             detail.setAttribute('open', '');
           } else {
             detail.removeAttribute('open');
