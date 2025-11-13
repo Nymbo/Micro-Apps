@@ -5,409 +5,152 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Music Library Explorer</title>
   <style>
-    :root {
-      --bg: #0b1120;
-      --panel: #101a36;
-      --panel-light: #152450;
-      --text: #e2e8f0;
-      --text-muted: #94a3b8;
-      --accent: #38bdf8;
-      --border: #1e2a47;
+    :root{
+      --bg:#0f1115;
+      --panel:#161a23;
+      --panel-2:#0d1118;
+      --panel-3:#1b2130;
+      --text:#e5e7eb;
+      --muted:#9aa3b2;
+      --accent:#5b9cff;
+      --accent-2:#2f6fe6;
+      --border:#222838;
+      --good:#22c55e;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+      --shadow:0 18px 50px rgba(0,0,0,.35);
+      --radius-lg:16px;
+      --radius:12px;
+      --pad:14px;
+      --grid:#2a3246;
+      --grid-soft:#20283a;
     }
 
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
-      line-height: 1.55;
-      min-height: 100vh;
+    /* Light theme override (scoped to app container) */
+    .app[data-theme="light"]{
+      --bg:#f6f7fb;
+      --panel:#ffffff;
+      --panel-2:#f2f5fb;
+      --panel-3:#eef2fb;
+      --text:#0f172a;
+      --muted:#5b6474;
+      --accent:#2563eb;
+      --accent-2:#1e40af;
+      --border:#e6e8ee;
+      --shadow:0 18px 50px rgba(0,0,0,.08);
+      --grid:#e7eaf2;
+      --grid-soft:#edf0f7;
     }
 
-    .app {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 32px 20px 48px;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family: Inter, Segoe UI, system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      line-height:1.55;
     }
 
-    .header {
-      text-align: center;
-      padding: 24px;
-      background: var(--panel);
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      box-shadow: 0 12px 40px rgba(8, 25, 70, 0.45);
+    /* (Top bar removed per request) */
+
+    /* App layout */
+    .app{
+      max-width:1100px; margin:0 auto; padding:24px 16px 48px;
+      display:flex; flex-direction:column; gap:18px;
     }
 
-    .header h1 {
-      margin: 0 0 12px;
-      font-size: 2rem;
+    .card{
+      background:var(--panel); border:1px solid var(--border);
+      border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden;
     }
+    .card-inner{ padding:18px }
+    .card h1{margin:0 0 8px 0; font-size:1.9rem}
+    .card p.sub{margin:0; color:var(--muted)}
 
-    .header p {
-      margin: 0;
-      color: var(--text-muted);
-      max-width: 640px;
-      margin-left: auto;
-      margin-right: auto;
+    /* Picker */
+    .picker{ display:flex; flex-direction:column; gap:12px; align-items:center }
+    .picker-label{
+      display:block; width:100%; max-width:520px; text-align:center; cursor:pointer;
+      padding:20px; border-radius:14px; border:1px dashed var(--border); background:var(--panel-2);
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
     }
+    .picker-label:hover{ transform:translateY(-1px); border-color:var(--accent) }
+    .picker-title{ font-weight:600 }
+    .picker-subtitle{ display:block; margin-top:6px; color:var(--muted) }
+    .hidden-input{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; border:0; clip:rect(0,0,0,0); overflow:hidden }
+    .hint{ color:var(--muted); font-size:.9rem }
 
-    .picker {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      align-items: center;
-    }
+    /* Toast-like message */
+    .message{ max-width:820px; margin:0 auto; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:var(--panel-2) }
+    .message[data-variant="info"]{ border-left:6px solid var(--accent) }
+    .message[data-variant="warning"]{ border-left:6px solid var(--warn) }
+    .message[data-variant="danger"]{ border-left:6px solid var(--bad) }
 
-    .picker-label {
-      display: block;
-      width: 100%;
-      max-width: 420px;
-      padding: 20px;
-      border-radius: 14px;
-      border: 1px dashed var(--border);
-      background: var(--panel);
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.2s, transform 0.2s;
-    }
+    /* Stats */
+    .stats{ display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); opacity:0; transform:translateY(6px); transition:opacity .2s }
+    .stats:not(.hidden){ opacity:1; transform:none }
+    .stat-card{ background:var(--panel-2); border:1px solid var(--border); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:6px }
+    .stat-label{ color:var(--muted); font-size:.8rem; text-transform:uppercase; letter-spacing:.06em }
+    .stat-value{ font-size:1.6rem; font-weight:700 }
 
-    .picker-label:hover {
-      border-color: var(--accent);
-      transform: translateY(-1px);
-    }
+    /* Charts */
+    .charts{ display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); opacity:0; transition:opacity .2s }
+    .charts:not(.hidden){ opacity:1 }
+    .chart-card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px }
+    .chart-title{ margin:0 0 10px; font-weight:600 }
+    .chart-wrapper{ position:relative; height:320px }
+    .chart-card canvas{ display:block; width:100% !important; height:100% !important }
 
-    .picker-title {
-      font-size: 1.05rem;
-      font-weight: 600;
-    }
+    /* Toolbar */
+    .toolbar{ display:flex; gap:10px; align-items:center; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:12px 14px }
+    .toolbar-spacer{ flex:1 }
+    .selection-label{ color:var(--muted); font-size:.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 
-    .picker-subtitle {
-      display: block;
-      margin-top: 6px;
-      font-size: 0.9rem;
-      color: var(--text-muted);
-    }
+    /* Buttons */
+    .btn{ appearance:none; border:1px solid var(--border); background:var(--panel-2); color:var(--text); border-radius:10px; padding:8px 12px; cursor:pointer; transition: transform .12s, border-color .12s, background .12s }
+    .btn:hover{ transform:translateY(-1px); border-color:var(--accent) }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff }
+    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
-    .hidden-input {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      border: 0;
-      clip: rect(0, 0, 0, 0);
-      overflow: hidden;
-    }
+    /* Tree */
+    .tree{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px }
+    .tree-folder{ border-left:1px solid rgba(91,156,255,.2); margin-left:0; padding-left:12px }
+    .tree-folder:first-of-type{ border-left:none; padding-left:0 }
+    .tree-summary{ display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:10px; cursor:pointer; background:transparent; transition:background .12s }
+    .tree-summary:hover{ background:rgba(91,156,255,.08) }
+    .tree-label{ font-weight:600 }
+    .tree-meta{ color:var(--muted); font-size:.9rem; margin-left:12px }
+    .tree-children{ padding-left:12px; margin-left:8px; border-left:1px solid var(--grid); display:grid; gap:8px; margin-top:6px }
+    .file-list{ list-style:none; padding-left:0; margin:6px 0 0 0; display:grid; gap:6px }
+    .file-item{ display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-radius:8px; background:var(--panel-2); border:1px solid transparent }
+    .file-item:hover{ border-color:var(--accent); background:var(--panel-3) }
+    .file-name{ font-family: Segoe UI, Inter, system-ui, -apple-system, Roboto }
+    .file-size{ color:var(--muted); font-size:.85rem; margin-left:12px; white-space:nowrap }
+    .empty-indicator{ margin:4px 0 0 0; padding:6px 10px; border-radius:8px; background:var(--panel-2); color:var(--muted); font-size:.95rem }
 
-    .hint {
-      color: var(--text-muted);
-      font-size: 0.85rem;
-    }
+    .hidden{ display:none !important }
+    .visually-hidden{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0 }
 
-    .message {
-      width: 100%;
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 14px 18px;
-      border-radius: 12px;
-      border: 1px solid transparent;
-      background: var(--panel);
-      color: var(--text);
-    }
-
-    .message[data-variant="info"] {
-      border-color: rgba(56, 189, 248, 0.35);
-      background: rgba(15, 118, 195, 0.15);
-    }
-
-    .message[data-variant="warning"] {
-      border-color: rgba(251, 191, 36, 0.4);
-      background: rgba(120, 70, 0, 0.2);
-    }
-
-    .message[data-variant="danger"] {
-      border-color: rgba(248, 113, 113, 0.4);
-      background: rgba(127, 29, 29, 0.25);
-    }
-
-    .stats {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      opacity: 0;
-      transform: translateY(6px);
-      transition: opacity 0.2s;
-    }
-
-    .stats:not(.hidden) {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* Charts layout */
-    .charts {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-
-    .charts:not(.hidden) {
-      opacity: 1;
-    }
-
-    .chart-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
-    }
-
-    .chart-title {
-      margin: 0 0 12px;
-      font-size: 1.05rem;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .chart-wrapper {
-      position: relative;
-      height: 320px;
-    }
-
-    .chart-card canvas {
-      display: block;
-      width: 100% !important;
-      height: 100% !important;
-    }
-
-    .stat-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .stat-label {
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    .stat-value {
-      font-size: 1.6rem;
-      font-weight: 600;
-    }
-
-    .toolbar {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px 16px;
-    }
-
-    .toolbar .btn {
-      margin: 0;
-    }
-
-    .toolbar-spacer {
-      flex: 1;
-    }
-
-    .selection-label {
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .btn {
-      appearance: none;
-      border: 1px solid var(--border);
-      background: var(--panel-light);
-      color: var(--text);
-      border-radius: 10px;
-      padding: 8px 14px;
-      cursor: pointer;
-      transition: border-color 0.2s, transform 0.2s, background 0.2s;
-      font-size: 0.95rem;
-    }
-
-    .btn:hover {
-      border-color: var(--accent);
-      transform: translateY(-1px);
-    }
-
-    .btn:active {
-      transform: translateY(0);
-      background: var(--panel);
-    }
-
-    .tree {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 20px;
-    }
-
-    .tree-folder {
-      border-left: 1px solid rgba(56, 189, 248, 0.18);
-      margin-left: 0;
-      padding-left: 12px;
-    }
-
-    .tree-folder:first-of-type {
-      border-left: none;
-      padding-left: 0;
-    }
-
-    .tree-summary {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 10px;
-      border-radius: 10px;
-      cursor: pointer;
-      background: transparent;
-      transition: background 0.2s;
-    }
-
-    .tree-summary:hover {
-      background: rgba(56, 189, 248, 0.08);
-    }
-
-    .tree-label {
-      font-weight: 600;
-      font-size: 1rem;
-    }
-
-    .tree-meta {
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      margin-left: 12px;
-    }
-
-    .tree-children {
-      padding-left: 12px;
-      margin-left: 8px;
-      border-left: 1px solid rgba(148, 163, 184, 0.15);
-      display: grid;
-      gap: 10px;
-      margin-top: 6px;
-    }
-
-    .file-list {
-      list-style: none;
-      padding-left: 0;
-      margin: 6px 0 0 0;
-      display: grid;
-      gap: 4px;
-    }
-
-    .file-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 6px 10px;
-      border-radius: 8px;
-      background: rgba(15, 23, 42, 0.45);
-      border: 1px solid transparent;
-    }
-
-    .file-item:hover {
-      border-color: rgba(56, 189, 248, 0.4);
-      background: rgba(15, 23, 42, 0.7);
-    }
-
-    .file-name {
-      font-family: "Segoe UI", "Inter", -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
-    }
-
-    .file-size {
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      margin-left: 12px;
-      white-space: nowrap;
-    }
-
-    .empty-indicator {
-      margin: 4px 0 0 0;
-      padding: 6px 10px;
-      border-radius: 8px;
-      background: rgba(15, 23, 42, 0.4);
-      color: var(--text-muted);
-      font-size: 0.9rem;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      border: 0;
-    }
-
-    @media (max-width: 720px) {
-      .tree {
-        padding: 16px;
-      }
-
-      .picker-label {
-        padding: 16px;
-      }
-
-      .tree-summary {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 6px;
-      }
-
-      .selection-label {
-        white-space: normal;
-      }
-
-      .toolbar {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .toolbar .btn {
-        width: 100%;
-      }
-
-      .toolbar-spacer {
-        display: none;
-      }
+    @media (max-width:720px){
+      .tree{ padding:14px }
+      .picker-label{ padding:16px }
+      .tree-summary{ flex-direction:column; align-items:flex-start; gap:6px }
+      .selection-label{ white-space:normal }
+      .toolbar{ flex-direction:column; align-items:stretch }
+      .toolbar .btn{ width:100% }
+      .toolbar-spacer{ display:none }
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="app">
-    <header class="header">
-      <h1>Music Library Explorer</h1>
-      <p>Scan your local music folder to browse artists, albums, and MP3 tracks in a nested tree view. The scan is read-only and stays on this page.</p>
-    </header>
+  <div class="app" id="app" data-theme="dark">
+    <section class="card">
+      <div class="card-inner">
+        <h1>Music Library Explorer</h1>
+        <p class="sub">Scan your local music folder to browse artists, albums, and MP3 tracks in a nested tree view. The scan is read-only and stays on this page.</p>
+      </div>
+    </section>
 
     <section class="picker" aria-labelledby="pickerTitle">
       <h2 class="visually-hidden" id="pickerTitle">Select Music Folder</h2>
@@ -472,6 +215,7 @@
 
   <script>
     (function () {
+      const appRoot = document.getElementById('app');
       const folderInput = document.getElementById('folderPicker');
       const messageEl = document.getElementById('message');
       const treeContainer = document.getElementById('treeContainer');
@@ -492,6 +236,14 @@
         artistSize: null,
         artistDistribution: null
       };
+
+      let lastFiles = null;
+
+      function getVar(name){
+        return getComputedStyle(appRoot).getPropertyValue(name).trim() || '';
+      }
+
+      // Theme toggle removed with top bar; default theme is dark.
 
       if (!('webkitdirectory' in folderInput)) {
         showMessage('This browser does not support folder uploads. Please try Chrome, Edge, or another Chromium-based browser.', 'warning');
@@ -514,6 +266,7 @@
               folderInput.value = '';
               return;
             }
+            lastFiles = mp3Files;
             const tree = buildTree(mp3Files);
             renderTree(tree);
             updateStats(mp3Files);
@@ -744,7 +497,6 @@
         });
       }
 
-      // Expand artists (depth 0 and 1), collapse deeper levels to hide tracks
       function setArtistsExpanded() {
         const detailsList = treeContainer.querySelectorAll('details.tree-folder');
         detailsList.forEach((detail) => {
@@ -803,76 +555,81 @@
         const topAlbumsByTracks = topEntriesFromMap(albumCounts, 20);
         const topArtistsBySize = topEntriesFromMap(artistSizes, 20);
 
-        // Show section only if we have artist data
         if (!topArtistsByTracks.length && !topAlbumsByTracks.length && !topArtistsBySize.length) {
           chartsSection.classList.add('hidden');
           return;
         }
         chartsSection.classList.remove('hidden');
 
-        // Horizontal bar: Top Artists by Tracks
+        const textColor = getVar('--text') || 'rgba(226,232,240,0.9)';
+        const gridColor = getVar('--grid') || 'rgba(148,163,184,0.15)';
+        const gridSoft = getVar('--grid-soft') || 'rgba(148,163,184,0.1)';
+
         chartInstances.topArtists = createHorizontalBarChart(
           'topArtistsChart',
           topArtistsByTracks.map(([name]) => name),
           {
             label: 'Tracks',
             data: topArtistsByTracks.map(([, count]) => count),
-            backgroundColor: 'rgba(56, 189, 248, 0.7)',
-            borderColor: 'rgba(56, 189, 248, 1)',
+            backgroundColor: 'rgba(91, 156, 255, 0.75)',
+            borderColor: 'rgba(91, 156, 255, 1)',
             borderWidth: 1
           },
           {
             plugins: { tooltip: { callbacks: { label: (ctx) => 'Tracks: ' + ctx.parsed.x } } },
-            scales: { x: { ticks: { precision: 0 } } }
+            scales: { x: { ticks: { precision: 0 } } },
+            colorVars: { textColor, gridColor, gridSoft }
           }
         );
 
-        // Horizontal bar: Top Albums by Tracks
         chartInstances.topAlbums = createHorizontalBarChart(
           'topAlbumsChart',
           topAlbumsByTracks.map(([name]) => name),
           {
             label: 'Tracks',
             data: topAlbumsByTracks.map(([, count]) => count),
-            backgroundColor: 'rgba(16, 185, 129, 0.7)',
-            borderColor: 'rgba(16, 185, 129, 1)',
+            backgroundColor: 'rgba(34, 197, 94, 0.75)',
+            borderColor: 'rgba(34, 197, 94, 1)',
             borderWidth: 1
           },
           {
             plugins: { tooltip: { callbacks: { label: (ctx) => 'Tracks: ' + ctx.parsed.x } } },
-            scales: { x: { ticks: { precision: 0 } } }
+            scales: { x: { ticks: { precision: 0 } } },
+            colorVars: { textColor, gridColor, gridSoft }
           }
         );
 
-        // Horizontal bar: Total Size by Artist
         chartInstances.artistSize = createHorizontalBarChart(
           'artistSizeChart',
           topArtistsBySize.map(([name]) => name),
           {
             label: 'Total Size',
             data: topArtistsBySize.map(([, size]) => size),
-            backgroundColor: 'rgba(239, 68, 68, 0.7)',
+            backgroundColor: 'rgba(239, 68, 68, 0.75)',
             borderColor: 'rgba(239, 68, 68, 1)',
             borderWidth: 1
           },
           {
             plugins: { tooltip: { callbacks: { label: (ctx) => 'Size: ' + formatBytes(ctx.parsed.x) } } },
-            scales: { x: { ticks: { callback: (v) => formatBytes(v) } } }
+            scales: { x: { ticks: { callback: (v) => formatBytes(v) } } },
+            colorVars: { textColor, gridColor, gridSoft }
           }
         );
 
-        // Pie: Track Distribution by Artist (top 12 + Others)
         const sortedArtists = Array.from(artistCounts.entries()).sort((a, b) => b[1] - a[1]);
         const top = sortedArtists.slice(0, 12);
         const othersTotal = sortedArtists.slice(12).reduce((sum, [, v]) => sum + v, 0);
         const pieLabels = top.map(([name]) => name).concat(othersTotal ? ['Others'] : []);
         const pieData = top.map(([, v]) => v).concat(othersTotal ? [othersTotal] : []);
-        chartInstances.artistDistribution = renderPieChart('artistDistributionChart', pieLabels, pieData);
+        chartInstances.artistDistribution = renderPieChart('artistDistributionChart', pieLabels, pieData, { textColor });
       }
 
       function createHorizontalBarChart(canvasId, labels, dataset, options = {}) {
         const canvas = document.getElementById(canvasId);
         const ctx = canvas.getContext('2d');
+        const textColor = options.colorVars?.textColor || 'rgba(226,232,240,0.9)';
+        const gridColor = options.colorVars?.gridColor || 'rgba(148,163,184,0.15)';
+        const gridSoft = options.colorVars?.gridSoft || 'rgba(148,163,184,0.1)';
         const defaultOptions = {
           indexAxis: 'y',
           maintainAspectRatio: false,
@@ -880,20 +637,22 @@
           resizeDelay: 200,
           animation: false,
           scales: {
-            x: { beginAtZero: true, ticks: { color: 'rgba(226, 232, 240, 0.8)' }, grid: { color: 'rgba(148, 163, 184, 0.15)' } },
-            y: { ticks: { color: 'rgba(226, 232, 240, 0.8)' }, grid: { color: 'rgba(148, 163, 184, 0.1)' } }
+            x: { beginAtZero: true, ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
+            y: { ticks: { color: textColor }, grid: { color: gridSoft } }
           },
           plugins: { legend: { display: false } }
         };
+        const { colorVars, ...rest } = options;
         return new Chart(ctx, {
           type: 'bar',
           data: { labels, datasets: [dataset] },
-          options: { ...defaultOptions, ...options }
+          options: { ...defaultOptions, ...rest }
         });
       }
 
-      function renderPieChart(canvasId, labels, data) {
+      function renderPieChart(canvasId, labels, data, theme = {}) {
         const ctx = document.getElementById(canvasId).getContext('2d');
+        const textColor = theme.textColor || 'rgba(226,232,240,0.9)';
         return new Chart(ctx, {
           type: 'pie',
           data: {
@@ -909,7 +668,7 @@
             resizeDelay: 200,
             animation: false,
             plugins: {
-              legend: { position: 'bottom', labels: { color: 'rgba(226, 232, 240, 0.8)' } },
+              legend: { position: 'bottom', labels: { color: textColor } },
               tooltip: {
                 callbacks: {
                   label: (context) => {
