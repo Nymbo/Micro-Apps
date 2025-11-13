@@ -185,10 +185,6 @@
         <div class="chart-wrapper"><canvas id="topArtistsChart"></canvas></div>
       </div>
       <div class="chart-card">
-        <h3 class="chart-title">Top Albums by Tracks</h3>
-        <div class="chart-wrapper"><canvas id="topAlbumsChart"></canvas></div>
-      </div>
-      <div class="chart-card">
         <h3 class="chart-title">Total Size by Artist</h3>
         <div class="chart-wrapper"><canvas id="artistSizeChart"></canvas></div>
       </div>
@@ -232,7 +228,6 @@
 
       const chartInstances = {
         topArtists: null,
-        topAlbums: null,
         artistSize: null,
         artistDistribution: null
       };
@@ -512,7 +507,6 @@
       // --- Charts & Analytics ---
       function prepareAnalytics(files) {
         const artistCounts = new Map();
-        const albumCounts = new Map();
         const artistSizes = new Map();
 
         files.forEach((file) => {
@@ -521,15 +515,10 @@
             const artist = segments[1];
             artistCounts.set(artist, (artistCounts.get(artist) || 0) + 1);
             artistSizes.set(artist, (artistSizes.get(artist) || 0) + file.size);
-            if (segments.length >= 4) {
-              const album = segments[2];
-              const albumKey = artist + ' — ' + album;
-              albumCounts.set(albumKey, (albumCounts.get(albumKey) || 0) + 1);
-            }
           }
         });
 
-        return { artistCounts, albumCounts, artistSizes };
+        return { artistCounts, artistSizes };
       }
 
       function topEntriesFromMap(map, limit) {
@@ -548,14 +537,13 @@
       }
 
       function renderCharts(files) {
-        const { artistCounts, albumCounts, artistSizes } = prepareAnalytics(files);
+        const { artistCounts, artistSizes } = prepareAnalytics(files);
         destroyCharts();
 
         const topArtistsByTracks = topEntriesFromMap(artistCounts, 20);
-        const topAlbumsByTracks = topEntriesFromMap(albumCounts, 20);
         const topArtistsBySize = topEntriesFromMap(artistSizes, 20);
 
-        if (!topArtistsByTracks.length && !topAlbumsByTracks.length && !topArtistsBySize.length) {
+        if (!topArtistsByTracks.length && !topArtistsBySize.length) {
           chartsSection.classList.add('hidden');
           return;
         }
@@ -573,23 +561,6 @@
             data: topArtistsByTracks.map(([, count]) => count),
             backgroundColor: 'rgba(91, 156, 255, 0.75)',
             borderColor: 'rgba(91, 156, 255, 1)',
-            borderWidth: 1
-          },
-          {
-            plugins: { tooltip: { callbacks: { label: (ctx) => 'Tracks: ' + ctx.parsed.x } } },
-            scales: { x: { ticks: { precision: 0 } } },
-            colorVars: { textColor, gridColor, gridSoft }
-          }
-        );
-
-        chartInstances.topAlbums = createHorizontalBarChart(
-          'topAlbumsChart',
-          topAlbumsByTracks.map(([name]) => name),
-          {
-            label: 'Tracks',
-            data: topAlbumsByTracks.map(([, count]) => count),
-            backgroundColor: 'rgba(34, 197, 94, 0.75)',
-            borderColor: 'rgba(34, 197, 94, 1)',
             borderWidth: 1
           },
           {
