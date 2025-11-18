@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TFGON Cards Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/luaparse@0.3.1/luaparse.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .file-drop-zone:hover { border-color: #38bdf8; }
+        .chart-wrapper { height: 22rem; }
+        canvas { width: 100% !important; height: 100% !important; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
+        <header class="text-center space-y-3">
+            <p class="text-sm tracking-widest text-slate-400 uppercase">The Fine Game of Nil</p>
+            <h1 class="text-4xl sm:text-5xl font-bold text-slate-100">TFGON Cards Analyzer</h1>
+            <p class="text-base text-slate-400 max-w-3xl mx-auto">Upload the latest <code>cards.lua</code> file to explore deck-building stats, archetype balance, keyword usage, and effect coverage. All processing stays in your browser.</p>
+        </header>
+
+        <section id="upload-section" class="max-w-3xl mx-auto">
+            <label for="luaUpload" class="file-drop-zone flex flex-col items-center justify-center w-full h-52 border-2 border-dashed border-slate-700 bg-slate-900/50 rounded-2xl cursor-pointer transition-colors">
+                <svg class="w-12 h-12 text-slate-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h2l2-2h6l2 2h2a4 4 0 014 4v5a4 4 0 01-4 4H7z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <p class="text-sm font-semibold text-slate-200">Select your <code>cards.lua</code> file</p>
+                <p class="text-xs text-slate-500 mt-1">The analyzer only works with a user-supplied Lua file.</p>
+            </label>
+            <input id="luaUpload" type="file" accept=".lua" class="hidden" />
+            <p class="text-xs text-center text-slate-500 mt-3">Tip: export from source control to ensure your data matches the current build.</p>
+        </section>
+
+        <div id="message-display" class="hidden text-center text-sm px-4 py-3 rounded-xl"></div>
+
+        <div id="loading-state" class="hidden text-center py-12">
+            <div class="flex items-center justify-center space-x-3 text-slate-400">
+                <svg class="w-6 h-6 animate-spin text-sky-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                <span>Parsing Lua and generating charts&hellip;</span>
+            </div>
+        </div>
+
+        <section id="analysis-section" class="space-y-10 hidden">
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl px-6 py-5 flex flex-col gap-2 text-sm text-slate-400">
+                <span id="fileName" class="text-base font-semibold text-slate-100"></span>
+                <span id="cardCountMeta"></span>
+                <span id="lastUpdated"></span>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Total Cards</p>
+                    <p id="totalCards" class="text-3xl font-bold text-slate-100 mt-2">-</p>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Minions</p>
+                    <p id="minionCount" class="text-3xl font-bold text-slate-100 mt-2">-</p>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Spells</p>
+                    <p id="spellCount" class="text-3xl font-bold text-slate-100 mt-2">-</p>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Weapons</p>
+                    <p id="weaponCount" class="text-3xl font-bold text-slate-100 mt-2">-</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <header>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Composition</p>
+                        <h2 class="text-xl font-semibold text-slate-100">Card Types</h2>
+                    </header>
+                    <div class="chart-wrapper">
+                        <canvas id="cardTypeChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <header>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Combat Lanes</p>
+                        <h2 class="text-xl font-semibold text-slate-100">Archetypes</h2>
+                    </header>
+                    <div class="chart-wrapper">
+                        <canvas id="archetypeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <header>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Lineage Pressure</p>
+                        <h2 class="text-xl font-semibold text-slate-100">Families</h2>
+                    </header>
+                    <div class="chart-wrapper">
+                        <canvas id="familyChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <header>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Passive Keywords</p>
+                        <h2 class="text-xl font-semibold text-slate-100">Ability Flags</h2>
+                    </header>
+                    <div class="chart-wrapper">
+                        <canvas id="keywordChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                <header>
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Triggered & Passive Effects</p>
+                    <h2 class="text-xl font-semibold text-slate-100">Effect Triggers</h2>
+                </header>
+                <div class="chart-wrapper">
+                    <canvas id="effectChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <header>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Economy Spread</p>
+                        <h2 class="text-xl font-semibold text-slate-100">Mana Costs</h2>
+                    </header>
+                    <div class="chart-wrapper">
+                        <canvas id="costChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <header>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Combat Output</p>
+                        <h2 class="text-xl font-semibold text-slate-100">Attack Values</h2>
+                    </header>
+                    <div class="chart-wrapper">
+                        <canvas id="attackChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <header>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Survivability Profile</p>
+                        <h2 class="text-xl font-semibold text-slate-100">Health Values</h2>
+                    </header>
+                    <div class="chart-wrapper">
+                        <canvas id="healthChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <header>
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Board Control</p>
+                        <h2 class="text-xl font-semibold text-slate-100">Movement Values</h2>
+                    </header>
+                    <div class="chart-wrapper">
+                        <canvas id="movementChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('luaUpload');
+        const messageDisplay = document.getElementById('message-display');
+        const loadingState = document.getElementById('loading-state');
+        const analysisSection = document.getElementById('analysis-section');
+        const cardTypeEl = document.getElementById('cardTypeChart');
+        const chartRegistry = new Map();
+
+        const FAMILY_COLORS = {
+            Sentinel: 'rgba(204, 204, 77, 0.85)',
+            Arcanist: 'rgba(128, 51, 153, 0.85)',
+            Ranger: 'rgba(77, 153, 64, 0.85)',
+            Aegisward: 'rgba(51, 153, 179, 0.85)',
+            Berserker: 'rgba(191, 51, 51, 0.85)',
+            Beast: 'rgba(140, 102, 64, 0.85)',
+            Unaffiliated: 'rgba(120, 120, 120, 0.85)'
+        };
+
+        const ABILITY_FLAG_COLORS = {
+            'Defensive Stance': 'rgba(10, 67, 128, 0.75)',
+            'Glancing Blows': 'rgba(131, 33, 38, 0.75)',
+            Healer: 'rgba(32, 100, 41, 0.75)',
+            Lifesteal: 'rgba(107, 41, 117, 0.75)',
+            Retreat: 'rgba(8, 94, 83, 0.75)',
+            Swiftstrike: 'rgba(193, 115, 39, 0.75)'
+        };
+
+        const EFFECT_TRIGGER_COLORS = {
+            'On Summon': 'rgba(204, 179, 128, 0.75)',
+            'On Death': 'rgba(204, 179, 128, 0.75)',
+            'On Use': 'rgba(204, 179, 128, 0.75)',
+            Gambit: 'rgba(89, 51, 128, 0.75)',
+            Passive: 'rgba(148, 163, 184, 0.8)',
+            Instant: 'rgba(56, 189, 248, 0.7)'
+        };
+
+        const STAT_COLORS = {
+            cost: 'rgba(51, 102, 204, 0.95)',
+            attack: 'rgba(230, 204, 51, 0.95)',
+            health: 'rgba(204, 51, 51, 0.95)',
+            movement: 'rgba(230, 230, 230, 0.95)'
+        };
+
+        Chart.defaults.color = 'rgba(226, 232, 240, 0.95)';
+        Chart.defaults.font.family = 'Inter, sans-serif';
+        Chart.defaults.plugins.legend.labels.usePointStyle = true;
+
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            if (typeof window.luaparse === 'undefined') {
+                showMessage('luaparse failed to load from the CDN. Please refresh and ensure you are online.', 'error');
+                fileInput.value = '';
+                return;
+            }
+            resetUI();
+            showLoading(true);
+            try {
+                const text = await file.text();
+                const cards = parseLuaCards(text);
+                if (!Array.isArray(cards) || cards.length === 0) {
+                    throw new Error('No card entries were detected.');
+                }
+                const normalized = cards.map(normalizeCard);
+                const aggregates = buildAggregations(normalized);
+                renderSummary(file, aggregates);
+                renderCharts(aggregates);
+                analysisSection.classList.remove('hidden');
+                showMessage('Parsed and visualized "' + file.name + '" successfully.', 'success');
+            } catch (error) {
+                showMessage(error.message || 'Unable to parse the provided file.', 'error');
+                analysisSection.classList.add('hidden');
+            } finally {
+                showLoading(false);
+                fileInput.value = '';
+            }
+        });
+
+        function resetUI() {
+            destroyAllCharts();
+            showMessage('', 'reset');
+        }
+
+        function showLoading(isLoading) {
+            loadingState.classList.toggle('hidden', !isLoading);
+        }
+
+        function showMessage(text, variant) {
+            if (!text) {
+                messageDisplay.classList.add('hidden');
+                return;
+            }
+            messageDisplay.textContent = text;
+            messageDisplay.className = 'text-center text-sm px-4 py-3 rounded-xl';
+            if (variant === 'success') {
+                messageDisplay.classList.add('bg-emerald-500/10', 'text-emerald-300');
+            } else if (variant === 'error') {
+                messageDisplay.classList.add('bg-rose-500/10', 'text-rose-300');
+            } else {
+                messageDisplay.classList.add('bg-slate-800', 'text-slate-200');
+            }
+            messageDisplay.classList.remove('hidden');
+        }
+
+        function parseLuaCards(luaSource) {
+            let ast;
+            try {
+                ast = luaparse.parse(luaSource, {
+                    luaVersion: '5.3',
+                    encodingMode: 'pseudo-latin1'
+                });
+            } catch (parseError) {
+                throw new Error('Lua parsing failed: ' + parseError.message);
+            }
+            const returnNode = ast.body.find(node => node.type === 'ReturnStatement');
+            if (!returnNode || !returnNode.arguments.length) {
+                throw new Error('No return statement containing card data was found.');
+            }
+            const tableArg = returnNode.arguments[0];
+            if (!tableArg || tableArg.type !== 'TableConstructorExpression') {
+                throw new Error('Returned value is not a table literal.');
+            }
+            const jsValue = luaNodeToJs(tableArg);
+            if (!Array.isArray(jsValue)) {
+                throw new Error('Expected the returned table to behave like an array of cards.');
+            }
+            return jsValue;
+        }
+
+        function luaNodeToJs(node) {
+            if (!node) return null;
+            switch (node.type) {
+                case 'NumericLiteral':
+                case 'StringLiteral':
+                case 'BooleanLiteral':
+                    return node.value;
+                case 'NilLiteral':
+                    return null;
+                case 'UnaryExpression':
+                    if (node.operator === '-') {
+                        return -luaNodeToJs(node.argument);
+                    }
+                    throw new Error('Unsupported unary operator: ' + node.operator);
+                case 'TableConstructorExpression':
+                    return luaTableToJs(node);
+                default:
+                    throw new Error('Unsupported Lua node type: ' + node.type);
+            }
+        }
+
+        function luaTableToJs(node) {
+            const allValues = node.fields.every(field => field.type === 'TableValue');
+            if (allValues) {
+                return node.fields.map(field => luaNodeToJs(field.value));
+            }
+            const result = {};
+            node.fields.forEach(field => {
+                if (field.type === 'TableKeyString') {
+                    result[field.key.name] = luaNodeToJs(field.value);
+                } else if (field.type === 'TableValue') {
+                    const currentSize = Object.keys(result).length;
+                    result[currentSize + 1] = luaNodeToJs(field.value);
+                } else {
+                    throw new Error('Encountered an unsupported table field type: ' + field.type);
+                }
+            });
+            return result;
+        }
+
+        function normalizeCard(card) {
+            return {
+                ...card,
+                families: Array.isArray(card.families) ? card.families : [],
+                effects: Array.isArray(card.effects) ? card.effects : [],
+                cardType: card.cardType || 'Unknown',
+                archetype: card.archetype || null
+            };
+        }
+
+        function buildAggregations(cards) {
+            const byType = countBy(cards, card => card.cardType || 'Unknown');
+            const byArchetype = {};
+            const familyCounts = {};
+            const keywordCounts = {};
+            const effectTriggerCounts = {};
+            const statMaps = {
+                cost: {},
+                attack: {},
+                health: {},
+                movement: {}
+            };
+
+            cards.forEach(card => {
+                const isMinion = (card.cardType === 'Minion');
+                const archetypeLabel = card.archetype ? formatLabel(card.archetype) : null;
+                if (archetypeLabel) {
+                    byArchetype[archetypeLabel] = (byArchetype[archetypeLabel] || 0) + 1;
+                }
+
+                if (Array.isArray(card.families) && card.families.length) {
+                    card.families.forEach(family => {
+                        const label = formatLabel(family);
+                        familyCounts[label] = (familyCounts[label] || 0) + 1;
+                    });
+                } else if (isMinion) {
+                    familyCounts['Unaffiliated'] = (familyCounts['Unaffiliated'] || 0) + 1;
+                }
+
+                Object.entries(card).forEach(([key, value]) => {
+                    if (typeof value === 'boolean' && value) {
+                        const label = formatLabel(key);
+                        keywordCounts[label] = (keywordCounts[label] || 0) + 1;
+                    }
+                });
+
+                if (Array.isArray(card.effects)) {
+                    card.effects.forEach(effect => {
+                        const trigger = effect.trigger ? formatLabel(effect.trigger) : 'Instant';
+                        effectTriggerCounts[trigger] = (effectTriggerCounts[trigger] || 0) + 1;
+                    });
+                }
+
+                Object.entries(statMaps).forEach(([stat, map]) => {
+                    const value = card[stat];
+                    if (typeof value === 'number' && !Number.isNaN(value)) {
+                        map[value] = (map[value] || 0) + 1;
+                    }
+                });
+            });
+
+            return {
+                totalCards: cards.length,
+                byType,
+                byArchetype,
+                familyCounts,
+                keywordCounts,
+                effectTriggerCounts,
+                stats: statMaps
+            };
+        }
+
+        function countBy(items, selector) {
+            return items.reduce((acc, item) => {
+                const key = selector(item);
+                if (!key) return acc;
+                const label = formatLabel(key);
+                acc[label] = (acc[label] || 0) + 1;
+                return acc;
+            }, {});
+        }
+
+        function formatLabel(value) {
+            if (typeof value !== 'string') return String(value);
+            return value
+                .replace(/_/g, ' ')
+                .replace(/([a-z])([A-Z])/g, '$1 $2')
+                .split(' ')
+                .filter(Boolean)
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+        }
+
+        function renderSummary(file, aggregates) {
+            document.getElementById('fileName').textContent = 'File: ' + file.name;
+            document.getElementById('cardCountMeta').textContent = 'Parsed ' + aggregates.totalCards + ' cards in total.';
+            document.getElementById('lastUpdated').textContent = 'Generated at ' + new Date().toLocaleString();
+            document.getElementById('totalCards').textContent = aggregates.totalCards;
+            document.getElementById('minionCount').textContent = aggregates.byType['Minion'] || 0;
+            document.getElementById('spellCount').textContent = aggregates.byType['Spell'] || 0;
+            document.getElementById('weaponCount').textContent = aggregates.byType['Weapon'] || 0;
+        }
+
+        function renderCharts(aggregates) {
+            destroyAllCharts();
+            mountPie('cardTypeChart', aggregates.byType, ['#38bdf8', '#a855f7', '#f97316', '#22c55e']);
+            mountBar('archetypeChart', aggregates.byArchetype);
+            mountBar('familyChart', aggregates.familyCounts, {
+                horizontal: true,
+                colorResolver: (label) => FAMILY_COLORS[label] || 'rgba(56, 189, 248, 0.7)'
+            });
+            mountBar('keywordChart', aggregates.keywordCounts, {
+                horizontal: true,
+                colorResolver: (label) => ABILITY_FLAG_COLORS[label] || 'rgba(56, 189, 248, 0.7)'
+            });
+            mountBar('effectChart', aggregates.effectTriggerCounts, {
+                horizontal: true,
+                colorResolver: (label) => EFFECT_TRIGGER_COLORS[label] || 'rgba(56, 189, 248, 0.7)'
+            });
+            mountBar('costChart', aggregates.stats.cost, { numericLabels: true, label: 'Cards', backgroundColor: STAT_COLORS.cost });
+            mountBar('attackChart', aggregates.stats.attack, { numericLabels: true, label: 'Cards', backgroundColor: STAT_COLORS.attack });
+            mountBar('healthChart', aggregates.stats.health, { numericLabels: true, label: 'Cards', backgroundColor: STAT_COLORS.health });
+            mountBar('movementChart', aggregates.stats.movement, { numericLabels: true, label: 'Cards', backgroundColor: STAT_COLORS.movement });
+        }
+
+        function mountPie(canvasId, dataMap, colors) {
+            const { labels, values } = prepareChartData(dataMap);
+            const chart = new Chart(document.getElementById(canvasId).getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: colors || ['#38bdf8', '#0ea5e9', '#6366f1', '#a855f7', '#f97316']
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+            chartRegistry.set(canvasId, chart);
+        }
+
+        function mountBar(canvasId, dataMap, options = {}) {
+            const { labels, values } = prepareChartData(dataMap, options);
+            const datasetColor = 'rgba(56, 189, 248, 0.7)';
+            const baseColor = options.backgroundColor || datasetColor;
+            const colors = options.colorResolver
+                ? labels.map(label => options.colorResolver(label))
+                : baseColor;
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: options.label || 'Count',
+                        data: values,
+                        backgroundColor: colors,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: options.horizontal ? 'y' : 'x',
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    scales: {
+                        x: {
+                            ticks: { color: 'rgba(226,232,240,0.8)' },
+                            grid: { color: 'rgba(15, 23, 42, 0.6)' }
+                        },
+                        y: {
+                            ticks: { color: 'rgba(226,232,240,0.8)' },
+                            grid: { color: 'rgba(15, 23, 42, 0.6)' }
+                        }
+                    }
+                }
+            });
+            chartRegistry.set(canvasId, chart);
+        }
+
+        function prepareChartData(dataMap, options = {}) {
+            const entries = Object.entries(dataMap || {}).filter(([, value]) => value > 0);
+            if (!entries.length) {
+                entries.push(['No Data', 0]);
+            } else if (options.numericLabels) {
+                entries.sort((a, b) => Number(a[0]) - Number(b[0]));
+            } else {
+                entries.sort((a, b) => b[1] - a[1]);
+            }
+            return {
+                labels: entries.map(([label]) => label),
+                values: entries.map(([, value]) => value)
+            };
+        }
+
+        function destroyAllCharts() {
+            chartRegistry.forEach(chart => chart.destroy());
+            chartRegistry.clear();
+        }
+    </script>
+</body>
+</html>
