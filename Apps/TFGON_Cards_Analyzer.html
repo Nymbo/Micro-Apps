@@ -1,544 +1,672 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFGON Cards Analyzer</title>
+    <title>TFGON Cards Analyzer Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://unpkg.com/luaparse@0.3.1/luaparse.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .file-drop-zone:hover { border-color: #38bdf8; }
-        .chart-wrapper { height: 22rem; }
-        canvas { width: 100% !important; height: 100% !important; }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-200 min-h-screen">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
-        <header class="text-center space-y-3">
-            <p class="text-sm tracking-widest text-slate-400 uppercase">The Fine Game of Nil</p>
-            <h1 class="text-4xl sm:text-5xl font-bold text-slate-100">TFGON Cards Analyzer</h1>
-            <p class="text-base text-slate-400 max-w-3xl mx-auto">Upload the latest <code>cards.lua</code> file to explore deck-building stats, archetype balance, keyword usage, and effect coverage. All processing stays in your browser.</p>
-        </header>
-
-        <section id="upload-section" class="max-w-3xl mx-auto">
-            <label for="luaUpload" class="file-drop-zone flex flex-col items-center justify-center w-full h-52 border-2 border-dashed border-slate-700 bg-slate-900/50 rounded-2xl cursor-pointer transition-colors">
-                <svg class="w-12 h-12 text-slate-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h2l2-2h6l2 2h2a4 4 0 014 4v5a4 4 0 01-4 4H7z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <p class="text-sm font-semibold text-slate-200">Select your <code>cards.lua</code> file</p>
-                <p class="text-xs text-slate-500 mt-1">The analyzer only works with a user-supplied Lua file.</p>
-            </label>
-            <input id="luaUpload" type="file" accept=".lua" class="hidden" />
-            <p class="text-xs text-center text-slate-500 mt-3">Tip: export from source control to ensure your data matches the current build.</p>
-        </section>
-
-        <div id="message-display" class="hidden text-center text-sm px-4 py-3 rounded-xl"></div>
-
-        <div id="loading-state" class="hidden text-center py-12">
-            <div class="flex items-center justify-center space-x-3 text-slate-400">
-                <svg class="w-6 h-6 animate-spin text-sky-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                <span>Parsing Lua and generating charts&hellip;</span>
-            </div>
-        </div>
-
-        <section id="analysis-section" class="space-y-10 hidden">
-            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl px-6 py-5 flex flex-col gap-2 text-sm text-slate-400">
-                <span id="fileName" class="text-base font-semibold text-slate-100"></span>
-                <span id="cardCountMeta"></span>
-                <span id="lastUpdated"></span>
-            </div>
-
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                    <p class="text-xs uppercase tracking-wide text-slate-500">Total Cards</p>
-                    <p id="totalCards" class="text-3xl font-bold text-slate-100 mt-2">-</p>
-                </div>
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                    <p class="text-xs uppercase tracking-wide text-slate-500">Minions</p>
-                    <p id="minionCount" class="text-3xl font-bold text-slate-100 mt-2">-</p>
-                </div>
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                    <p class="text-xs uppercase tracking-wide text-slate-500">Spells</p>
-                    <p id="spellCount" class="text-3xl font-bold text-slate-100 mt-2">-</p>
-                </div>
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-                    <p class="text-xs uppercase tracking-wide text-slate-500">Weapons</p>
-                    <p id="weaponCount" class="text-3xl font-bold text-slate-100 mt-2">-</p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-                    <header>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">Composition</p>
-                        <h2 class="text-xl font-semibold text-slate-100">Card Types</h2>
-                    </header>
-                    <div class="chart-wrapper">
-                        <canvas id="cardTypeChart"></canvas>
-                    </div>
-                </div>
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-                    <header>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">Combat Lanes</p>
-                        <h2 class="text-xl font-semibold text-slate-100">Archetypes</h2>
-                    </header>
-                    <div class="chart-wrapper">
-                        <canvas id="archetypeChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-                    <header>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">Lineage Pressure</p>
-                        <h2 class="text-xl font-semibold text-slate-100">Families</h2>
-                    </header>
-                    <div class="chart-wrapper">
-                        <canvas id="familyChart"></canvas>
-                    </div>
-                </div>
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-                    <header>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">Passive Keywords</p>
-                        <h2 class="text-xl font-semibold text-slate-100">Ability Flags</h2>
-                    </header>
-                    <div class="chart-wrapper">
-                        <canvas id="keywordChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-                <header>
-                    <p class="text-xs uppercase tracking-wide text-slate-500">Triggered & Passive Effects</p>
-                    <h2 class="text-xl font-semibold text-slate-100">Effect Triggers</h2>
-                </header>
-                <div class="chart-wrapper">
-                    <canvas id="effectChart"></canvas>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-                    <header>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">Economy Spread</p>
-                        <h2 class="text-xl font-semibold text-slate-100">Mana Costs</h2>
-                    </header>
-                    <div class="chart-wrapper">
-                        <canvas id="costChart"></canvas>
-                    </div>
-                </div>
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-                    <header>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">Combat Output</p>
-                        <h2 class="text-xl font-semibold text-slate-100">Attack Values</h2>
-                    </header>
-                    <div class="chart-wrapper">
-                        <canvas id="attackChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-                    <header>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">Survivability Profile</p>
-                        <h2 class="text-xl font-semibold text-slate-100">Health Values</h2>
-                    </header>
-                    <div class="chart-wrapper">
-                        <canvas id="healthChart"></canvas>
-                    </div>
-                </div>
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-                    <header>
-                        <p class="text-xs uppercase tracking-wide text-slate-500">Board Control</p>
-                        <h2 class="text-xl font-semibold text-slate-100">Movement Values</h2>
-                    </header>
-                    <div class="chart-wrapper">
-                        <canvas id="movementChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
 
     <script>
-        const fileInput = document.getElementById('luaUpload');
-        const messageDisplay = document.getElementById('message-display');
-        const loadingState = document.getElementById('loading-state');
-        const analysisSection = document.getElementById('analysis-section');
-        const cardTypeEl = document.getElementById('cardTypeChart');
-        const chartRegistry = new Map();
-
-        const FAMILY_COLORS = {
-            Sentinel: 'rgba(204, 204, 77, 0.85)',
-            Arcanist: 'rgba(128, 51, 153, 0.85)',
-            Ranger: 'rgba(77, 153, 64, 0.85)',
-            Aegisward: 'rgba(51, 153, 179, 0.85)',
-            Berserker: 'rgba(191, 51, 51, 0.85)',
-            Beast: 'rgba(140, 102, 64, 0.85)',
-            Unaffiliated: 'rgba(120, 120, 120, 0.85)'
-        };
-
-        const ABILITY_FLAG_COLORS = {
-            'Defensive Stance': 'rgba(10, 67, 128, 0.75)',
-            'Glancing Blows': 'rgba(131, 33, 38, 0.75)',
-            Healer: 'rgba(32, 100, 41, 0.75)',
-            Lifesteal: 'rgba(107, 41, 117, 0.75)',
-            Retreat: 'rgba(8, 94, 83, 0.75)',
-            Swiftstrike: 'rgba(193, 115, 39, 0.75)'
-        };
-
-        const EFFECT_TRIGGER_COLORS = {
-            'On Summon': 'rgba(204, 179, 128, 0.75)',
-            'On Death': 'rgba(204, 179, 128, 0.75)',
-            'On Use': 'rgba(204, 179, 128, 0.75)',
-            Gambit: 'rgba(89, 51, 128, 0.75)',
-            Passive: 'rgba(148, 163, 184, 0.8)',
-            Instant: 'rgba(56, 189, 248, 0.7)'
-        };
-
-        const STAT_COLORS = {
-            cost: 'rgba(51, 102, 204, 0.95)',
-            attack: 'rgba(230, 204, 51, 0.95)',
-            health: 'rgba(204, 51, 51, 0.95)',
-            movement: 'rgba(230, 230, 230, 0.95)'
-        };
-
-        Chart.defaults.color = 'rgba(226, 232, 240, 0.95)';
-        Chart.defaults.font.family = 'Inter, sans-serif';
-        Chart.defaults.plugins.legend.labels.usePointStyle = true;
-
-        fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            if (typeof window.luaparse === 'undefined') {
-                showMessage('luaparse failed to load from the CDN. Please refresh and ensure you are online.', 'error');
-                fileInput.value = '';
-                return;
-            }
-            resetUI();
-            showLoading(true);
-            try {
-                const text = await file.text();
-                const cards = parseLuaCards(text);
-                if (!Array.isArray(cards) || cards.length === 0) {
-                    throw new Error('No card entries were detected.');
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: { 850: '#172033', 900: '#0f172a', 950: '#020617' }
+                    }
                 }
-                const normalized = cards.map(normalizeCard);
-                const aggregates = buildAggregations(normalized);
-                renderSummary(file, aggregates);
-                renderCharts(aggregates);
-                analysisSection.classList.remove('hidden');
-                showMessage('Parsed and visualized "' + file.name + '" successfully.', 'success');
-            } catch (error) {
-                showMessage(error.message || 'Unable to parse the provided file.', 'error');
-                analysisSection.classList.add('hidden');
-            } finally {
-                showLoading(false);
-                fileInput.value = '';
             }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #020617;
+            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #020617 70%);
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+        }
+
+        .glass-panel:hover {
+            border-color: rgba(56, 189, 248, 0.5);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+
+<body class="text-slate-200 min-h-screen flex flex-col">
+
+    <nav class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-8 h-8 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-white">
+                        T</div>
+                    <span class="font-bold text-lg tracking-tight">TFGON <span
+                            class="text-slate-500 font-normal">Analyzer</span></span>
+                </div>
+                <div class="flex gap-4">
+                    <button id="resetBtn" class="hidden text-sm text-slate-400 hover:text-white transition-colors"
+                        onclick="resetUI()">Reset</button>
+                    <a href="#" class="text-sm text-slate-400 hover:text-sky-400 transition-colors">Documentation</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow px-4 py-8 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full space-y-8">
+
+        <!-- Header & Upload -->
+        <header id="upload-section" class="text-center space-y-8 transition-all duration-500">
+            <div class="space-y-4">
+                <h1
+                    class="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-400 pb-1">
+                    Deck Data Visualization
+                </h1>
+                <p class="text-slate-400 max-w-2xl mx-auto text-lg">
+                    Upload your <code>cards.lua</code> to analyze balance, mana curves, and archetype distribution
+                    securely in your browser.
+                </p>
+            </div>
+
+            <div class="max-w-2xl mx-auto">
+                <label for="luaUpload"
+                    class="group relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-700 bg-slate-900/30 rounded-2xl cursor-pointer hover:border-sky-500 hover:bg-slate-800/50 transition-all duration-300 overflow-hidden">
+                    <div
+                        class="absolute inset-0 bg-gradient-to-tr from-sky-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    </div>
+                    <svg class="w-10 h-10 text-slate-500 group-hover:text-sky-400 mb-3 transition-colors transform group-hover:scale-110 duration-300"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h2l2-2h6l2 2h2a4 4 0 014 4v5a4 4 0 01-4 4H7z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <p class="text-sm font-semibold text-slate-300 group-hover:text-white">Click to select or drag file
+                        here</p>
+                    <p class="text-xs text-slate-500 mt-1 font-mono">cards.lua</p>
+                    <input id="luaUpload" type="file" accept=".lua" class="hidden" />
+                </label>
+            </div>
+
+            <div id="error-message"
+                class="hidden p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-300 text-sm max-w-2xl mx-auto">
+            </div>
+        </header>
+
+        <!-- Loading Spinner -->
+        <div id="loading-state" class="hidden flex-col items-center justify-center py-20 space-y-4">
+            <div class="w-12 h-12 border-4 border-slate-700 border-t-sky-500 rounded-full animate-spin"></div>
+            <p class="text-slate-400 animate-pulse">Processing Lua data...</p>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard" class="hidden space-y-8 animate-fade-in">
+
+            <!-- Control Bar -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 glass-panel p-4 rounded-xl">
+                <div class="flex flex-col sm:flex-row gap-4 items-center">
+                    <div>
+                        <h2 class="text-lg font-bold text-white" id="fileName">Data Report</h2>
+                        <p class="text-xs text-slate-400" id="fileMeta">Generated just now</p>
+                    </div>
+                    <div class="h-8 w-px bg-slate-700 hidden sm:block"></div>
+                    <div class="flex bg-slate-800 rounded-lg p-1">
+                        <button
+                            class="filter-btn px-3 py-1 rounded-md text-xs font-medium bg-slate-700 text-white shadow-sm"
+                            data-type="All">All</button>
+                        <button
+                            class="filter-btn px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white"
+                            data-type="Minion">Minions</button>
+                        <button
+                            class="filter-btn px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white"
+                            data-type="Spell">Spells</button>
+                        <button
+                            class="filter-btn px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white"
+                            data-type="Weapon">Weapons</button>
+                    </div>
+                </div>
+                <div class="flex gap-4 text-center">
+                    <div>
+                        <p class="text-xs text-slate-500 uppercase tracking-wider">Count</p>
+                        <p class="text-xl font-bold text-white" id="displayTotal">-</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 uppercase tracking-wider">Avg Cost</p>
+                        <p class="text-xl font-bold text-sky-400" id="displayAvgCost">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Primary Charts Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Distribution -->
+                <div class="glass-panel rounded-2xl p-5 flex flex-col">
+                    <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-sky-400"></span> Type Distribution
+                    </h3>
+                    <div class="chart-container flex-grow">
+                        <canvas id="chartTypes"></canvas>
+                    </div>
+                </div>
+
+                <!-- Cost Curve -->
+                <div class="glass-panel rounded-2xl p-5 col-span-1 lg:col-span-2 flex flex-col">
+                    <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-indigo-400"></span> Mana Curve & Efficiency
+                    </h3>
+                    <div class="chart-container flex-grow">
+                        <canvas id="chartCost"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Secondary Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="glass-panel rounded-2xl p-5">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase mb-3">Attack Spread</h3>
+                    <div class="h-32 w-full"><canvas id="chartAttack"></canvas></div>
+                </div>
+                <div class="glass-panel rounded-2xl p-5">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase mb-3">Health Spread</h3>
+                    <div class="h-32 w-full"><canvas id="chartHealth"></canvas></div>
+                </div>
+                <div class="glass-panel rounded-2xl p-5">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase mb-3">Archetypes</h3>
+                    <div class="h-32 w-full"><canvas id="chartArchetype"></canvas></div>
+                </div>
+                <div class="glass-panel rounded-2xl p-5">
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase mb-3">Top Keywords</h3>
+                    <div class="h-32 w-full"><canvas id="chartKeywords"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Card Browser -->
+            <div class="glass-panel rounded-2xl overflow-hidden flex flex-col">
+                <div
+                    class="p-5 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <h3 class="text-lg font-semibold text-slate-200">Card Browser</h3>
+                    <input type="text" id="cardSearch" placeholder="Search cards..."
+                        class="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-lg focus:ring-sky-500 focus:border-sky-500 block w-full sm:w-64 p-2 placeholder-slate-500">
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-400">
+                        <thead class="text-xs text-slate-400 uppercase bg-slate-900/50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3">Name / ID</th>
+                                <th scope="col" class="px-6 py-3 cursor-pointer hover:text-white"
+                                    onclick="sortTable('cost')">Cost</th>
+                                <th scope="col" class="px-6 py-3">Type</th>
+                                <th scope="col" class="px-6 py-3">Stats (A/H/M)</th>
+                                <th scope="col" class="px-6 py-3">Archetype</th>
+                                <th scope="col" class="px-6 py-3">Tags</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cardTableBody" class="divide-y divide-slate-800">
+                            <!-- Rows populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-slate-800 bg-slate-900/30 text-center text-xs text-slate-500">
+                    Showing top <span id="tableCount">0</span> matches (search to filter)
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /* --- State & Globals --- */
+        let RAW_DATA = [];
+        let ACTIVE_FILTER = 'All';
+        const CHARTS = {};
+
+        const COLORS = {
+            sky: 'rgba(56, 189, 248, 0.8)',
+            indigo: 'rgba(99, 102, 241, 0.8)',
+            purple: 'rgba(168, 85, 247, 0.8)',
+            rose: 'rgba(244, 63, 94, 0.8)',
+            teal: 'rgba(20, 184, 166, 0.8)',
+            amber: 'rgba(245, 158, 11, 0.8)',
+            slate: 'rgba(148, 163, 184, 0.2)'
+        };
+
+        /* --- Initialization --- */
+        document.addEventListener('DOMContentLoaded', () => {
+            // Setup Filters
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-btn').forEach(b => {
+                        b.classList.remove('bg-slate-700', 'text-white', 'shadow-sm');
+                        b.classList.add('text-slate-400');
+                    });
+                    e.target.classList.add('bg-slate-700', 'text-white', 'shadow-sm');
+                    e.target.classList.remove('text-slate-400');
+                    ACTIVE_FILTER = e.target.dataset.type;
+                    updateDashboard();
+                });
+            });
+
+            // Setup Search
+            document.getElementById('cardSearch').addEventListener('input', (e) => {
+                renderTable(e.target.value);
+            });
+        });
+
+        /* --- Upload & Parse Logic --- */
+        const fileInput = document.getElementById('luaUpload');
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('loading-state').classList.remove('hidden');
+            document.getElementById('loading-state').classList.add('flex');
+            document.getElementById('error-message').classList.add('hidden');
+
+            try {
+                if (typeof luaparse === 'undefined') throw new Error("Luaparse library failed to load.");
+
+                const text = await file.text();
+                const parsed = parseLuaFile(text);
+
+                if (!parsed || parsed.length === 0) throw new Error("No card data found in file.");
+
+                RAW_DATA = parsed.map(normalizeCard);
+
+                // Init UI
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileMeta').textContent = `${RAW_DATA.length} cards loaded • ${new Date().toLocaleTimeString()}`;
+                document.getElementById('resetBtn').classList.remove('hidden');
+
+                document.getElementById('loading-state').classList.add('hidden');
+                document.getElementById('loading-state').classList.remove('flex');
+                document.getElementById('dashboard').classList.remove('hidden');
+
+                updateDashboard();
+
+            } catch (err) {
+                console.error(err);
+                resetUI();
+                const errEl = document.getElementById('error-message');
+                errEl.textContent = `Error: ${err.message}`;
+                errEl.classList.remove('hidden');
+            }
+            fileInput.value = ''; // allow re-upload same file
         });
 
         function resetUI() {
-            destroyAllCharts();
-            showMessage('', 'reset');
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('loading-state').classList.remove('flex');
+            document.getElementById('upload-section').classList.remove('hidden');
+            document.getElementById('resetBtn').classList.add('hidden');
+            document.getElementById('error-message').classList.add('hidden');
+            RAW_DATA = [];
+            Object.values(CHARTS).forEach(c => c.destroy());
         }
 
-        function showLoading(isLoading) {
-            loadingState.classList.toggle('hidden', !isLoading);
+        /* --- Lua Parsing Engine --- */
+        function parseLuaFile(content) {
+            // Lua allows comments, luaparse handles them.
+            // We look for the return statement.
+            const ast = luaparse.parse(content, { luaVersion: '5.3', encodingMode: 'x-user-defined' });
+
+            // Find the ReturnStatement
+            const returnStmt = ast.body.find(n => n.type === 'ReturnStatement');
+            if (!returnStmt) throw new Error("Lua file must return a table.");
+
+            const table = returnStmt.arguments[0];
+            if (table.type !== 'TableConstructorExpression') throw new Error("Returned value must be a table.");
+
+            return convertLuaTable(table);
         }
 
-        function showMessage(text, variant) {
-            if (!text) {
-                messageDisplay.classList.add('hidden');
-                return;
-            }
-            messageDisplay.textContent = text;
-            messageDisplay.className = 'text-center text-sm px-4 py-3 rounded-xl';
-            if (variant === 'success') {
-                messageDisplay.classList.add('bg-emerald-500/10', 'text-emerald-300');
-            } else if (variant === 'error') {
-                messageDisplay.classList.add('bg-rose-500/10', 'text-rose-300');
-            } else {
-                messageDisplay.classList.add('bg-slate-800', 'text-slate-200');
-            }
-            messageDisplay.classList.remove('hidden');
-        }
-
-        function parseLuaCards(luaSource) {
-            let ast;
-            try {
-                ast = luaparse.parse(luaSource, {
-                    luaVersion: '5.3',
-                    encodingMode: 'pseudo-latin1'
-                });
-            } catch (parseError) {
-                throw new Error('Lua parsing failed: ' + parseError.message);
-            }
-            const returnNode = ast.body.find(node => node.type === 'ReturnStatement');
-            if (!returnNode || !returnNode.arguments.length) {
-                throw new Error('No return statement containing card data was found.');
-            }
-            const tableArg = returnNode.arguments[0];
-            if (!tableArg || tableArg.type !== 'TableConstructorExpression') {
-                throw new Error('Returned value is not a table literal.');
-            }
-            const jsValue = luaNodeToJs(tableArg);
-            if (!Array.isArray(jsValue)) {
-                throw new Error('Expected the returned table to behave like an array of cards.');
-            }
-            return jsValue;
-        }
-
-        function luaNodeToJs(node) {
+        function convertLuaNode(node) {
             if (!node) return null;
             switch (node.type) {
-                case 'NumericLiteral':
                 case 'StringLiteral':
+                case 'NumericLiteral':
                 case 'BooleanLiteral':
                     return node.value;
                 case 'NilLiteral':
                     return null;
                 case 'UnaryExpression':
-                    if (node.operator === '-') {
-                        return -luaNodeToJs(node.argument);
-                    }
-                    throw new Error('Unsupported unary operator: ' + node.operator);
+                    return (node.operator === '-') ? -convertLuaNode(node.argument) : convertLuaNode(node.argument);
                 case 'TableConstructorExpression':
-                    return luaTableToJs(node);
+                    return convertLuaTable(node);
                 default:
-                    throw new Error('Unsupported Lua node type: ' + node.type);
+                    return null; // Ignore functions or unknown types for security/simplicity
             }
         }
 
-        function luaTableToJs(node) {
-            const allValues = node.fields.every(field => field.type === 'TableValue');
-            if (allValues) {
-                return node.fields.map(field => luaNodeToJs(field.value));
+        function convertLuaTable(node) {
+            const isArray = node.fields.every(f => f.type === 'TableValue');
+
+            if (isArray) {
+                return node.fields.map(f => convertLuaNode(f.value));
+            } else {
+                const obj = {};
+                let arrayIndex = 0;
+                node.fields.forEach(f => {
+                    if (f.type === 'TableKeyString') {
+                        obj[f.key.name] = convertLuaNode(f.value);
+                    } else if (f.type === 'TableValue') {
+                        // Mixed table: treating array parts as indexed keys
+                        obj[arrayIndex++] = convertLuaNode(f.value);
+                    }
+                });
+                return obj;
             }
-            const result = {};
-            node.fields.forEach(field => {
-                if (field.type === 'TableKeyString') {
-                    result[field.key.name] = luaNodeToJs(field.value);
-                } else if (field.type === 'TableValue') {
-                    const currentSize = Object.keys(result).length;
-                    result[currentSize + 1] = luaNodeToJs(field.value);
-                } else {
-                    throw new Error('Encountered an unsupported table field type: ' + field.type);
-                }
-            });
-            return result;
         }
 
-        function normalizeCard(card) {
+        function normalizeCard(card, index) {
+            // Ensure defaults
             return {
-                ...card,
-                families: Array.isArray(card.families) ? card.families : [],
-                effects: Array.isArray(card.effects) ? card.effects : [],
+                id: card.id || `Card #${index + 1}`,
+                name: card.name || card.id || `Unknown`,
+                cost: typeof card.cost === 'number' ? card.cost : 0,
+                attack: typeof card.attack === 'number' ? card.attack : 0,
+                health: typeof card.health === 'number' ? card.health : 0,
+                movement: typeof card.movement === 'number' ? card.movement : 0,
                 cardType: card.cardType || 'Unknown',
-                archetype: card.archetype || null
+                archetype: card.archetype || 'Neutral',
+                families: Array.isArray(card.families) ? card.families : [],
+                // Store raw boolean flags for keywords
+                raw: card
             };
         }
 
-        function buildAggregations(cards) {
-            const byType = countBy(cards, card => card.cardType || 'Unknown');
-            const byArchetype = {};
-            const familyCounts = {};
-            const keywordCounts = {};
-            const effectTriggerCounts = {};
-            const statMaps = {
-                cost: {},
-                attack: {},
-                health: {},
-                movement: {}
-            };
+        /* --- Analysis Logic --- */
+        function updateDashboard() {
+            const filtered = RAW_DATA.filter(c => ACTIVE_FILTER === 'All' || c.cardType === ACTIVE_FILTER);
 
-            cards.forEach(card => {
-                const isMinion = (card.cardType === 'Minion');
-                const archetypeLabel = card.archetype ? formatLabel(card.archetype) : null;
-                if (archetypeLabel) {
-                    byArchetype[archetypeLabel] = (byArchetype[archetypeLabel] || 0) + 1;
-                }
+            // Header Stats
+            document.getElementById('displayTotal').textContent = filtered.length;
+            const totalCost = filtered.reduce((acc, c) => acc + c.cost, 0);
+            document.getElementById('displayAvgCost').textContent = filtered.length ? (totalCost / filtered.length).toFixed(2) : '0.00';
 
-                if (Array.isArray(card.families) && card.families.length) {
-                    card.families.forEach(family => {
-                        const label = formatLabel(family);
-                        familyCounts[label] = (familyCounts[label] || 0) + 1;
-                    });
-                } else if (isMinion) {
-                    familyCounts['Unaffiliated'] = (familyCounts['Unaffiliated'] || 0) + 1;
-                }
+            // Render Charts
+            renderTypeChart(filtered);
+            renderCostChart(filtered);
+            renderStatCharts(filtered);
 
-                Object.entries(card).forEach(([key, value]) => {
-                    if (typeof value === 'boolean' && value) {
-                        const label = formatLabel(key);
-                        keywordCounts[label] = (keywordCounts[label] || 0) + 1;
-                    }
+            // Render Table
+            renderTable();
+        }
+
+        function renderTable(search = '') {
+            const tbody = document.getElementById('cardTableBody');
+            tbody.innerHTML = '';
+
+            const term = search.toLowerCase();
+            let displaySet = RAW_DATA.filter(c => {
+                const matchesFilter = (ACTIVE_FILTER === 'All' || c.cardType === ACTIVE_FILTER);
+                const matchesSearch = c.name.toLowerCase().includes(term) ||
+                    c.archetype.toLowerCase().includes(term) ||
+                    (c.cardType && c.cardType.toLowerCase().includes(term));
+                return matchesFilter && matchesSearch;
+            });
+
+            document.getElementById('tableCount').textContent = displaySet.length;
+
+            // Limit for performance
+            displaySet.slice(0, 100).forEach(card => {
+                const row = document.createElement('tr');
+                row.className = 'bg-slate-900/30 border-b border-slate-800 hover:bg-slate-800/50 transition-colors';
+
+                let tags = card.families.join(', ');
+                // Heuristic for keywords based on boolean flags in raw data
+                Object.keys(card.raw).forEach(k => {
+                    if (card.raw[k] === true && !['isToken'].includes(k)) tags += (tags ? ', ' : '') + formatLabel(k);
                 });
 
-                if (Array.isArray(card.effects)) {
-                    card.effects.forEach(effect => {
-                        const trigger = effect.trigger ? formatLabel(effect.trigger) : 'Instant';
-                        effectTriggerCounts[trigger] = (effectTriggerCounts[trigger] || 0) + 1;
-                    });
-                }
-
-                Object.entries(statMaps).forEach(([stat, map]) => {
-                    const value = card[stat];
-                    if (typeof value === 'number' && !Number.isNaN(value)) {
-                        map[value] = (map[value] || 0) + 1;
-                    }
-                });
+                row.innerHTML = `
+                    <td class="px-6 py-4 font-medium text-slate-200">${card.name || card.id}</td>
+                    <td class="px-6 py-4 text-sky-400 font-bold font-mono">${card.cost}</td>
+                    <td class="px-6 py-4"><span class="px-2 py-1 rounded text-xs bg-slate-800 border border-slate-700">${card.cardType}</span></td>
+                    <td class="px-6 py-4 font-mono text-xs">
+                        ${card.cardType === 'Minion' ? `<span class="text-amber-400">A:${card.attack}</span> <span class="text-rose-400">H:${card.health}</span> <span class="text-teal-400">M:${card.movement}</span>` : '-'}
+                    </td>
+                    <td class="px-6 py-4 text-xs">${card.archetype}</td>
+                    <td class="px-6 py-4 text-xs text-slate-500 truncate max-w-xs">${tags}</td>
+                `;
+                tbody.appendChild(row);
             });
-
-            return {
-                totalCards: cards.length,
-                byType,
-                byArchetype,
-                familyCounts,
-                keywordCounts,
-                effectTriggerCounts,
-                stats: statMaps
-            };
         }
 
-        function countBy(items, selector) {
-            return items.reduce((acc, item) => {
-                const key = selector(item);
-                if (!key) return acc;
-                const label = formatLabel(key);
-                acc[label] = (acc[label] || 0) + 1;
-                return acc;
-            }, {});
+        /* --- Chart Renderers --- */
+        Chart.defaults.font.family = 'Inter';
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.scale.grid.color = '#1e293b';
+
+        function destroyChart(id) {
+            if (CHARTS[id]) CHARTS[id].destroy();
         }
 
-        function formatLabel(value) {
-            if (typeof value !== 'string') return String(value);
-            return value
-                .replace(/_/g, ' ')
-                .replace(/([a-z])([A-Z])/g, '$1 $2')
-                .split(' ')
-                .filter(Boolean)
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                .join(' ');
-        }
+        function renderTypeChart(data) {
+            const ctx = document.getElementById('chartTypes');
+            destroyChart('types');
 
-        function renderSummary(file, aggregates) {
-            document.getElementById('fileName').textContent = 'File: ' + file.name;
-            document.getElementById('cardCountMeta').textContent = 'Parsed ' + aggregates.totalCards + ' cards in total.';
-            document.getElementById('lastUpdated').textContent = 'Generated at ' + new Date().toLocaleString();
-            document.getElementById('totalCards').textContent = aggregates.totalCards;
-            document.getElementById('minionCount').textContent = aggregates.byType['Minion'] || 0;
-            document.getElementById('spellCount').textContent = aggregates.byType['Spell'] || 0;
-            document.getElementById('weaponCount').textContent = aggregates.byType['Weapon'] || 0;
-        }
+            const counts = {};
+            data.forEach(c => counts[c.cardType] = (counts[c.cardType] || 0) + 1);
 
-        function renderCharts(aggregates) {
-            destroyAllCharts();
-            mountPie('cardTypeChart', aggregates.byType, ['#38bdf8', '#a855f7', '#f97316', '#22c55e']);
-            mountBar('archetypeChart', aggregates.byArchetype);
-            mountBar('familyChart', aggregates.familyCounts, {
-                horizontal: true,
-                colorResolver: (label) => FAMILY_COLORS[label] || 'rgba(56, 189, 248, 0.7)'
-            });
-            mountBar('keywordChart', aggregates.keywordCounts, {
-                horizontal: true,
-                colorResolver: (label) => ABILITY_FLAG_COLORS[label] || 'rgba(56, 189, 248, 0.7)'
-            });
-            mountBar('effectChart', aggregates.effectTriggerCounts, {
-                horizontal: true,
-                colorResolver: (label) => EFFECT_TRIGGER_COLORS[label] || 'rgba(56, 189, 248, 0.7)'
-            });
-            mountBar('costChart', aggregates.stats.cost, { numericLabels: true, label: 'Cards', backgroundColor: STAT_COLORS.cost });
-            mountBar('attackChart', aggregates.stats.attack, { numericLabels: true, label: 'Cards', backgroundColor: STAT_COLORS.attack });
-            mountBar('healthChart', aggregates.stats.health, { numericLabels: true, label: 'Cards', backgroundColor: STAT_COLORS.health });
-            mountBar('movementChart', aggregates.stats.movement, { numericLabels: true, label: 'Cards', backgroundColor: STAT_COLORS.movement });
-        }
-
-        function mountPie(canvasId, dataMap, colors) {
-            const { labels, values } = prepareChartData(dataMap);
-            const chart = new Chart(document.getElementById(canvasId).getContext('2d'), {
-                type: 'pie',
+            CHARTS['types'] = new Chart(ctx, {
+                type: 'doughnut',
                 data: {
-                    labels,
+                    labels: Object.keys(counts),
                     datasets: [{
-                        data: values,
-                        backgroundColor: colors || ['#38bdf8', '#0ea5e9', '#6366f1', '#a855f7', '#f97316']
+                        data: Object.values(counts),
+                        backgroundColor: [COLORS.amber, COLORS.purple, COLORS.sky, COLORS.teal],
+                        borderColor: '#0f172a',
+                        borderWidth: 2
                     }]
                 },
                 options: {
                     maintainAspectRatio: false,
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'bottom' }
-                    }
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 12 } } }
                 }
             });
-            chartRegistry.set(canvasId, chart);
         }
 
-        function mountBar(canvasId, dataMap, options = {}) {
-            const { labels, values } = prepareChartData(dataMap, options);
-            const datasetColor = 'rgba(56, 189, 248, 0.7)';
-            const baseColor = options.backgroundColor || datasetColor;
-            const colors = options.colorResolver
-                ? labels.map(label => options.colorResolver(label))
-                : baseColor;
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            const chart = new Chart(ctx, {
+        function renderCostChart(data) {
+            const ctx = document.getElementById('chartCost');
+            destroyChart('cost');
+
+            // Prepare bins 0-10+
+            const bins = Array(11).fill(0);
+            const statsSum = Array(11).fill(0); // Attack + Health sum per cost
+            const unitCount = Array(11).fill(0); // Number of units per cost
+
+            data.forEach(c => {
+                const cost = Math.min(c.cost, 10);
+                bins[cost]++;
+                if (c.cardType === 'Minion') {
+                    statsSum[cost] += (c.attack + c.health);
+                    unitCount[cost]++;
+                }
+            });
+
+            const avgStats = statsSum.map((sum, i) => unitCount[i] ? (sum / unitCount[i]) : 0);
+
+            CHARTS['cost'] = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels,
-                    datasets: [{
-                        label: options.label || 'Count',
-                        data: values,
-                        backgroundColor: colors,
-                        borderRadius: 6
-                    }]
+                    labels: bins.map((_, i) => i === 10 ? '10+' : i),
+                    datasets: [
+                        {
+                            label: 'Avg Stats (A+H)',
+                            data: avgStats,
+                            type: 'line',
+                            borderColor: COLORS.rose,
+                            borderWidth: 2,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        },
+                        {
+                            label: 'Card Count',
+                            data: bins,
+                            backgroundColor: COLORS.indigo,
+                            borderRadius: 4,
+                            yAxisID: 'y'
+                        }
+                    ]
                 },
                 options: {
-                    indexAxis: options.horizontal ? 'y' : 'x',
                     maintainAspectRatio: false,
-                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
                     scales: {
-                        x: {
-                            ticks: { color: 'rgba(226,232,240,0.8)' },
-                            grid: { color: 'rgba(15, 23, 42, 0.6)' }
-                        },
-                        y: {
-                            ticks: { color: 'rgba(226,232,240,0.8)' },
-                            grid: { color: 'rgba(15, 23, 42, 0.6)' }
-                        }
+                        y: { beginAtZero: true, display: false },
+                        y1: { display: false, position: 'right', beginAtZero: true },
+                        x: { grid: { display: false } }
                     }
                 }
             });
-            chartRegistry.set(canvasId, chart);
         }
 
-        function prepareChartData(dataMap, options = {}) {
-            const entries = Object.entries(dataMap || {}).filter(([, value]) => value > 0);
-            if (!entries.length) {
-                entries.push(['No Data', 0]);
-            } else if (options.numericLabels) {
-                entries.sort((a, b) => Number(a[0]) - Number(b[0]));
-            } else {
-                entries.sort((a, b) => b[1] - a[1]);
-            }
-            return {
-                labels: entries.map(([label]) => label),
-                values: entries.map(([, value]) => value)
+        function renderStatCharts(data) {
+            // Helper to make simple bar charts
+            const makeSimpleBar = (id, dataset, label, color) => {
+                const ctx = document.getElementById(id);
+                destroyChart(id);
+
+                const counts = {};
+                dataset.forEach(val => counts[val] = (counts[val] || 0) + 1);
+                // Sort numeric keys
+                const keys = Object.keys(counts).map(Number).sort((a, b) => a - b);
+
+                CHARTS[id] = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: keys,
+                        datasets: [{
+                            label: label,
+                            data: keys.map(k => counts[k]),
+                            backgroundColor: color,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { display: false } },
+                            y: { display: false }
+                        }
+                    }
+                });
             };
+
+            const minions = data.filter(c => c.cardType === 'Minion');
+
+            makeSimpleBar('chartAttack', minions.map(c => c.attack), 'Attack', COLORS.amber);
+            makeSimpleBar('chartHealth', minions.map(c => c.health), 'Health', COLORS.rose);
+
+            // Archetypes (Horizontal Bar)
+            const archCtx = document.getElementById('chartArchetype');
+            destroyChart('archetype');
+            const archCounts = {};
+            data.forEach(c => {
+                if (c.archetype) archCounts[c.archetype] = (archCounts[c.archetype] || 0) + 1;
+            });
+            const sortedArch = Object.entries(archCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+            CHARTS['archetype'] = new Chart(archCtx, {
+                type: 'bar',
+                indexAxis: 'y',
+                data: {
+                    labels: sortedArch.map(x => x[0]),
+                    datasets: [{
+                        data: sortedArch.map(x => x[1]),
+                        backgroundColor: COLORS.sky,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { display: false }, y: { grid: { display: false } } }
+                }
+            });
+
+            // Keywords (Heuristic)
+            const kwCtx = document.getElementById('chartKeywords');
+            destroyChart('keywords');
+            const kwCounts = {};
+            data.forEach(c => {
+                Object.keys(c.raw).forEach(k => {
+                    if (typeof c.raw[k] === 'boolean' && c.raw[k] && !['isToken'].includes(k)) {
+                        const label = formatLabel(k);
+                        kwCounts[label] = (kwCounts[label] || 0) + 1;
+                    }
+                });
+            });
+            const sortedKw = Object.entries(kwCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+            CHARTS['keywords'] = new Chart(kwCtx, {
+                type: 'bar',
+                indexAxis: 'y',
+                data: {
+                    labels: sortedKw.map(x => x[0]),
+                    datasets: [{
+                        data: sortedKw.map(x => x[1]),
+                        backgroundColor: COLORS.teal,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { display: false }, y: { grid: { display: false } } }
+                }
+            });
         }
 
-        function destroyAllCharts() {
-            chartRegistry.forEach(chart => chart.destroy());
-            chartRegistry.clear();
+        function formatLabel(str) {
+            return str.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
         }
     </script>
 </body>
+
 </html>
