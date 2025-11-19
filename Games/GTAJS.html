@@ -1,3 +1,4 @@
+<!-- START OF FILE GTAJS.html -->
 <!DOCTYPE html>
 <html lang="en">
 
@@ -511,7 +512,7 @@
             // 1. The Ground (Infinite looking plane)
             const groundGeometry = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE);
             const groundMaterial = new THREE.MeshStandardMaterial({
-                color: 0x222222, // Asphalt color
+                color: 0x556B2F, // Natural Green (Throttle.html style)
                 roughness: 0.9
             });
             const ground = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -560,8 +561,10 @@
                     // Clear center area for starting zone
                     if (Math.abs(x) < 150 && Math.abs(z) < 150) continue;
 
-                    // 80% chance of a building, 20% chance of a park (trees)
-                    const isPark = Math.random() > 0.8;
+                    // DENSITY CHANGE: 
+                    // 30% chance of a building, 70% chance of park/nature
+                    // (Previous was 80% building)
+                    const isPark = Math.random() > 0.3;
 
                     if (!isPark) {
                         // Building
@@ -622,14 +625,6 @@
             const localX = gridX % BLOCK_SIZE;
             const localZ = gridZ % BLOCK_SIZE;
 
-            // Check if we are in the "Road" part of the block
-            // Road is at the start of the block in this generation logic (simple grid)
-            // Actually, in the generation loop: x + BLOCK_SIZE/2 is center.
-            // The gap between blocks is the road.
-
-            // Simplified logic: The "Road" is the gap between buildings.
-            // Building starts at offset ROAD_WIDTH/2 and ends at BLOCK_SIZE - ROAD_WIDTH/2 roughly.
-
             const margin = ROAD_WIDTH / 2;
             const inRoadX = (localX < margin) || (localX > BLOCK_SIZE - margin);
             const inRoadZ = (localZ < margin) || (localZ > BLOCK_SIZE - margin);
@@ -640,19 +635,16 @@
 
             // If not on road, we are inside a building footprint.
             // To make this deterministic without storing 10,000 heights, we use a pseudo-random hash function based on coords.
-            // We must match the generation logic:
-            // const isPark = Math.random() > 0.8;
-            // const height = 20 + Math.random() * 80...
-
-            // Hash function
             const blockIndexX = Math.floor(gridX / BLOCK_SIZE);
             const blockIndexZ = Math.floor(gridZ / BLOCK_SIZE);
             const seed = blockIndexX * 12345 + blockIndexZ * 67890;
             const pseudoRandom = (Math.sin(seed) * 10000) - Math.floor(Math.sin(seed) * 10000);
 
-            const isPark = pseudoRandom > 0.8;
+            // COLLISION DENSITY UPDATE:
+            // Must match the generation logic (> 0.3 is park)
+            const isPark = pseudoRandom > 0.3;
 
-            if (isPark) return 0; // Parks are flat (ignoring tree collision for simplicity in flight)
+            if (isPark) return 0; // Parks are flat
 
             // Reconstruct building height
             const r2 = (Math.cos(seed) * 10000) - Math.floor(Math.cos(seed) * 10000);
