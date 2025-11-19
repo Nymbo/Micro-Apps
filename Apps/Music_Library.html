@@ -1,661 +1,1389 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Music Library Explorer</title>
+  <title>Music Library Player</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    :root{
-      --bg:#0f1115;
-      --panel:#161a23;
-      --panel-2:#0d1118;
-      --panel-3:#1b2130;
-      --text:#e5e7eb;
-      --muted:#9aa3b2;
-      --accent:#5b9cff;
-      --accent-2:#2f6fe6;
-      --border:#222838;
-      --good:#22c55e;
-      --warn:#f59e0b;
-      --bad:#ef4444;
-      --shadow:0 18px 50px rgba(0,0,0,.35);
-      --radius-lg:16px;
-      --radius:12px;
-      --pad:14px;
-      --grid:#2a3246;
-      --grid-soft:#20283a;
+    :root {
+      --bg-dark: #0a0b10;
+      --bg-panel: #12141c;
+      --bg-panel-trans: rgba(18, 20, 28, 0.8);
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --accent: #8b5cf6;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border: #1f2937;
+      --glass: rgba(255, 255, 255, 0.03);
+      --glass-border: rgba(255, 255, 255, 0.05);
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --sidebar-width: 260px;
+      --player-height: 90px;
     }
 
-    /* Light theme override (scoped to app container) */
-    .app[data-theme="light"]{
-      --bg:#f6f7fb;
-      --panel:#ffffff;
-      --panel-2:#f2f5fb;
-      --panel-3:#eef2fb;
-      --text:#0f172a;
-      --muted:#5b6474;
-      --accent:#2563eb;
-      --accent-2:#1e40af;
-      --border:#e6e8ee;
-      --shadow:0 18px 50px rgba(0,0,0,.08);
-      --grid:#e7eaf2;
-      --grid-soft:#edf0f7;
+    * {
+      box-sizing: border-box;
+      outline: none;
     }
 
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; background:var(--bg); color:var(--text);
-      font-family: Inter, Segoe UI, system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
-      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-      line-height:1.55;
+    body {
+      margin: 0;
+      background-color: var(--bg-dark);
+      background-image:
+        radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 25%),
+        radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08), transparent 25%);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
-    /* (Top bar removed per request) */
-
-    /* App layout */
-    .app{
-      max-width:1100px; margin:0 auto; padding:24px 16px 48px;
-      display:flex; flex-direction:column; gap:18px;
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
     }
 
-    .card{
-      background:var(--panel); border:1px solid var(--border);
-      border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden;
+    ::-webkit-scrollbar-track {
+      background: transparent;
     }
-    .card-inner{ padding:18px }
-    .card h1{margin:0 0 8px 0; font-size:1.9rem}
-    .card p.sub{margin:0; color:var(--muted)}
 
-    /* Picker */
-    .picker{ display:flex; flex-direction:column; gap:12px; align-items:center }
-    .picker-label{
-      display:block; width:100%; max-width:520px; text-align:center; cursor:pointer;
-      padding:20px; border-radius:14px; border:1px dashed var(--border); background:var(--panel-2);
-      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    ::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 3px;
     }
-    .picker-label:hover{ transform:translateY(-1px); border-color:var(--accent) }
-    .picker-title{ font-weight:600 }
-    .picker-subtitle{ display:block; margin-top:6px; color:var(--muted) }
-    .hidden-input{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; border:0; clip:rect(0,0,0,0); overflow:hidden }
-    .hint{ color:var(--muted); font-size:.9rem }
 
-    /* Toast-like message */
-    .message{ max-width:820px; margin:0 auto; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:var(--panel-2) }
-    .message[data-variant="info"]{ border-left:6px solid var(--accent) }
-    .message[data-variant="warning"]{ border-left:6px solid var(--warn) }
-    .message[data-variant="danger"]{ border-left:6px solid var(--bad) }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #4b5563;
+    }
 
-    /* Stats */
-    .stats{ display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); opacity:0; transform:translateY(6px); transition:opacity .2s }
-    .stats:not(.hidden){ opacity:1; transform:none }
-    .stat-card{ background:var(--panel-2); border:1px solid var(--border); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:6px }
-    .stat-label{ color:var(--muted); font-size:.8rem; text-transform:uppercase; letter-spacing:.06em }
-    .stat-value{ font-size:1.6rem; font-weight:700 }
+    /* Layout */
+    .app-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      height: calc(100vh - var(--player-height));
+    }
 
-    /* Charts */
-    .charts{ display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); opacity:0; transition:opacity .2s }
-    .charts:not(.hidden){ opacity:1 }
-    .chart-card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px }
-    .chart-title{ margin:0 0 10px; font-weight:600 }
-    .chart-wrapper{ position:relative; height:320px }
-    .chart-card canvas{ display:block; width:100% !important; height:100% !important }
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-panel-trans);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+      position: relative;
+      min-width: 150px;
+      max-width: 600px;
+    }
 
-    /* Toolbar */
-    .toolbar{ display:flex; gap:10px; align-items:center; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:12px 14px }
-    .toolbar-spacer{ flex:1 }
-    .selection-label{ color:var(--muted); font-size:.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+    .brand {
+      padding: 24px;
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(to right, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
 
-    /* Buttons */
-    .btn{ appearance:none; border:1px solid var(--border); background:var(--panel-2); color:var(--text); border-radius:10px; padding:8px 12px; cursor:pointer; transition: transform .12s, border-color .12s, background .12s }
-    .btn:hover{ transform:translateY(-1px); border-color:var(--accent) }
-    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff }
-    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
+    .nav-menu {
+      list-style: none;
+      padding: 0 12px;
+      margin: 0;
+    }
 
-    /* Tree */
-    .tree{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px }
-    .tree-folder{ border-left:1px solid rgba(91,156,255,.2); margin-left:0; padding-left:12px }
-    .tree-folder:first-of-type{ border-left:none; padding-left:0 }
-    .tree-summary{ display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:10px; cursor:pointer; background:transparent; transition:background .12s }
-    .tree-summary:hover{ background:rgba(91,156,255,.08) }
-    .tree-label{ font-weight:600 }
-    .tree-meta{ color:var(--muted); font-size:.9rem; margin-left:12px }
-    .tree-children{ padding-left:12px; margin-left:8px; border-left:1px solid var(--grid); display:grid; gap:8px; margin-top:6px }
-    .file-list{ list-style:none; padding-left:0; margin:6px 0 0 0; display:grid; gap:6px }
-    .file-item{ display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-radius:8px; background:var(--panel-2); border:1px solid transparent }
-    .file-item:hover{ border-color:var(--accent); background:var(--panel-3) }
-    .file-name{ font-family: Segoe UI, Inter, system-ui, -apple-system, Roboto }
-    .file-size{ color:var(--muted); font-size:.85rem; margin-left:12px; white-space:nowrap }
-    .empty-indicator{ margin:4px 0 0 0; padding:6px 10px; border-radius:8px; background:var(--panel-2); color:var(--muted); font-size:.95rem }
+    .nav-item {
+      padding: 12px 16px;
+      margin-bottom: 4px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      color: var(--text-muted);
+      font-weight: 500;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
 
-    .hidden{ display:none !important }
-    .visually-hidden{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0 }
+    .nav-item:hover {
+      background: var(--glass);
+      color: var(--text-main);
+    }
 
-    @media (max-width:720px){
-      .tree{ padding:14px }
-      .picker-label{ padding:16px }
-      .tree-summary{ flex-direction:column; align-items:flex-start; gap:6px }
-      .selection-label{ white-space:normal }
-      .toolbar{ flex-direction:column; align-items:stretch }
-      .toolbar .btn{ width:100% }
-      .toolbar-spacer{ display:none }
+    .nav-item.active {
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--primary);
+    }
+
+    .nav-icon {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    .library-tree {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      margin-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Resizer */
+    .resizer {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      cursor: col-resize;
+      z-index: 100;
+      transition: background 0.2s;
+    }
+
+    .resizer:hover,
+    .resizer.active {
+      background: var(--primary);
+    }
+
+    /* Tree Toolbar */
+    .tree-toolbar {
+      display: flex;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .tree-tool-btn {
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .tree-tool-btn:hover {
+      background: var(--glass);
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }
+
+    /* Tree View Styles */
+    .tree-item {
+      padding: 6px 8px;
+      cursor: pointer;
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tree-item:hover {
+      background: var(--glass);
+      color: var(--text-main);
+    }
+
+    .tree-children {
+      padding-left: 12px;
+      border-left: 1px solid var(--glass-border);
+      margin-left: 6px;
+    }
+
+    .tree-children.hidden {
+      display: none;
+    }
+
+    .tree-toggle {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      transition: transform 0.2s;
+    }
+
+    .tree-toggle:hover {
+      color: var(--text-main);
+    }
+
+    .tree-toggle.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .tree-folder-icon {
+      font-size: 0.9rem;
+      opacity: 0.7;
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: rgba(0, 0, 0, 0.2);
+      position: relative;
+    }
+
+    .top-bar {
+      height: 70px;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10, 11, 16, 0.8);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+    }
+
+    .search-box {
+      position: relative;
+      width: 300px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      padding: 10px 16px 10px 40px;
+      border-radius: 24px;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      fill: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .view-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px;
+    }
+
+    /* Track List */
+    .track-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .track-row {
+      display: grid;
+      grid-template-columns: 40px 1fr 1fr 80px 60px;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      align-items: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.15s;
+      font-size: 0.95rem;
+    }
+
+    .track-row:hover {
+      background: var(--glass);
+    }
+
+    .track-row.playing {
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--primary);
+    }
+
+    .track-row.playing .track-num {
+      display: none;
+    }
+
+    .track-row.playing .playing-icon {
+      display: block;
+    }
+
+    .track-head {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+      cursor: default;
+    }
+
+    .track-head:hover {
+      background: transparent;
+    }
+
+    .track-title {
+      color: var(--text-main);
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-artist {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-duration {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .track-num {
+      text-align: center;
+      font-size: 0.85rem;
+    }
+
+    .playing-icon {
+      display: none;
+      width: 16px;
+      height: 16px;
+      fill: var(--primary);
+      animation: pulse 1.5s infinite;
+    }
+
+    .track-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .track-row:hover .track-actions {
+      opacity: 1;
+    }
+
+    .action-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+    }
+
+    .action-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .action-btn.active {
+      color: var(--primary);
+      fill: var(--primary);
+    }
+
+    /* Stats View */
+    .stats-header {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      padding: 24px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .stat-val {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    .chart-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      padding: 24px;
+      border-radius: var(--radius-lg);
+      height: 350px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chart-card.large {
+      grid-column: span 2;
+    }
+
+    .chart-card h3 {
+      margin: 0 0 16px 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .chart-wrapper {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    /* Player Bar */
+    .player-bar {
+      height: var(--player-height);
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      z-index: 20;
+      justify-content: space-between;
+    }
+
+    .now-playing {
+      width: 25%;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .album-art-placeholder {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 1.2rem;
+    }
+
+    .track-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+    }
+
+    .np-title {
+      color: var(--text-main);
+      font-weight: 600;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .np-artist {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .player-controls {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      max-width: 600px;
+    }
+
+    .control-buttons {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .ctrl-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .ctrl-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .ctrl-btn.play-pause {
+      background: var(--text-main);
+      color: var(--bg-dark);
+      width: 40px;
+      height: 40px;
+    }
+
+    .ctrl-btn.play-pause:hover {
+      transform: scale(1.05);
+      background: white;
+    }
+
+    .progress-container {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .progress-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      background: var(--primary);
+      border-radius: 2px;
+      width: 0%;
+    }
+
+    .progress-handle {
+      position: absolute;
+      right: -6px;
+      top: 50%;
+      transform: translateY(-50%) scale(0);
+      width: 12px;
+      height: 12px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.1s;
+    }
+
+    .progress-bar:hover .progress-handle {
+      transform: translateY(-50%) scale(1);
+    }
+
+    .volume-controls {
+      width: 25%;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .volume-slider {
+      width: 100px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    /* Utility */
+    .hidden {
+      display: none !important;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-state h2 {
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.8);
+        opacity: 0.5;
+      }
+
+      50% {
+        transform: scale(1.2);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+      }
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
-  <div class="app" id="app" data-theme="dark">
-    <section class="card">
-      <div class="card-inner">
-        <h1>Music Library Explorer</h1>
-        <p class="sub">Scan your local music folder to browse artists, albums, and MP3 tracks in a nested tree view. The scan is read-only and stays on this page.</p>
-      </div>
-    </section>
 
-    <section class="picker" aria-labelledby="pickerTitle">
-      <h2 class="visually-hidden" id="pickerTitle">Select Music Folder</h2>
-      <label for="folderPicker" class="picker-label">
-        <span class="picker-title">Choose Music Folder</span>
-        <span class="picker-subtitle">Click to pick the root folder of your library. Subfolders are scanned automatically.</span>
-      </label>
-      <input type="file" id="folderPicker" class="hidden-input" webkitdirectory multiple />
-      <p class="hint">Only MP3 files are listed. Other file types are ignored.</p>
-    </section>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="resizer" id="resizer"></div>
+      <div class="brand">Music Player</div>
+      <ul class="nav-menu">
+        <li class="nav-item active" data-view="library">
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+          </svg>
+          Library
+        </li>
+        <li class="nav-item" data-view="stats">
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <path
+              d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+          </svg>
+          Stats
+        </li>
+      </ul>
+      <div class="tree-toolbar">
+        <button class="tree-tool-btn" id="expandAllBtn" title="Expand All">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+          </svg>
+        </button>
+        <button class="tree-tool-btn" id="collapseAllBtn" title="Collapse All">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 13H5v-2h14v2z" />
+          </svg>
+        </button>
+        <button class="tree-tool-btn" id="expandArtistsBtn" title="Expand Artists Only">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+          </svg>
+        </button>
+      </div>
+      <div class="library-tree" id="folderTree">
+        <!-- Tree content populated by JS -->
+      </div>
+    </aside>
 
-    <div id="message" class="message hidden" role="status" aria-live="polite"></div>
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="top-bar">
+        <div class="search-box">
+          <svg class="search-icon" viewBox="0 0 24 24">
+            <path
+              d="M15.5 14h-.79l-.28-.28C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.28.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+          </svg>
+          <input type="text" class="search-input" placeholder="Search tracks, artists..." id="searchInput">
+        </div>
+        <button class="btn-primary" id="selectFolderBtn">Select Folder</button>
+        <input type="file" id="folderInput" webkitdirectory multiple hidden>
+      </div>
 
-    <section id="stats" class="stats hidden" aria-label="Library summary">
-      <div class="stat-card">
-        <span class="stat-label">Artists</span>
-        <span class="stat-value" id="artistCount">0</span>
+      <div class="view-container" id="viewContainer">
+        <!-- Views injected here -->
+        <div class="empty-state">
+          <h2>No Music Loaded</h2>
+          <p>Select a folder to scan your local library.</p>
+        </div>
       </div>
-      <div class="stat-card">
-        <span class="stat-label">Albums</span>
-        <span class="stat-value" id="albumCount">0</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">Tracks</span>
-        <span class="stat-value" id="trackCount">0</span>
-      </div>
-    </section>
-
-    <section id="chartsSection" class="charts hidden" aria-label="Library charts">
-      <div class="chart-card">
-        <h3 class="chart-title">Top Artists by Tracks</h3>
-        <div class="chart-wrapper"><canvas id="topArtistsChart"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3 class="chart-title">Total Size by Artist</h3>
-        <div class="chart-wrapper"><canvas id="artistSizeChart"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h3 class="chart-title">Track Distribution by Artist</h3>
-        <div class="chart-wrapper"><canvas id="artistDistributionChart"></canvas></div>
-      </div>
-    </section>
-
-    <div id="treeToolbar" class="toolbar hidden">
-      <button type="button" class="btn" id="expandAll">Expand all</button>
-      <button type="button" class="btn" id="expandArtists">Expand Artists</button>
-      <button type="button" class="btn" id="collapseAll">Collapse all</button>
-      <span class="toolbar-spacer"></span>
-      <span class="selection-label" id="selectionLabel"></span>
-    </div>
-
-    <section id="treeContainer" class="tree hidden" aria-label="Music library tree"></section>
+    </main>
   </div>
 
-  <noscript>
-    <div class="message" data-variant="warning">JavaScript is required to scan and display the music library.</div>
-  </noscript>
+  <!-- Player Bar -->
+  <footer class="player-bar">
+    <div class="now-playing">
+      <div class="album-art-placeholder" id="npArt">🎵</div>
+      <div class="track-info">
+        <div class="np-title" id="npTitle">Not Playing</div>
+        <div class="np-artist" id="npArtist">-</div>
+      </div>
+    </div>
+
+    <div class="player-controls">
+      <div class="control-buttons">
+        <button class="ctrl-btn" id="prevBtn" title="Previous">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+          </svg>
+        </button>
+        <button class="ctrl-btn play-pause" id="playPauseBtn" title="Play/Pause">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" id="playIcon">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" id="pauseIcon" class="hidden">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+          </svg>
+        </button>
+        <button class="ctrl-btn" id="nextBtn" title="Next">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+          </svg>
+        </button>
+      </div>
+      <div class="progress-container">
+        <span id="currentTime">0:00</span>
+        <div class="progress-bar" id="progressBar">
+          <div class="progress-fill" id="progressFill"></div>
+          <div class="progress-handle"></div>
+        </div>
+        <span id="duration">0:00</span>
+      </div>
+    </div>
+
+    <div class="volume-controls">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path
+          d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+      </svg>
+      <div class="volume-slider" id="volumeSlider">
+        <div class="progress-fill" id="volumeFill" style="width: 100%"></div>
+      </div>
+    </div>
+  </footer>
 
   <script>
-    (function () {
-      const appRoot = document.getElementById('app');
-      const folderInput = document.getElementById('folderPicker');
-      const messageEl = document.getElementById('message');
-      const treeContainer = document.getElementById('treeContainer');
-      const statsPanel = document.getElementById('stats');
-      const artistCountEl = document.getElementById('artistCount');
-      const albumCountEl = document.getElementById('albumCount');
-      const trackCountEl = document.getElementById('trackCount');
-      const toolbar = document.getElementById('treeToolbar');
-      const selectionLabel = document.getElementById('selectionLabel');
-      const expandAllBtn = document.getElementById('expandAll');
-      const collapseAllBtn = document.getElementById('collapseAll');
-      const expandArtistsBtn = document.getElementById('expandArtists');
-      const chartsSection = document.getElementById('chartsSection');
+    // --- App State ---
+    const state = {
+      files: [],
+      filteredFiles: [],
+      currentTrackIndex: -1,
+      isPlaying: false,
+      volume: 1,
+      view: 'library',
+      audio: new Audio(),
+      folderTree: new Map(),
+      favorites: new Set(JSON.parse(localStorage.getItem('music_favorites') || '[]'))
+    };
 
-      const chartInstances = {
-        topArtists: null,
-        artistSize: null,
-        artistDistribution: null
-      };
+    // --- DOM Elements ---
+    const els = {
+      folderInput: document.getElementById('folderInput'),
+      selectFolderBtn: document.getElementById('selectFolderBtn'),
+      viewContainer: document.getElementById('viewContainer'),
+      folderTree: document.getElementById('folderTree'),
+      searchInput: document.getElementById('searchInput'),
+      navItems: document.querySelectorAll('.nav-item'),
 
-      let lastFiles = null;
+      // Sidebar
+      sidebar: document.getElementById('sidebar'),
+      resizer: document.getElementById('resizer'),
+      expandAllBtn: document.getElementById('expandAllBtn'),
+      collapseAllBtn: document.getElementById('collapseAllBtn'),
+      expandArtistsBtn: document.getElementById('expandArtistsBtn'),
 
-      function getVar(name){
-        return getComputedStyle(appRoot).getPropertyValue(name).trim() || '';
-      }
+      // Player
+      playPauseBtn: document.getElementById('playPauseBtn'),
+      prevBtn: document.getElementById('prevBtn'),
+      nextBtn: document.getElementById('nextBtn'),
+      playIcon: document.getElementById('playIcon'),
+      pauseIcon: document.getElementById('pauseIcon'),
+      progressBar: document.getElementById('progressBar'),
+      progressFill: document.getElementById('progressFill'),
+      currentTime: document.getElementById('currentTime'),
+      duration: document.getElementById('duration'),
+      volumeSlider: document.getElementById('volumeSlider'),
+      volumeFill: document.getElementById('volumeFill'),
 
-      // Theme toggle removed with top bar; default theme is dark.
+      // Now Playing
+      npTitle: document.getElementById('npTitle'),
+      npArtist: document.getElementById('npArtist'),
+      npArt: document.getElementById('npArt')
+    };
 
-      if (!('webkitdirectory' in folderInput)) {
-        showMessage('This browser does not support folder uploads. Please try Chrome, Edge, or another Chromium-based browser.', 'warning');
-      }
+    // --- Initialization ---
+    els.selectFolderBtn.addEventListener('click', () => els.folderInput.click());
+    els.folderInput.addEventListener('change', handleFolderSelect);
 
-      folderInput.addEventListener('change', (event) => {
-        const files = Array.from(event.target.files || []);
-        if (!files.length) {
-          showMessage('No folder selected.', 'warning');
-          clearOutput();
-          return;
-        }
-        showMessage('Scanning selected folder...', 'info');
-        requestAnimationFrame(() => {
-          try {
-            const mp3Files = files.filter((file) => file.name.toLowerCase().endsWith('.mp3'));
-            if (!mp3Files.length) {
-              showMessage('No MP3 files were found in the selected folder.', 'warning');
-              clearOutput();
-              folderInput.value = '';
-              return;
-            }
-            lastFiles = mp3Files;
-            const tree = buildTree(mp3Files);
-            renderTree(tree);
-            updateStats(mp3Files);
-            updateSelectionLabel(Array.from(tree.keys()));
-            renderCharts(mp3Files);
-            clearMessage();
-          } catch (error) {
-            console.error('Failed to build library tree:', error);
-            showMessage('Something went wrong while scanning the folder.', 'danger');
-            clearOutput();
-          } finally {
-            folderInput.value = '';
-          }
-        });
+    els.playPauseBtn.addEventListener('click', togglePlay);
+    els.prevBtn.addEventListener('click', playPrev);
+    els.nextBtn.addEventListener('click', playNext);
+
+    state.audio.addEventListener('timeupdate', updateProgress);
+    state.audio.addEventListener('ended', playNext);
+
+    state.audio.addEventListener('loadedmetadata', () => {
+      els.duration.textContent = formatTime(state.audio.duration);
+    });
+
+    els.progressBar.addEventListener('click', seek);
+    els.volumeSlider.addEventListener('click', setVolume);
+    els.searchInput.addEventListener('input', handleSearch);
+
+    els.navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        els.navItems.forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+        state.view = item.dataset.view;
+        renderView();
+      });
+    });
+
+    // Sidebar Resizing
+    let isResizing = false;
+    els.resizer.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      els.resizer.classList.add('active');
+      document.body.style.cursor = 'col-resize';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const newWidth = Math.max(150, Math.min(600, e.clientX));
+      document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+    });
+
+    document.addEventListener('mouseup', () => {
+      isResizing = false;
+      els.resizer.classList.remove('active');
+      document.body.style.cursor = 'default';
+    });
+
+    // Tree Controls
+    els.expandAllBtn.addEventListener('click', () => toggleTree(true));
+    els.collapseAllBtn.addEventListener('click', () => toggleTree(false));
+    els.expandArtistsBtn.addEventListener('click', expandArtists);
+
+    function toggleTree(expand) {
+      const children = els.folderTree.querySelectorAll('.tree-children');
+      const toggles = els.folderTree.querySelectorAll('.tree-toggle');
+
+      children.forEach(el => {
+        if (expand) el.classList.remove('hidden');
+        else el.classList.add('hidden');
       });
 
-      expandAllBtn.addEventListener('click', () => setTreeOpen(true));
-      collapseAllBtn.addEventListener('click', () => setTreeOpen(false));
-      expandArtistsBtn.addEventListener('click', () => setArtistsExpanded());
+      toggles.forEach(el => {
+        if (expand) el.classList.remove('collapsed');
+        else el.classList.add('collapsed');
+      });
+    }
 
-      function clearOutput() {
-        treeContainer.innerHTML = '';
-        treeContainer.classList.add('hidden');
-        toolbar.classList.add('hidden');
-        statsPanel.classList.add('hidden');
-        destroyCharts();
-        chartsSection.classList.add('hidden');
-        selectionLabel.textContent = '';
-      }
+    function expandArtists() {
+      toggleTree(false); // Collapse all first
+      // Expand top level only
+      const topLevel = els.folderTree.children; // These are the root nodes
+      Array.from(topLevel).forEach(root => {
+        // The root itself is a div containing tree-item and tree-children
+        // We want to expand its immediate children
+        const childrenContainer = root.querySelector('.tree-children');
+        const toggle = root.querySelector('.tree-toggle');
+        if (childrenContainer) childrenContainer.classList.remove('hidden');
+        if (toggle) toggle.classList.remove('collapsed');
+      });
+    }
 
-      function showMessage(text, variant) {
-        messageEl.textContent = text;
-        messageEl.dataset.variant = variant || 'info';
-        messageEl.classList.remove('hidden');
-      }
+    // --- Core Logic ---
 
-      function clearMessage() {
-        messageEl.textContent = '';
-        messageEl.classList.add('hidden');
-      }
+    async function handleFolderSelect(e) {
+      const files = Array.from(e.target.files).filter(f => f.name.toLowerCase().endsWith('.mp3'));
+      if (!files.length) return alert('No MP3 files found.');
 
-      function plural(count, singular, pluralForm) {
-        return count === 1 ? singular : (pluralForm || singular + 's');
-      }
+      state.files = files.map((f, i) => ({
+        file: f,
+        id: i,
+        name: f.name.replace('.mp3', ''),
+        artist: getArtistFromPath(f) || 'Unknown Artist',
+        path: f.webkitRelativePath,
+        url: URL.createObjectURL(f)
+      }));
 
-      function formatBytes(bytes) {
-        if (!bytes) {
-          return '0 B';
-        }
-        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-        const value = bytes / Math.pow(1024, index);
-        const fixed = value >= 100 ? value.toFixed(0) : value.toFixed(1);
-        return fixed + ' ' + units[index];
-      }
+      state.filteredFiles = [...state.files];
+      buildTree(state.files);
+      renderView();
+      renderTree();
+    }
 
-      function createFolder(name, fullPath) {
-        return { name, fullPath, children: new Map(), files: [] };
-      }
+    function getArtistFromPath(file) {
+      const parts = file.webkitRelativePath.split('/');
+      return parts.length > 2 ? parts[1] : null;
+    }
 
-      function normaliseSegments(path, fallbackRoot) {
-        if (!path) {
-          return [fallbackRoot || '(selected files)'];
-        }
-        const parts = path.split('/').filter(Boolean);
-        if (!parts.length) {
-          return [fallbackRoot || '(selected files)'];
-        }
-        if (parts.length === 1) {
-          return [fallbackRoot || '(selected files)', parts[0]];
-        }
-        return parts;
-      }
+    function buildTree(files) {
+      state.folderTree = new Map();
 
-      function buildTree(files) {
-        const roots = new Map();
-        files.forEach((file) => {
-          const segments = normaliseSegments(file.webkitRelativePath || file.name, '(selected files)');
-          const rootName = segments.shift();
-          const fileName = segments.pop() || file.name;
-          if (!roots.has(rootName)) {
-            roots.set(rootName, createFolder(rootName, rootName));
+      files.forEach(track => {
+        const parts = track.path.split('/');
+        parts.pop(); // remove filename
+
+        let currentLevel = state.folderTree;
+        parts.forEach(part => {
+          if (!currentLevel.has(part)) {
+            currentLevel.set(part, new Map());
           }
-          let current = roots.get(rootName);
-          let currentPath = current.fullPath;
-          segments.forEach((segment) => {
-            currentPath = currentPath ? currentPath + '/' + segment : segment;
-            if (!current.children.has(segment)) {
-              current.children.set(segment, createFolder(segment, currentPath));
-            }
-            current = current.children.get(segment);
-          });
-          const fullPath = currentPath ? currentPath + '/' + fileName : fileName;
-          current.files.push({
-            name: fileName,
-            size: file.size,
-            fullPath: fullPath
-          });
+          currentLevel = currentLevel.get(part);
         });
-        return roots;
+      });
+    }
+
+    function toggleFavorite(trackName, btn) {
+      if (state.favorites.has(trackName)) {
+        state.favorites.delete(trackName);
+        btn.classList.remove('active');
+      } else {
+        state.favorites.add(trackName);
+        btn.classList.add('active');
+      }
+      localStorage.setItem('music_favorites', JSON.stringify(Array.from(state.favorites)));
+    }
+
+    // --- Playback ---
+
+    function loadTrack(index) {
+      if (index < 0 || index >= state.filteredFiles.length) return;
+
+      state.currentTrackIndex = index;
+      const track = state.filteredFiles[index];
+
+      state.audio.src = track.url;
+      state.audio.play().catch(e => console.error("Playback failed", e));
+      state.isPlaying = true;
+
+      updatePlayerUI(track);
+      updatePlayPauseIcon();
+      renderTrackList(); // Update active state in list
+    }
+
+    function togglePlay() {
+      if (state.currentTrackIndex === -1 && state.filteredFiles.length > 0) {
+        loadTrack(0);
+        return;
       }
 
-      function renderTree(roots) {
-        const fragment = document.createDocumentFragment();
-        const sortedRoots = Array.from(roots.values()).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
-        sortedRoots.forEach((rootNode) => {
-          fragment.appendChild(renderFolder(rootNode, 0));
-        });
-        treeContainer.innerHTML = '';
-        treeContainer.appendChild(fragment);
-        treeContainer.classList.remove('hidden');
-        toolbar.classList.remove('hidden');
+      if (state.audio.paused) {
+        state.audio.play();
+        state.isPlaying = true;
+      } else {
+        state.audio.pause();
+        state.isPlaying = false;
+      }
+      updatePlayPauseIcon();
+    }
+
+    function playNext() {
+      let nextIndex = state.currentTrackIndex + 1;
+      if (nextIndex >= state.filteredFiles.length) nextIndex = 0; // Loop
+      loadTrack(nextIndex);
+    }
+
+    function playPrev() {
+      let prevIndex = state.currentTrackIndex - 1;
+      if (prevIndex < 0) prevIndex = state.filteredFiles.length - 1;
+      loadTrack(prevIndex);
+    }
+
+    function seek(e) {
+      if (!state.audio.duration) return;
+      const rect = els.progressBar.getBoundingClientRect();
+      const percent = (e.clientX - rect.left) / rect.width;
+      state.audio.currentTime = percent * state.audio.duration;
+    }
+
+    function setVolume(e) {
+      const rect = els.volumeSlider.getBoundingClientRect();
+      let percent = (e.clientX - rect.left) / rect.width;
+      percent = Math.max(0, Math.min(1, percent));
+
+      state.volume = percent;
+      state.audio.volume = percent;
+      els.volumeFill.style.width = (percent * 100) + '%';
+    }
+
+    function updateProgress() {
+      const { currentTime, duration } = state.audio;
+      if (!duration) return;
+
+      const percent = (currentTime / duration) * 100;
+      els.progressFill.style.width = percent + '%';
+      els.currentTime.textContent = formatTime(currentTime);
+    }
+
+    function updatePlayerUI(track) {
+      els.npTitle.textContent = track.name;
+      els.npArtist.textContent = track.artist;
+      els.npArt.textContent = track.name.charAt(0).toUpperCase();
+    }
+
+    function updatePlayPauseIcon() {
+      if (state.isPlaying) {
+        els.playIcon.classList.add('hidden');
+        els.pauseIcon.classList.remove('hidden');
+      } else {
+        els.playIcon.classList.remove('hidden');
+        els.pauseIcon.classList.add('hidden');
+      }
+    }
+
+    // --- Rendering ---
+
+    function renderView() {
+      els.viewContainer.innerHTML = '';
+
+      if (state.files.length === 0) {
+        els.viewContainer.innerHTML = `
+          <div class="empty-state">
+            <h2>No Music Loaded</h2>
+            <p>Select a folder to scan your local library.</p>
+          </div>`;
+        return;
       }
 
-      function renderFolder(node, depth) {
-        const details = document.createElement('details');
-        details.className = 'tree-folder';
-        details.dataset.depth = String(depth);
-        if (depth <= 1) {
-          details.open = true;
-        }
-
-        const summary = document.createElement('summary');
-        summary.className = 'tree-summary';
-
-        const label = document.createElement('span');
-        label.className = 'tree-label';
-        label.textContent = node.name || (depth === 0 ? 'Root' : '(unnamed)');
-
-        const meta = document.createElement('span');
-        meta.className = 'tree-meta';
-        const folderCount = node.children.size;
-        const trackCount = node.files.length;
-        const segments = [];
-        if (folderCount) {
-          segments.push(folderCount + ' ' + plural(folderCount, 'folder'));
-        }
-        if (trackCount) {
-          segments.push(trackCount + ' ' + plural(trackCount, 'track'));
-        }
-        meta.textContent = segments.join(' | ') || 'Empty';
-
-        summary.appendChild(label);
-        summary.appendChild(meta);
-        details.appendChild(summary);
-
-        const childrenContainer = document.createElement('div');
-        childrenContainer.className = 'tree-children';
-
-        const childFolders = Array.from(node.children.values()).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
-        childFolders.forEach((child) => {
-          childrenContainer.appendChild(renderFolder(child, depth + 1));
-        });
-
-        if (node.files.length) {
-          const list = document.createElement('ul');
-          list.className = 'file-list';
-          const sortedFiles = node.files.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
-          sortedFiles.forEach((file) => {
-            const item = document.createElement('li');
-            item.className = 'file-item';
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'file-name';
-            nameSpan.textContent = file.name;
-            const sizeSpan = document.createElement('span');
-            sizeSpan.className = 'file-size';
-            sizeSpan.textContent = formatBytes(file.size);
-            item.appendChild(nameSpan);
-            item.appendChild(sizeSpan);
-            item.title = file.fullPath + ' (' + formatBytes(file.size) + ')';
-            list.appendChild(item);
-          });
-          childrenContainer.appendChild(list);
-        }
-
-        if (!childFolders.length && !node.files.length) {
-          const emptyNote = document.createElement('p');
-          emptyNote.className = 'empty-indicator';
-          emptyNote.textContent = 'No tracks in this folder.';
-          childrenContainer.appendChild(emptyNote);
-        }
-
-        details.appendChild(childrenContainer);
-        return details;
+      if (state.view === 'library') {
+        renderTrackList();
+      } else if (state.view === 'stats') {
+        renderStats();
       }
+    }
 
-      function updateStats(files) {
-        const artists = new Set();
-        const albums = new Set();
-        files.forEach((file) => {
-          const segments = normaliseSegments(file.webkitRelativePath || file.name, '(selected files)');
-          if (segments.length >= 3) {
-            artists.add(segments[1]);
-          }
-          if (segments.length >= 4) {
-            albums.add(segments[1] + '::' + segments[2]);
-          }
-        });
-        artistCountEl.textContent = artists.size;
-        albumCountEl.textContent = albums.size;
-        trackCountEl.textContent = files.length;
-        statsPanel.classList.remove('hidden');
-      }
+    function renderTrackList() {
+      const list = document.createElement('div');
+      list.className = 'track-list';
 
-      function updateSelectionLabel(rootNames) {
-        if (!rootNames.length) {
-          selectionLabel.textContent = '';
-          return;
-        }
-        if (rootNames.length === 1) {
-          selectionLabel.textContent = 'Selected folder: ' + rootNames[0];
-        } else {
-          selectionLabel.textContent = 'Selected folders: ' + rootNames.join(', ');
-        }
-      }
+      // Header
+      const header = document.createElement('div');
+      header.className = 'track-row track-head';
+      header.innerHTML = `
+        <div>#</div>
+        <div>Title</div>
+        <div>Artist</div>
+        <div style="text-align:right">Duration</div>
+        <div></div>
+      `;
+      list.appendChild(header);
 
-      function setTreeOpen(open) {
-        const detailsList = treeContainer.querySelectorAll('details.tree-folder');
-        detailsList.forEach((detail) => {
-          const depth = Number(detail.dataset.depth || 0);
-          if (open) {
-            detail.setAttribute('open', '');
-          } else if (depth === 0) {
-            detail.setAttribute('open', '');
-          } else {
-            detail.removeAttribute('open');
-          }
-        });
-      }
+      // Tracks
+      state.filteredFiles.forEach((track, index) => {
+        const row = document.createElement('div');
+        const isPlaying = index === state.currentTrackIndex;
+        const isFav = state.favorites.has(track.name);
 
-      function setArtistsExpanded() {
-        const detailsList = treeContainer.querySelectorAll('details.tree-folder');
-        detailsList.forEach((detail) => {
-          const depth = Number(detail.dataset.depth || 0);
-          if (depth <= 1) {
-            detail.setAttribute('open', '');
-          } else {
-            detail.removeAttribute('open');
-          }
-        });
-      }
+        row.className = `track-row ${isPlaying ? 'playing' : ''}`;
 
-      // --- Charts & Analytics ---
-      function prepareAnalytics(files) {
-        const artistCounts = new Map();
-        const artistSizes = new Map();
-
-        files.forEach((file) => {
-          const segments = normaliseSegments(file.webkitRelativePath || file.name, '(selected files)');
-          if (segments.length >= 3) {
-            const artist = segments[1];
-            artistCounts.set(artist, (artistCounts.get(artist) || 0) + 1);
-            artistSizes.set(artist, (artistSizes.get(artist) || 0) + file.size);
-          }
+        // Click on row plays track
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('.action-btn')) return; // Don't play if clicking heart
+          loadTrack(index);
         });
 
-        return { artistCounts, artistSizes };
-      }
+        row.innerHTML = `
+          <div class="track-num">${index + 1}</div>
+          <svg class="playing-icon" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          <div class="track-title">${track.name}</div>
+          <div class="track-artist">${track.artist}</div>
+          <div class="track-duration">--:--</div>
+          <div class="track-actions">
+            <button class="action-btn ${isFav ? 'active' : ''}" title="Like">♥</button>
+          </div>
+        `;
 
-      function topEntriesFromMap(map, limit) {
-        return Array.from(map.entries())
-          .sort((a, b) => Number(b[1]) - Number(a[1]))
-          .slice(0, limit);
-      }
+        const favBtn = row.querySelector('.action-btn');
+        favBtn.onclick = () => toggleFavorite(track.name, favBtn);
 
-      function destroyCharts() {
-        Object.keys(chartInstances).forEach((key) => {
-          if (chartInstances[key]) {
-            try { chartInstances[key].destroy(); } catch (_) {}
-            chartInstances[key] = null;
-          }
-        });
-      }
+        list.appendChild(row);
+      });
 
-      function renderCharts(files) {
-        const { artistCounts, artistSizes } = prepareAnalytics(files);
-        destroyCharts();
+      els.viewContainer.innerHTML = '';
+      els.viewContainer.appendChild(list);
+    }
 
-        const topArtistsByTracks = topEntriesFromMap(artistCounts, 20);
-        const topArtistsBySize = topEntriesFromMap(artistSizes, 20);
+    function renderStats() {
+      const artistCounts = {};
+      const sizeDistribution = { 'Small (<3MB)': 0, 'Medium (3-8MB)': 0, 'Large (>8MB)': 0 };
+      const folderDepths = {};
 
-        if (!topArtistsByTracks.length && !topArtistsBySize.length) {
-          chartsSection.classList.add('hidden');
-          return;
-        }
-        chartsSection.classList.remove('hidden');
+      state.files.forEach(f => {
+        // Artist Stats
+        artistCounts[f.artist] = (artistCounts[f.artist] || 0) + 1;
 
-        const textColor = getVar('--text') || 'rgba(226,232,240,0.9)';
-        const gridColor = getVar('--grid') || 'rgba(148,163,184,0.15)';
-        const gridSoft = getVar('--grid-soft') || 'rgba(148,163,184,0.1)';
+        // Size Stats
+        const sizeMB = f.file.size / (1024 * 1024);
+        if (sizeMB < 3) sizeDistribution['Small (<3MB)']++;
+        else if (sizeMB < 8) sizeDistribution['Medium (3-8MB)']++;
+        else sizeDistribution['Large (>8MB)']++;
 
-        chartInstances.topArtists = createHorizontalBarChart(
-          'topArtistsChart',
-          topArtistsByTracks.map(([name]) => name),
-          {
-            label: 'Tracks',
-            data: topArtistsByTracks.map(([, count]) => count),
-            backgroundColor: 'rgba(91, 156, 255, 0.75)',
-            borderColor: 'rgba(91, 156, 255, 1)',
-            borderWidth: 1
-          },
-          {
-            plugins: { tooltip: { callbacks: { label: (ctx) => 'Tracks: ' + ctx.parsed.x } } },
-            scales: { x: { ticks: { precision: 0 } } },
-            colorVars: { textColor, gridColor, gridSoft }
-          }
-        );
+        // Folder Depth Stats
+        const depth = f.path.split('/').length - 1;
+        folderDepths[depth] = (folderDepths[depth] || 0) + 1;
+      });
 
-        chartInstances.artistSize = createHorizontalBarChart(
-          'artistSizeChart',
-          topArtistsBySize.map(([name]) => name),
-          {
-            label: 'Total Size',
-            data: topArtistsBySize.map(([, size]) => size),
-            backgroundColor: 'rgba(239, 68, 68, 0.75)',
-            borderColor: 'rgba(239, 68, 68, 1)',
-            borderWidth: 1
-          },
-          {
-            plugins: { tooltip: { callbacks: { label: (ctx) => 'Size: ' + formatBytes(ctx.parsed.x) } } },
-            scales: { x: { ticks: { callback: (v) => formatBytes(v) } } },
-            colorVars: { textColor, gridColor, gridSoft }
-          }
-        );
+      const topArtists = Object.entries(artistCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
 
-        const sortedArtists = Array.from(artistCounts.entries()).sort((a, b) => b[1] - a[1]);
-        const top = sortedArtists.slice(0, 12);
-        const othersTotal = sortedArtists.slice(12).reduce((sum, [, v]) => sum + v, 0);
-        const pieLabels = top.map(([name]) => name).concat(othersTotal ? ['Others'] : []);
-        const pieData = top.map(([, v]) => v).concat(othersTotal ? [othersTotal] : []);
-        chartInstances.artistDistribution = renderPieChart('artistDistributionChart', pieLabels, pieData, { textColor });
-      }
+      els.viewContainer.innerHTML = `
+        <div class="stats-header">
+          <div class="stat-card">
+            <div class="stat-val">${state.files.length}</div>
+            <div class="stat-label">Total Tracks</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val">${Object.keys(artistCounts).length}</div>
+            <div class="stat-label">Unique Artists</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val">${formatBytes(state.files.reduce((a, b) => a + b.file.size, 0))}</div>
+            <div class="stat-label">Total Size</div>
+          </div>
+        </div>
 
-      function createHorizontalBarChart(canvasId, labels, dataset, options = {}) {
-        const canvas = document.getElementById(canvasId);
-        const ctx = canvas.getContext('2d');
-        const textColor = options.colorVars?.textColor || 'rgba(226,232,240,0.9)';
-        const gridColor = options.colorVars?.gridColor || 'rgba(148,163,184,0.15)';
-        const gridSoft = options.colorVars?.gridSoft || 'rgba(148,163,184,0.1)';
-        const defaultOptions = {
-          indexAxis: 'y',
-          maintainAspectRatio: false,
+        <div class="charts-grid">
+          <div class="chart-card large">
+            <h3>Top Artists by Track Count</h3>
+            <div class="chart-wrapper"><canvas id="artistChart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>File Size Distribution</h3>
+            <div class="chart-wrapper"><canvas id="sizeChart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3>Folder Depth Analysis</h3>
+            <div class="chart-wrapper"><canvas id="depthChart"></canvas></div>
+          </div>
+        </div>
+      `;
+
+      // Render Charts
+      setTimeout(() => {
+        const commonOptions = {
           responsive: true,
-          resizeDelay: 200,
-          animation: false,
-          scales: {
-            x: { beginAtZero: true, ticks: { color: textColor, precision: 0 }, grid: { color: gridColor } },
-            y: { ticks: { color: textColor }, grid: { color: gridSoft } }
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#9ca3af' } }
           },
-          plugins: { legend: { display: false } }
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af' } },
+            x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+          }
         };
-        const { colorVars, ...rest } = options;
-        return new Chart(ctx, {
-          type: 'bar',
-          data: { labels, datasets: [dataset] },
-          options: { ...defaultOptions, ...rest }
-        });
-      }
 
-      function renderPieChart(canvasId, labels, data, theme = {}) {
-        const ctx = document.getElementById(canvasId).getContext('2d');
-        const textColor = theme.textColor || 'rgba(226,232,240,0.9)';
-        return new Chart(ctx, {
-          type: 'pie',
+        // Artist Chart
+        new Chart(document.getElementById('artistChart'), {
+          type: 'bar',
           data: {
-            labels,
+            labels: topArtists.map(a => a[0]),
             datasets: [{
-              data,
-              backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#06B6D4', '#D97706', '#65A30D', '#4F46E5', '#F97316', '#14B8A6']
+              label: 'Tracks',
+              data: topArtists.map(a => a[1]),
+              backgroundColor: '#6366f1',
+              borderRadius: 4
+            }]
+          },
+          options: commonOptions
+        });
+
+        // Size Chart
+        new Chart(document.getElementById('sizeChart'), {
+          type: 'doughnut',
+          data: {
+            labels: Object.keys(sizeDistribution),
+            datasets: [{
+              data: Object.values(sizeDistribution),
+              backgroundColor: ['#8b5cf6', '#6366f1', '#ec4899'],
+              borderWidth: 0
             }]
           },
           options: {
-            maintainAspectRatio: false,
-            responsive: true,
-            resizeDelay: 200,
-            animation: false,
-            plugins: {
-              legend: { position: 'bottom', labels: { color: textColor } },
-              tooltip: {
-                callbacks: {
-                  label: (context) => {
-                    const label = context.label || '';
-                    const value = context.parsed || 0;
-                    const total = (context.dataset.data || []).reduce((s, v) => s + v, 0) || 0;
-                    const pct = total ? ((value / total) * 100).toFixed(1) : '0.0';
-                    return label + ': ' + value + ' tracks (' + pct + '%)';
-                  }
-                }
-              }
-            }
+            ...commonOptions,
+            scales: { x: { display: false }, y: { display: false } }
           }
         });
+
+        // Depth Chart
+        new Chart(document.getElementById('depthChart'), {
+          type: 'line',
+          data: {
+            labels: Object.keys(folderDepths).map(d => `Level ${d}`),
+            datasets: [{
+              label: 'Files at Depth',
+              data: Object.values(folderDepths),
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              fill: true,
+              tension: 0.4
+            }]
+          },
+          options: commonOptions
+        });
+      }, 0);
+    }
+
+    function renderTree() {
+      els.folderTree.innerHTML = '';
+
+      function createNode(map, name) {
+        const div = document.createElement('div');
+
+        if (name) {
+          const item = document.createElement('div');
+          item.className = 'tree-item tree-folder';
+
+          // Toggle Arrow
+          const toggle = document.createElement('div');
+          toggle.className = 'tree-toggle';
+          toggle.textContent = '▼';
+
+          const icon = document.createElement('span');
+          icon.className = 'tree-folder-icon';
+          icon.textContent = '📁';
+
+          const label = document.createElement('span');
+          label.textContent = name;
+
+          item.appendChild(toggle);
+          item.appendChild(icon);
+          item.appendChild(label);
+
+          div.appendChild(item);
+
+          // Click on label filters
+          label.onclick = (e) => {
+            e.stopPropagation();
+            els.searchInput.value = name;
+            handleSearch({ target: { value: name } });
+          };
+
+          // Click on toggle expands/collapses
+          toggle.onclick = (e) => {
+            e.stopPropagation();
+            const children = div.querySelector('.tree-children');
+            if (children) {
+              children.classList.toggle('hidden');
+              toggle.classList.toggle('collapsed');
+            }
+          };
+        }
+
+        if (map.size > 0) {
+          const childrenContainer = document.createElement('div');
+          childrenContainer.className = 'tree-children';
+          // Default to expanded
+
+          map.forEach((val, key) => {
+            childrenContainer.appendChild(createNode(val, key));
+          });
+
+          div.appendChild(childrenContainer);
+        }
+
+        return div;
       }
-    })();
+
+      // Root level
+      state.folderTree.forEach((val, key) => {
+        els.folderTree.appendChild(createNode(val, key));
+      });
+    }
+
+    function handleSearch(e) {
+      const term = e.target.value.toLowerCase();
+      if (!term) {
+        state.filteredFiles = [...state.files];
+      } else {
+        state.filteredFiles = state.files.filter(t =>
+          t.name.toLowerCase().includes(term) ||
+          t.artist.toLowerCase().includes(term) ||
+          t.path.toLowerCase().includes(term)
+        );
+      }
+      if (state.view === 'library') renderTrackList();
+    }
+
+    // --- Helpers ---
+
+    function formatTime(seconds) {
+      if (!seconds || isNaN(seconds)) return '0:00';
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function formatBytes(bytes, decimals = 2) {
+      if (!+bytes) return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    }
+
   </script>
 </body>
+
 </html>
