@@ -38,8 +38,8 @@
 
         .glass-panel {
             background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
             border: 1px solid rgba(51, 65, 85, 0.5);
         }
 
@@ -51,6 +51,26 @@
             position: relative;
             height: 250px;
             width: 100%;
+        }
+
+        th.sortable {
+            position: relative;
+            padding-right: 2.5rem;
+            cursor: pointer;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        th.sortable::after {
+            content: attr(data-sort-icon);
+            position: absolute;
+            right: 1rem;
+            font-size: 0.7rem;
+            opacity: 0.6;
+        }
+
+        th.sortable[data-sort-icon=""]::after {
+            opacity: 0;
         }
 
         /* Custom Scrollbar */
@@ -234,13 +254,14 @@
                     <table class="w-full text-sm text-left text-slate-400">
                         <thead class="text-xs text-slate-400 uppercase bg-slate-900/50">
                             <tr>
-                                <th scope="col" class="px-6 py-3">Name / ID</th>
-                                <th scope="col" class="px-6 py-3 cursor-pointer hover:text-white"
-                                    onclick="sortTable('cost')">Cost</th>
-                                <th scope="col" class="px-6 py-3">Type</th>
-                                <th scope="col" class="px-6 py-3">Stats (A/H/M)</th>
-                                <th scope="col" class="px-6 py-3">Archetype</th>
-                                <th scope="col" class="px-6 py-3">Tags</th>
+                                <th scope="col" class="px-6 py-3 sortable" data-sort="name">Name / ID</th>
+                                <th scope="col" class="px-6 py-3 sortable" data-sort="cost">Cost</th>
+                                <th scope="col" class="px-6 py-3 sortable" data-sort="type">Type</th>
+                                <th scope="col" class="px-6 py-3 sortable" data-sort="attack">Attack</th>
+                                <th scope="col" class="px-6 py-3 sortable" data-sort="health">Health</th>
+                                <th scope="col" class="px-6 py-3 sortable" data-sort="movement">Movement</th>
+                                <th scope="col" class="px-6 py-3 sortable" data-sort="archetype">Archetype</th>
+                                <th scope="col" class="px-6 py-3 sortable" data-sort="tags">Tags</th>
                             </tr>
                         </thead>
                         <tbody id="cardTableBody" class="divide-y divide-slate-800">
@@ -259,6 +280,7 @@
         /* --- State & Globals --- */
         let RAW_DATA = [];
         let ACTIVE_FILTER = 'All';
+        const SORT_STATE = { column: 'name', direction: 'asc' };
         const CHARTS = {};
 
         const COLORS = {
@@ -288,9 +310,26 @@
             });
 
             // Setup Search
-            document.getElementById('cardSearch').addEventListener('input', (e) => {
+            const searchInput = document.getElementById('cardSearch');
+            searchInput.addEventListener('input', (e) => {
                 renderTable(e.target.value);
             });
+
+            // Setup Sorting
+            document.querySelectorAll('th[data-sort]').forEach(header => {
+                header.addEventListener('click', () => {
+                    const column = header.dataset.sort;
+                    if (SORT_STATE.column === column) {
+                        SORT_STATE.direction = SORT_STATE.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        SORT_STATE.column = column;
+                        SORT_STATE.direction = 'asc';
+                    }
+                    updateSortIndicators();
+                    renderTable(searchInput.value);
+                });
+            });
+            updateSortIndicators();
         });
 
         /* --- Upload & Parse Logic --- */
@@ -443,12 +482,16 @@
             const term = search.toLowerCase();
             let displaySet = RAW_DATA.filter(c => {
                 const matchesFilter = (ACTIVE_FILTER === 'All' || c.cardType === ACTIVE_FILTER);
-                const matchesSearch = c.name.toLowerCase().includes(term) ||
-                    c.archetype.toLowerCase().includes(term) ||
-                    (c.cardType && c.cardType.toLowerCase().includes(term));
+                const name = (c.name || '').toLowerCase();
+                const archetype = (c.archetype || '').toLowerCase();
+                const type = (c.cardType || '').toLowerCase();
+                const matchesSearch = name.includes(term) ||
+                    archetype.includes(term) ||
+                    type.includes(term);
                 return matchesFilter && matchesSearch;
             });
 
+            displaySet = sortCards(displaySet);
             document.getElementById('tableCount').textContent = displaySet.length;
 
             // Limit for performance
@@ -456,19 +499,19 @@
                 const row = document.createElement('tr');
                 row.className = 'bg-slate-900/30 border-b border-slate-800 hover:bg-slate-800/50 transition-colors';
 
-                let tags = card.families.join(', ');
-                // Heuristic for keywords based on boolean flags in raw data
-                Object.keys(card.raw).forEach(k => {
-                    if (card.raw[k] === true && !['isToken'].includes(k)) tags += (tags ? ', ' : '') + formatLabel(k);
-                });
+                const tags = getCardTags(card);
+                const isMinion = card.cardType === 'Minion';
+                const attackDisplay = isMinion ? card.attack ?? 0 : '-';
+                const healthDisplay = isMinion ? card.health ?? 0 : '-';
+                const movementDisplay = isMinion ? card.movement ?? 0 : '-';
 
                 row.innerHTML = `
                     <td class="px-6 py-4 font-medium text-slate-200">${card.name || card.id}</td>
                     <td class="px-6 py-4 text-sky-400 font-bold font-mono">${card.cost}</td>
                     <td class="px-6 py-4"><span class="px-2 py-1 rounded text-xs bg-slate-800 border border-slate-700">${card.cardType}</span></td>
-                    <td class="px-6 py-4 font-mono text-xs">
-                        ${card.cardType === 'Minion' ? `<span class="text-amber-400">A:${card.attack}</span> <span class="text-rose-400">H:${card.health}</span> <span class="text-teal-400">M:${card.movement}</span>` : '-'}
-                    </td>
+                    <td class="px-6 py-4 font-mono text-xs text-amber-400">${attackDisplay}</td>
+                    <td class="px-6 py-4 font-mono text-xs text-rose-400">${healthDisplay}</td>
+                    <td class="px-6 py-4 font-mono text-xs text-teal-400">${movementDisplay}</td>
                     <td class="px-6 py-4 text-xs">${card.archetype}</td>
                     <td class="px-6 py-4 text-xs text-slate-500 truncate max-w-xs">${tags}</td>
                 `;
@@ -661,6 +704,67 @@
                     scales: { x: { display: false }, y: { grid: { display: false } } }
                 }
             });
+        }
+
+        function updateSortIndicators() {
+            document.querySelectorAll('th[data-sort]').forEach(header => {
+                if (header.dataset.sort === SORT_STATE.column) {
+                    header.setAttribute('data-sort-icon', SORT_STATE.direction === 'asc' ? '^' : 'v');
+                    header.setAttribute('aria-sort', SORT_STATE.direction === 'asc' ? 'ascending' : 'descending');
+                } else {
+                    header.setAttribute('data-sort-icon', '');
+                    header.setAttribute('aria-sort', 'none');
+                }
+            });
+        }
+
+        function sortCards(cards) {
+            const multiplier = SORT_STATE.direction === 'asc' ? 1 : -1;
+            const column = SORT_STATE.column;
+            return cards.sort((a, b) => {
+                const valA = getSortValue(a, column);
+                const valB = getSortValue(b, column);
+                if (valA < valB) return -1 * multiplier;
+                if (valA > valB) return 1 * multiplier;
+                return 0;
+            });
+        }
+
+        function getSortValue(card, column) {
+            switch (column) {
+                case 'name':
+                    return (card.name || card.id || '').toLowerCase();
+                case 'cost':
+                    return typeof card.cost === 'number' ? card.cost : 0;
+                case 'type':
+                    return (card.cardType || '').toLowerCase();
+                case 'attack':
+                    return card.cardType === 'Minion' ? (typeof card.attack === 'number' ? card.attack : 0) : -1;
+                case 'health':
+                    return card.cardType === 'Minion' ? (typeof card.health === 'number' ? card.health : 0) : -1;
+                case 'movement':
+                    return card.cardType === 'Minion' ? (typeof card.movement === 'number' ? card.movement : 0) : -1;
+                case 'archetype':
+                    return (card.archetype || '').toLowerCase();
+                case 'tags':
+                    return getCardTags(card).toLowerCase();
+                default:
+                    return 0;
+            }
+        }
+
+        function getCardTags(card) {
+            if (typeof card._tagsCache === 'string') return card._tagsCache;
+            let tags = Array.isArray(card.families) ? card.families.join(', ') : '';
+            if (card.raw && typeof card.raw === 'object') {
+                Object.keys(card.raw).forEach(k => {
+                    if (card.raw[k] === true && !['isToken'].includes(k)) {
+                        tags += (tags ? ', ' : '') + formatLabel(k);
+                    }
+                });
+            }
+            card._tagsCache = tags;
+            return tags;
         }
 
         function formatLabel(str) {
