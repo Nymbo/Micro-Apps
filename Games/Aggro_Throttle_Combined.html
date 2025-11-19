@@ -1,74 +1,303 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>3D RPG Game - Three.js (Improved Enemy Collision)</title>
+    <title>3D RPG + Flight Sim Combined</title>
     <style>
         /* Basic styling */
-        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #000; }
-        canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: sans-serif;
+            background-color: #000;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
 
         /* Info text container */
-        .info-container { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 8px 12px; border-radius: 5px; font-size: 14px; z-index: 100; max-width: 280px; }
-        #ability-info { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.2); }
-        #ability-info h4 { margin: 0 0 5px 0; font-size: 1.1em; font-weight: bold; }
-        #ability-info p { margin: 2px 0; font-size: 0.95em; }
+        .info-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 100;
+            max-width: 280px;
+        }
+
+        #ability-info {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #ability-info h4 {
+            margin: 0 0 5px 0;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        #ability-info p {
+            margin: 2px 0;
+            font-size: 0.95em;
+        }
 
         /* --- RPG UI --- */
-        #ability-bar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(0, 0, 0, 0.6); padding: 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); z-index: 100; }
-        .ability-button { width: 50px; height: 50px; background-color: #333; border: 2px solid #555; border-radius: 5px; color: white; font-size: 16px; font-weight: bold; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: background-color 0.2s, border-color 0.2s, opacity 0.1s; position: relative; }
-        .ability-button:hover { background-color: #444; border-color: #777; }
-        .ability-button:active { background-color: #222; border-color: #444; }
-        .keybind { position: absolute; top: 2px; left: 4px; font-size: 10px; color: rgba(255, 255, 255, 0.7); }
-        .ability-text { font-size: 18px; }
-        .ability-button.on-cooldown { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-        .ability-button.on-cooldown:hover { background-color: #333; border-color: #555; }
-        #combat-log { position: absolute; bottom: 20px; left: 20px; width: 250px; height: 100px; background-color: rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 5px; color: white; font-size: 12px; padding: 5px; overflow-y: scroll; z-index: 100; display: flex; flex-direction: column-reverse; }
-        #combat-log p { margin: 1px 0; line-height: 1.2; }
+        #ability-bar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 100;
+        }
 
-        /* --- Driving UI --- */
-         #speedometer { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 8px 12px; border-radius: 5px; font-size: 16px; z-index: 10; min-width: 100px; text-align: center; display: none; }
-        #nitro-ui { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 8px 12px; border-radius: 5px; font-size: 14px; z-index: 10; width: 150px; text-align: left; display: none; }
-        #nitro-bar-container { width: 100%; height: 10px; background-color: #555; border-radius: 3px; overflow: hidden; margin-top: 4px; }
-        #nitro-bar { width: 100%; height: 100%; background-color: #00ccff; border-radius: 3px; transition: width 0.1s linear; }
+        .ability-button {
+            width: 50px;
+            height: 50px;
+            background-color: #333;
+            border: 2px solid #555;
+            border-radius: 5px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s, opacity 0.1s;
+            position: relative;
+        }
+
+        .ability-button:hover {
+            background-color: #444;
+            border-color: #777;
+        }
+
+        .ability-button:active {
+            background-color: #222;
+            border-color: #444;
+        }
+
+        .keybind {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .ability-text {
+            font-size: 18px;
+        }
+
+        .ability-button.on-cooldown {
+            opacity: 0.5;
+            pointer-events: none;
+            cursor: not-allowed;
+        }
+
+        .ability-button.on-cooldown:hover {
+            background-color: #333;
+            border-color: #555;
+        }
+
+        #combat-log {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 250px;
+            height: 100px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            color: white;
+            font-size: 12px;
+            padding: 5px;
+            overflow-y: scroll;
+            z-index: 100;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+
+        #combat-log p {
+            margin: 1px 0;
+            line-height: 1.2;
+        }
+
+        /* --- Vehicle UI --- */
+        #speedometer {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 16px;
+            z-index: 10;
+            min-width: 100px;
+            text-align: center;
+            display: none;
+        }
+
+        #nitro-ui {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 10;
+            width: 150px;
+            text-align: left;
+            display: none;
+        }
+
+        #nitro-bar-container {
+            width: 100%;
+            height: 10px;
+            background-color: #555;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        #nitro-bar {
+            width: 100%;
+            height: 100%;
+            background-color: #00ccff;
+            border-radius: 3px;
+            transition: width 0.1s linear;
+        }
 
         /* --- General UI --- */
-        .hp-label { position: absolute; background-color: rgba(0, 0, 0, 0.6); color: white; padding: 2px 5px; border-radius: 3px; font-size: 12px; white-space: nowrap; pointer-events: none; transform: translateX(-50%); z-index: 99; display: none; }
-        #game-over { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.85); color: #ff4444; font-size: 48px; font-weight: bold; display: flex; justify-content: center; align-items: center; text-align: center; z-index: 300; display: none; cursor: default; }
-        #interaction-prompt { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #0f0; padding: 5px 10px; border-radius: 4px; font-size: 14px; z-index: 101; display: none; white-space: nowrap; }
+        .hp-label {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+            white-space: nowrap;
+            pointer-events: none;
+            transform: translateX(-50%);
+            z-index: 99;
+            display: none;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            color: #ff4444;
+            font-size: 48px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 300;
+            display: none;
+            cursor: default;
+        }
+
+        #interaction-prompt {
+            position: absolute;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #0f0;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 101;
+            display: none;
+            white-space: nowrap;
+        }
+
+        /* Flight controls help */
+        #flight-controls {
+            display: none;
+            font-size: 0.9em;
+            color: #aaa;
+            margin-top: 5px;
+            border-top: 1px solid #444;
+            padding-top: 5px;
+        }
     </style>
 </head>
+
 <body>
     <div class="info-container">
-        <div id="movement-info">WASD: Move, Space: Jump/Drift, Drag Mouse: Rotate, Click: Target, LShift: Nitro (in car), E: Enter/Exit Car.</div>
+        <div id="movement-info">
+            WASD: Move<br>
+            Space: Jump/Drift/Brake<br>
+            LShift: Nitro/Turbo<br>
+            E: Enter/Exit Vehicle<br>
+            Click: Target, Drag: Rotate
+            <div id="flight-controls">
+                <b>Plane Controls:</b><br>
+                W/S: Pitch Down/Up<br>
+                A/D: Roll Left/Right<br>
+                Shift: Fast | Space: Slow
+            </div>
+        </div>
         <div id="ability-info">
-            <h4>Abilities (On Foot - 1s GCD):</h4>
-            <p>1 (⚔️): Attack (10 Dmg)</p>
-            <p>2 (🛡️): Defend (5s Immunity)</p>
-            <p>3 (🔥): Fireball (15 Dmg)</p>
-            <p>4 (❄️): Frost Nova (30 Dmg AoE)</p>
-            <p>5 (✨): Heal (20 HP)</p>
+            <h4>Abilities (On Foot):</h4>
+            <p>1 (⚔️): Attack</p>
+            <p>2 (🛡️): Defend</p>
+            <p>3 (🔥): Fireball</p>
+            <p>4 (❄️): Frost Nova</p>
+            <p>5 (✨): Heal</p>
         </div>
     </div>
 
     <div id="player-hp-label" class="hp-label"></div>
     <div id="ability-bar">
-        <button class="ability-button" id="ability-1"><span class="keybind">1</span><span class="ability-text">⚔️</span></button>
-        <button class="ability-button" id="ability-2"><span class="keybind">2</span><span class="ability-text">🛡️</span></button>
-        <button class="ability-button" id="ability-3"><span class="keybind">3</span><span class="ability-text">🔥</span></button>
-        <button class="ability-button" id="ability-4"><span class="keybind">4</span><span class="ability-text">❄️</span></button>
-        <button class="ability-button" id="ability-5"><span class="keybind">5</span><span class="ability-text">✨</span></button>
+        <button class="ability-button" id="ability-1"><span class="keybind">1</span><span
+                class="ability-text">⚔️</span></button>
+        <button class="ability-button" id="ability-2"><span class="keybind">2</span><span
+                class="ability-text">🛡️</span></button>
+        <button class="ability-button" id="ability-3"><span class="keybind">3</span><span
+                class="ability-text">🔥</span></button>
+        <button class="ability-button" id="ability-4"><span class="keybind">4</span><span
+                class="ability-text">❄️</span></button>
+        <button class="ability-button" id="ability-5"><span class="keybind">5</span><span
+                class="ability-text">✨</span></button>
     </div>
     <div id="combat-log"></div>
 
     <div id="speedometer">Speed: 0</div>
     <div id="nitro-ui">
-        Nitro:
-        <div id="nitro-bar-container"><div id="nitro-bar"></div></div>
+        Turbo/Nitro:
+        <div id="nitro-bar-container">
+            <div id="nitro-bar"></div>
+        </div>
     </div>
 
-    <div id="interaction-prompt">Press [E] to Enter Car</div>
+    <div id="interaction-prompt">Press [E] to Enter</div>
     <div id="game-over">YOU DIED</div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -85,13 +314,15 @@
         let player;
         let car;
         let carBodyMesh;
+        let plane; // New Plane Object
+        let propeller; // New Propeller
         let enemies = [];
         let environmentObjects = [];
-        let environmentBoundingBoxes = []; // Buildings only
-        let enemyBoundingBoxes = []; // Bounding boxes for enemies
+        let environmentBoundingBoxes = [];
+        let enemyBoundingBoxes = [];
 
-        // --- Player/Car State ---
-        let playerState = 'onFoot';
+        // --- Player State ---
+        let playerState = 'onFoot'; // 'onFoot', 'inCar', 'inPlane'
         let playerMaxHP = 100;
         let playerCurrentHP = playerMaxHP;
         let isPlayerDead = false;
@@ -103,13 +334,13 @@
         const playerGroundY = 0;
         let playerBoundingBox = new THREE.Box3();
 
-        // --- Physics Variables (Player - On Foot) ---
+        // --- Physics (Player) ---
         const gravity = 20.0;
         const jumpStrength = 8.0;
         let playerVelocityY = 0;
         let isGrounded = true;
 
-        // --- Physics Variables (Car) ---
+        // --- Physics (Car) ---
         let carSpeed = 0;
         const carBaseMaxSpeed = 100;
         const carMaxReverseSpeed = -15;
@@ -119,23 +350,32 @@
         const carBaseTurnSpeed = Math.PI * 0.8;
         const carTurnSpeedFactor = 0.5;
         let carBoundingBox = new THREE.Box3();
-
-        // --- Drift Variables (Car) ---
         let isDrifting = false;
         const driftTurnMultiplier = 1.8;
         const driftTiltAngle = Math.PI / 18;
         let currentCarTilt = 0;
         const tiltSpeed = Math.PI / 4;
 
-        // --- Nitro Variables (Car) ---
+        // --- Physics (Plane) ---
+        let planeSpeed = 0;
+        // Scaled up speeds for deltaTime usage (FlightSim was per-frame)
+        const planeBaseSpeed = 120.0;
+        const planeMaxSpeed = 280.0;
+        const planeMinSpeed = 60.0;
+
+        // --- Vehicle Shared (Nitro/Boost) ---
         let isBoosting = false;
         const maxNitroAmount = 100;
         let nitroAmount = maxNitroAmount;
         const nitroConsumptionRate = 25;
         const nitroRechargeRate = 8;
+
+        // Car Boost Multipliers
         const nitroAccelerationMultiplier = 3.0;
         const nitroMaxSpeedMultiplier = 1.6;
         const nitroTurnReduction = 0.4;
+
+        // Camera FOV effects
         const baseCameraFOV = 75;
         const boostCameraFOV = 85;
         let currentCameraFOV = baseCameraFOV;
@@ -145,16 +385,16 @@
         let currentTarget = null;
         const targetHighlightColor = 0x00ff00;
 
-        // --- UI Element References ---
+        // --- UI References ---
         let playerHpLabel, combatLogElement, gameOverScreen, abilityBarElement;
-        let speedometerElement, nitroUiElement, nitroBarElement, interactionPromptElement;
+        let speedometerElement, nitroUiElement, nitroBarElement, interactionPromptElement, flightControlsInfo;
         let abilityButtons = [];
 
-        // --- Movement Variables (Shared) ---
+        // --- Input ---
         const moveSpeed = 5.0;
         const keysPressed = { w: false, a: false, s: false, d: false, space: false, shift: false, e: false };
 
-        // --- Camera Control Variables ---
+        // --- Camera Control ---
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
         let cameraTarget = new THREE.Vector3();
@@ -164,7 +404,7 @@
         const rpgCameraSensitivity = 0.005;
         const carCameraOffset = new THREE.Vector3(0, 8, -15);
 
-        // --- Combat Constants ---
+        // --- Combat & AI Constants ---
         const attackRange = 15;
         const globalCooldownDuration = 1000;
         let globalCooldownEndTime = 0;
@@ -173,16 +413,12 @@
         const frostNovaRadius = 5;
         const frostNovaDamage = 30;
         const immunityDuration = 5000;
-
-        // --- AI Constants ---
         const enemyMoveSpeed = moveSpeed * 0.8;
         const enemyAggroRadius = 30;
-        const wolfModelLength = 1.4;
-        const wolfModelWidth = 0.5;
-        const enemyCollisionRadius = (playerModelWidth / 2) + (wolfModelLength / 2); // Vs Player
-        const carCollisionRadius = 2.0; // Vs Car
+        const enemyCollisionRadius = 1.5;
+        const vehicleCollisionRadius = 2.0;
 
-        // --- World & Road Constants ---
+        // --- World ---
         const worldSize = 500;
         const fogNear = worldSize * 0.1;
         const fogFar = worldSize * 0.6;
@@ -191,11 +427,11 @@
         const roadSpacing = worldSize / roadSegments;
 
         // --- Interaction ---
-        const interactionRadius = 3.0;
+        const interactionRadius = 5.0;
 
-        // --- Initialization Function ---
+        // --- Init ---
         function init() {
-            // Get UI elements
+            // UI Setup
             playerHpLabel = document.getElementById('player-hp-label');
             combatLogElement = document.getElementById('combat-log');
             gameOverScreen = document.getElementById('game-over');
@@ -204,239 +440,818 @@
             nitroUiElement = document.getElementById('nitro-ui');
             nitroBarElement = document.getElementById('nitro-bar');
             interactionPromptElement = document.getElementById('interaction-prompt');
+            flightControlsInfo = document.getElementById('flight-controls');
             for (let i = 1; i <= 5; i++) {
                 abilityButtons.push(document.getElementById(`ability-${i}`));
             }
 
-            // Scene setup
+            // Scene
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x5080a0);
             scene.fog = new THREE.Fog(0x5080a0, fogNear, fogFar);
 
-            // Camera setup
-            camera = new THREE.PerspectiveCamera(baseCameraFOV, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera = new THREE.PerspectiveCamera(baseCameraFOV, window.innerWidth / window.innerHeight, 0.1, 2000); // Increased Far clip for flight
 
-            // Renderer setup
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // Setup scene components
+            // Scene Objects
             setupLighting();
             setupGround();
             createRoadGrid();
             setupEnvironment();
             setupPlayer();
             setupCar();
+            setupPlane(); // NEW
             setupEnemies();
 
-            // Setup interaction listeners
             setupEventListeners();
-
-            // Initial camera positioning
             setCameraMode('onFoot');
-
-            // Initial UI updates
             updateHpLabels();
-            logCombatMessage("Welcome! Click an enemy to target.");
+            logCombatMessage("Welcome! Use 'E' to enter Car or Plane.");
             updateUIState();
-
-            // Start the game loop
             animate();
         }
 
-        // --- Setup Functions --- (Identical)
-        function setupLighting() { /* ... */ const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight); const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9); directionalLight.position.set(50, 100, 75); directionalLight.castShadow = true; directionalLight.shadow.camera.near = 10; directionalLight.shadow.camera.far = 300; directionalLight.shadow.camera.left = -worldSize / 4; directionalLight.shadow.camera.right = worldSize / 4; directionalLight.shadow.camera.top = worldSize / 4; directionalLight.shadow.camera.bottom = -worldSize / 4; directionalLight.shadow.mapSize.width = 1024; directionalLight.shadow.mapSize.height = 1024; scene.add(directionalLight); }
-        function setupGround() { /* ... */ const groundGeometry = new THREE.PlaneGeometry(worldSize, worldSize); const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x6B8E23, roughness: 0.9, metalness: 0.1 }); const ground = new THREE.Mesh(groundGeometry, groundMaterial); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; ground.position.y = -0.01; scene.add(ground); }
-        function setupPlayer() { /* ... */ player = createPlayerModel(); player.position.set(0, playerGroundY, 0); player.castShadow = true; player.userData = { hpLabel: playerHpLabel, hpOffsetY: playerModelHeight + 0.3 }; scene.add(player); playerBoundingBox.setFromObject(player); }
-        function createRoadGrid() { /* ... */ const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8 }); const markingMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF }); const markingGeometry = new THREE.BoxGeometry(0.2, 0.02, 2); const markingSpacing = 5; for (let i = 0; i <= roadSegments; i++) { const positionOffset = -worldSize / 2 + i * roadSpacing; const vRoadGeometry = new THREE.PlaneGeometry(roadWidth, worldSize); const vRoad = new THREE.Mesh(vRoadGeometry, roadMaterial); vRoad.rotation.x = -Math.PI / 2; vRoad.position.set(positionOffset, 0.01, 0); vRoad.receiveShadow = true; scene.add(vRoad); const hRoadGeometry = new THREE.PlaneGeometry(worldSize, roadWidth); const hRoad = new THREE.Mesh(hRoadGeometry, roadMaterial); hRoad.rotation.x = -Math.PI / 2; hRoad.position.set(0, 0.01, positionOffset); hRoad.receiveShadow = true; scene.add(hRoad); if (i > 0 && i < roadSegments) { for (let z = -worldSize / 2 + markingSpacing / 2; z < worldSize / 2; z += markingSpacing) { const vMarking = new THREE.Mesh(markingGeometry, markingMaterial); vMarking.position.set(positionOffset, 0.02, z); vMarking.receiveShadow = true; scene.add(vMarking); } } if (i > 0 && i < roadSegments) { for (let x = -worldSize / 2 + markingSpacing / 2; x < worldSize / 2; x += markingSpacing) { const hMarking = new THREE.Mesh(markingGeometry, markingMaterial); hMarking.rotation.y = Math.PI / 2; hMarking.position.set(x, 0.02, positionOffset); hMarking.receiveShadow = true; scene.add(hMarking); } } } }
-        function setupEnvironment() { /* ... */ const treeCount = 100; const buildingCount = 20; const halfWorld = worldSize / 2; const halfRoadWidth = roadWidth / 2; const blockInnerSize = roadSpacing - roadWidth; environmentBoundingBoxes = []; environmentObjects = []; function isOnRoad(x, z) { for (let i = 0; i <= roadSegments; i++) { const roadCenter = -halfWorld + i * roadSpacing; if (Math.abs(x - roadCenter) < halfRoadWidth || Math.abs(z - roadCenter) < halfRoadWidth) { return true; } } return false; } for (let i = 0; i < treeCount; i++) { let placed = false; while (!placed) { const blockX = Math.floor(Math.random() * roadSegments); const blockZ = Math.floor(Math.random() * roadSegments); const blockCenterX = -halfWorld + blockX * roadSpacing + roadSpacing / 2; const blockCenterZ = -halfWorld + blockZ * roadSpacing + roadSpacing / 2; const x = blockCenterX + (Math.random() - 0.5) * blockInnerSize; const z = blockCenterZ + (Math.random() - 0.5) * blockInnerSize; if (!isOnRoad(x, z)) { const tree = createTree(new THREE.Vector3(x, 0, z)); scene.add(tree); environmentObjects.push(tree); placed = true; } } } for (let i = 0; i < buildingCount; i++) { let placed = false; while (!placed) { const blockX = Math.floor(Math.random() * roadSegments); const blockZ = Math.floor(Math.random() * roadSegments); const blockCenterX = -halfWorld + blockX * roadSpacing + roadSpacing / 2; const blockCenterZ = -halfWorld + blockZ * roadSpacing + roadSpacing / 2; const x = blockCenterX + (Math.random() - 0.5) * blockInnerSize; const z = blockCenterZ + (Math.random() - 0.5) * blockInnerSize; if (!isOnRoad(x, z)) { const size = new THREE.Vector3( THREE.MathUtils.randFloat(5, 15), THREE.MathUtils.randFloat(8, 25), THREE.MathUtils.randFloat(5, 15) ); const building = createBuilding(new THREE.Vector3(x, size.y / 2, z), size); scene.add(building); environmentObjects.push(building); const box = new THREE.Box3().setFromObject(building); box.expandByScalar(0.1); environmentBoundingBoxes.push(box); placed = true; } } } }
-        function createTree(position) { /* ... */ const trunkHeight = THREE.MathUtils.randFloat(3, 6); const trunkRadius = trunkHeight * 0.1; const foliageHeight = trunkHeight * THREE.MathUtils.randFloat(1.5, 2.5); const foliageRadius = trunkHeight * THREE.MathUtils.randFloat(0.6, 1.0); const trunkGeo = new THREE.CylinderGeometry(trunkRadius * 0.7, trunkRadius, trunkHeight, 8); const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); const trunk = new THREE.Mesh(trunkGeo, trunkMat); trunk.castShadow = true; trunk.receiveShadow = true; const foliageGeo = new THREE.ConeGeometry(foliageRadius, foliageHeight, 12); const foliageMat = new THREE.MeshStandardMaterial({ color: 0x228B22 }); const foliage = new THREE.Mesh(foliageGeo, foliageMat); foliage.castShadow = true; foliage.receiveShadow = true; const treeGroup = new THREE.Group(); treeGroup.add(trunk); treeGroup.add(foliage); treeGroup.position.copy(position); trunk.position.set(0, trunkHeight / 2, 0); foliage.position.set(0, trunkHeight + foliageHeight * 0.4, 0); return treeGroup; }
-        function createBuilding(position, size) { /* ... */ const buildingGeo = new THREE.BoxGeometry(size.x, size.y, size.z); const greyShade = THREE.MathUtils.randFloat(0.3, 0.7); const buildingMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(greyShade, greyShade, greyShade), roughness: 0.8 }); const building = new THREE.Mesh(buildingGeo, buildingMat); building.position.copy(position); building.castShadow = true; building.receiveShadow = true; return building; }
-        function setupCar() { /* ... */ car = new THREE.Group(); car.position.set(5, 0.5, 5); car.rotation.y = -Math.PI / 4; const bodyGeometry = new THREE.BoxGeometry(2, 1, 4); const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.5, metalness: 0.3 }); carBodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial); carBodyMesh.castShadow = true; carBodyMesh.receiveShadow = true; car.add(carBodyMesh); const cabinGeometry = new THREE.BoxGeometry(1.8, 0.8, 2); const cabinMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.6, metalness: 0.2 }); const carCabin = new THREE.Mesh(cabinGeometry, cabinMaterial); carCabin.position.set(0, 0.9, -0.5); carCabin.castShadow = true; carCabin.receiveShadow = true; carBodyMesh.add(carCabin); const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.5, 16); const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 }); const wheelPositions = [ { x: 1.1, y: -0.1, z: 1.3 }, { x: -1.1, y: -0.1, z: 1.3 }, { x: 1.1, y: -0.1, z: -1.3 }, { x: -1.1, y: -0.1, z: -1.3 } ]; wheelPositions.forEach(pos => { const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial); wheel.position.set(pos.x, pos.y, pos.z); wheel.rotation.z = Math.PI / 2; wheel.castShadow = true; car.add(wheel); }); scene.add(car); carBoundingBox.setFromObject(car); }
-        function setupEventListeners() { /* ... */ window.addEventListener("resize", onWindowResize); window.addEventListener("keydown", onKeyDown); window.addEventListener("keyup", onKeyUp); renderer.domElement.addEventListener("mousedown", onMouseDown); window.addEventListener("mousemove", onMouseMove); window.addEventListener("mouseup", onMouseUp); renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false }); renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false }); renderer.domElement.addEventListener('touchend', onTouchEnd); abilityButtons.forEach((button, index) => { button.addEventListener('click', () => useAbility(index + 1)); }); }
-        function createPlayerModel() { /* ... */ const playerGroup = new THREE.Group(); const headSize = 0.5; const torsoHeight = 0.8; const torsoWidth = 0.7; const torsoDepth = 0.4; const limbWidth = 0.25; const armHeight = 0.7; const legHeight = 0.8; const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac }); const torsoMat = new THREE.MeshStandardMaterial({ color: 0x0000ff }); const armsMat = new THREE.MeshStandardMaterial({ color: 0xffdbac }); const legsMat = new THREE.MeshStandardMaterial({ color: 0x444444 }); const headGeo = new THREE.BoxGeometry(headSize, headSize, headSize); const head = new THREE.Mesh(headGeo, headMat); head.castShadow = true; const torsoGeo = new THREE.BoxGeometry(torsoWidth, torsoHeight, torsoDepth); const torso = new THREE.Mesh(torsoGeo, torsoMat); torso.castShadow = true; const armGeo = new THREE.BoxGeometry(limbWidth, armHeight, limbWidth); const leftArm = new THREE.Mesh(armGeo, armsMat); leftArm.castShadow = true; const rightArm = new THREE.Mesh(armGeo, armsMat); rightArm.castShadow = true; const legGeo = new THREE.BoxGeometry(limbWidth, legHeight, limbWidth); const leftLeg = new THREE.Mesh(legGeo, legsMat); leftLeg.castShadow = true; const rightLeg = new THREE.Mesh(legGeo, legsMat); rightLeg.castShadow = true; const legY = legHeight / 2; const torsoY = legHeight + torsoHeight / 2; const headY = legHeight + torsoHeight + headSize / 2; const armY = legHeight + torsoHeight / 2; head.position.set(0, headY, 0); torso.position.set(0, torsoY, 0); leftLeg.position.set(-torsoWidth / 2 + limbWidth / 2, legY, 0); rightLeg.position.set(torsoWidth / 2 - limbWidth / 2, legY, 0); leftArm.position.set(-torsoWidth / 2 - limbWidth / 2, armY, 0); rightArm.position.set(torsoWidth / 2 + limbWidth / 2, armY, 0); playerGroup.add(head); playerGroup.add(torso); playerGroup.add(leftLeg); playerGroup.add(rightLeg); playerGroup.add(leftArm); playerGroup.add(rightArm); console.log("Calculated Model Height:", legHeight + torsoHeight + headSize); return playerGroup; }
-        function createWolfModel() { /* ... */ const wolfGroup = new THREE.Group(); const bodyLength = 1.4; const bodyWidth = 0.5; const bodyHeight = 0.6; const legHeight = 0.5; const legSize = 0.15; const headSize = 0.4; const tailLength = 0.5; const tailSize = 0.1; const furMat = new THREE.MeshStandardMaterial({ color: 0x665a48 }); const noseMat = new THREE.MeshStandardMaterial({ color: 0x111111 }); const bodyGeo = new THREE.BoxGeometry(bodyWidth, bodyHeight, bodyLength); const body = new THREE.Mesh(bodyGeo, furMat); body.position.y = legHeight + bodyHeight / 2; wolfGroup.add(body); const headGeo = new THREE.BoxGeometry(headSize, headSize, headSize); const head = new THREE.Mesh(headGeo, furMat); head.position.set(0, legHeight + bodyHeight + headSize * 0.3, bodyLength / 2 + headSize * 0.2); wolfGroup.add(head); const noseGeo = new THREE.BoxGeometry(headSize*0.4, headSize*0.3, headSize*0.4); const nose = new THREE.Mesh(noseGeo, noseMat); nose.position.set(0, 0, headSize/2 + headSize*0.1); head.add(nose); const legGeo = new THREE.BoxGeometry(legSize, legHeight, legSize); const legPositions = [ { x: bodyWidth / 2 - legSize / 2, z: bodyLength / 2 - legSize / 2 }, { x: -bodyWidth / 2 + legSize / 2, z: bodyLength / 2 - legSize / 2 }, { x: bodyWidth / 2 - legSize / 2, z: -bodyLength / 2 + legSize / 2 }, { x: -bodyWidth / 2 + legSize / 2, z: -bodyLength / 2 + legSize / 2 } ]; legPositions.forEach(pos => { const leg = new THREE.Mesh(legGeo, furMat); leg.position.set(pos.x, legHeight / 2, pos.z); wolfGroup.add(leg); }); const tailGeo = new THREE.BoxGeometry(tailSize, tailSize, tailLength); const tail = new THREE.Mesh(tailGeo, furMat); tail.position.set(0, legHeight + bodyHeight * 0.8, -bodyLength / 2); tail.rotation.x = -Math.PI / 6; wolfGroup.add(tail); return wolfGroup; }
-        function setupEnemies() { /* ... (Identical - initializes enemyBoundingBoxes) ... */ const enemyPositions = [ { x: 10, y: 0, z: -8 }, { x: -12, y: 0, z: -15 }, { x: 15, y: 0, z: 5 }, { x: -8, y: 0, z: 18 }, { x: 20, y: 0, z: -20 } ]; const enemyMaxHP = 50; enemyBoundingBoxes = []; enemies = []; enemyPositions.forEach((pos, index) => { const enemy = createEnemy(pos, enemyMaxHP, index); scene.add(enemy); enemies.push(enemy); const box = new THREE.Box3().setFromObject(enemy); enemyBoundingBoxes.push(box); }); }
-        function createEnemy(position, maxHP, index) { /* ... (Identical) ... */ const enemyGroup = createWolfModel(); enemyGroup.position.copy(position); enemyGroup.castShadow = true; enemyGroup.name = `enemy-${index}`; const enemyHpLabel = document.createElement('div'); enemyHpLabel.id = `enemy-hp-label-${index}`; enemyHpLabel.className = 'hp-label'; document.body.appendChild(enemyHpLabel); const wolfHeight = 0.6 + 0.3; enemyGroup.userData = { id: `Wolf ${index}`, hpLabel: enemyHpLabel, hpOffsetY: wolfHeight + 0.3, maxHP: maxHP, currentHP: maxHP, isDead: false, baseMaterials: {}, lastDamageTime: 0 }; enemyGroup.traverse((child) => { if (child.isMesh) { enemyGroup.userData.baseMaterials[child.uuid] = child.material; child.castShadow = true; child.receiveShadow = true; } }); return enemyGroup; }
+        // --- Setup Functions ---
+        function setupLighting() {
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            directionalLight.position.set(50, 100, 75);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.near = 10;
+            directionalLight.shadow.camera.far = 500;
+            directionalLight.shadow.camera.left = -worldSize / 2;
+            directionalLight.shadow.camera.right = worldSize / 2;
+            directionalLight.shadow.camera.top = worldSize / 2;
+            directionalLight.shadow.camera.bottom = -worldSize / 2;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+        }
 
+        function setupGround() {
+            const groundGeometry = new THREE.PlaneGeometry(worldSize, worldSize);
+            const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x6B8E23, roughness: 0.9, metalness: 0.1 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            ground.position.y = -0.01;
+            scene.add(ground);
+        }
 
-        // --- Event Handler Functions --- (Identical)
-        function onWindowResize() { /* ... */ camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
-        function onKeyDown(event) { /* ... */ if (event.key.toLowerCase() === 'shift') { keysPressed['shift'] = true; } else if (event.code === 'Space') { keysPressed.space = true; } else if (event.key.toLowerCase() === 'e') { keysPressed.e = true; handleInteraction(); } else if (event.key.toLowerCase() in keysPressed) { keysPressed[event.key.toLowerCase()] = true; } if (playerState === 'onFoot') { if (isPlayerDead) return; switch (event.code) { case 'Digit1': useAbility(1); break; case 'Digit2': useAbility(2); break; case 'Digit3': useAbility(3); break; case 'Digit4': useAbility(4); break; case 'Digit5': useAbility(5); break; case 'Space': if (isGrounded) { playerVelocityY = jumpStrength; isGrounded = false; } break; } } }
-        function onKeyUp(event) { /* ... */ if (event.key.toLowerCase() === 'shift') { keysPressed['shift'] = false; } else if (event.code === 'Space') { keysPressed.space = false; } else if (event.key.toLowerCase() === 'e') { keysPressed.e = false; } else if (event.key.toLowerCase() in keysPressed) { keysPressed[event.key.toLowerCase()] = false; } }
-        function onMouseDown(event) { /* ... */ if (playerState === 'onFoot') { mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1; mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1; raycaster.setFromCamera(mouse, camera); const intersects = raycaster.intersectObjects(enemies, true); if (intersects.length > 0) { let enemyGroup = intersects[0].object; while (enemyGroup.parent !== scene) { enemyGroup = enemyGroup.parent; } if (enemyGroup.userData && !enemyGroup.userData.isDead) { setTarget(enemyGroup); } } } if (!isPlayerDead && event.button === 0) { isDragging = true; previousMousePosition.x = event.clientX; previousMousePosition.y = event.clientY; renderer.domElement.style.cursor = 'grabbing'; } }
-        function onMouseMove(event) { /* ... */ if (playerState === 'onFoot' && isDragging && !isPlayerDead) { const deltaX = event.clientX - previousMousePosition.x; const deltaY = event.clientY - previousMousePosition.y; rpgCameraTheta -= deltaX * rpgCameraSensitivity; rpgCameraPhi -= deltaY * rpgCameraSensitivity; rpgCameraPhi = Math.max(0.1, Math.min(Math.PI - 0.1, rpgCameraPhi)); previousMousePosition.x = event.clientX; previousMousePosition.y = event.clientY; } else if (isDragging) { previousMousePosition.x = event.clientX; previousMousePosition.y = event.clientY; } }
-        function onMouseUp(event) { /* ... */ if (event.button === 0) { if (isDragging) { isDragging = false; if (!isPlayerDead) { renderer.domElement.style.cursor = (playerState === 'onFoot') ? 'crosshair' : 'default'; } else { renderer.domElement.style.cursor = 'default'; } } } }
-        function onTouchStart(event) { /* ... */ if (event.touches.length === 1) { event.preventDefault(); mouse.x = (event.touches[0].clientX / renderer.domElement.clientWidth) * 2 - 1; mouse.y = -(event.touches[0].clientY / renderer.domElement.clientHeight) * 2 + 1; if (playerState === 'onFoot') { raycaster.setFromCamera(mouse, camera); const intersects = raycaster.intersectObjects(enemies, true); if (intersects.length > 0) { let enemyGroup = intersects[0].object; while (enemyGroup.parent !== scene) { enemyGroup = enemyGroup.parent; } if (enemyGroup.userData && !enemyGroup.userData.isDead) { setTarget(enemyGroup); } } } if (!isPlayerDead) { isDragging = true; previousMousePosition.x = event.touches[0].clientX; previousMousePosition.y = event.touches[0].clientY; } } }
-        function onTouchMove(event) { /* ... */ if (playerState === 'onFoot' && isDragging && event.touches.length === 1 && !isPlayerDead) { event.preventDefault(); const deltaX = event.touches[0].clientX - previousMousePosition.x; const deltaY = event.touches[0].clientY - previousMousePosition.y; rpgCameraTheta -= deltaX * rpgCameraSensitivity * 1.5; rpgCameraPhi -= deltaY * rpgCameraSensitivity * 1.5; rpgCameraPhi = Math.max(0.1, Math.min(Math.PI - 0.1, rpgCameraPhi)); previousMousePosition.x = event.touches[0].clientX; previousMousePosition.y = event.touches[0].clientY; } else if (isDragging) { previousMousePosition.x = event.touches[0].clientX; previousMousePosition.y = event.touches[0].clientY; } }
-        function onTouchEnd(event) { /* ... */ if (isDragging) { isDragging = false; } }
+        function setupPlayer() {
+            player = createPlayerModel();
+            player.position.set(0, playerGroundY, 0);
+            player.castShadow = true;
+            player.userData = { hpLabel: playerHpLabel, hpOffsetY: playerModelHeight + 0.3 };
+            scene.add(player);
+            playerBoundingBox.setFromObject(player);
+        }
 
-        // --- Interaction Logic --- (Identical)
-        function handleInteraction() { if (playerState === 'onFoot') { if (player && car && player.position.distanceTo(car.position) < interactionRadius) { enterCar(); } } else if (playerState === 'inCar') { exitCar(); } }
-        function enterCar() { if (isPlayerDead) return; console.log("Entering car"); playerState = 'inCar'; player.visible = false; carSpeed = 0; isDrifting = false; isBoosting = false; currentCarTilt = 0; if(carBodyMesh) carBodyMesh.rotation.z = 0; setCameraMode('inCar'); updateUIState(); setTarget(null); }
-        function exitCar() { console.log("Exiting car"); playerState = 'onFoot'; const exitOffset = new THREE.Vector3(1.5, 0, 0); exitOffset.applyQuaternion(car.quaternion); player.position.copy(car.position).add(exitOffset); player.position.y = playerGroundY; playerVelocityY = 0; isGrounded = true; player.visible = true; setCameraMode('onFoot'); updateUIState(); }
-        function updateUIState() { const isDriving = (playerState === 'inCar'); speedometerElement.style.display = isDriving ? 'block' : 'none'; nitroUiElement.style.display = isDriving ? 'block' : 'none'; abilityBarElement.style.display = isDriving ? 'none' : 'flex'; combatLogElement.style.display = isDriving ? 'none' : 'flex'; }
-
-        // --- Game Logic Functions ---
-        function updatePlayerMovementAndPhysics(deltaTime) { /* ... (Identical) ... */ if (isPlayerDead || playerState !== 'onFoot') return; const moveDirection = new THREE.Vector3(0, 0, 0); if (keysPressed.w) moveDirection.z = -1; if (keysPressed.s) moveDirection.z = 1; if (keysPressed.a) moveDirection.x = -1; if (keysPressed.d) moveDirection.x = 1; let finalMove = new THREE.Vector3(0, 0, 0); let horizontalMoveAmount = 0; if (moveDirection.x !== 0 || moveDirection.z !== 0) { moveDirection.normalize(); const cameraDirection = new THREE.Vector3(); camera.getWorldDirection(cameraDirection); cameraDirection.y = 0; cameraDirection.normalize(); const cameraLeft = new THREE.Vector3(); cameraLeft.crossVectors(camera.up, cameraDirection).normalize(); finalMove.addScaledVector(cameraDirection, -moveDirection.z); finalMove.addScaledVector(cameraLeft, -moveDirection.x); finalMove.normalize(); horizontalMoveAmount = moveSpeed * deltaTime; const potentialPosition = player.position.clone().addScaledVector(finalMove, horizontalMoveAmount); playerBoundingBox.setFromCenterAndSize( potentialPosition.clone().setY(playerModelHeight / 2), new THREE.Vector3(playerModelWidth, playerModelHeight, playerModelWidth) ); let collisionDetected = false; for (const envBox of environmentBoundingBoxes) { if (playerBoundingBox.intersectsBox(envBox)) { collisionDetected = true; break; } } if (collisionDetected) { horizontalMoveAmount = 0; } if (horizontalMoveAmount > 0) { player.position.addScaledVector(finalMove, horizontalMoveAmount); } if (finalMove.lengthSq() > 0.001) { const targetQuaternion = new THREE.Quaternion(); const lookAtMatrix = new THREE.Matrix4(); const targetLookAtPos = player.position.clone().add(finalMove); targetLookAtPos.y = player.position.y; lookAtMatrix.lookAt(player.position, targetLookAtPos, player.up); targetQuaternion.setFromRotationMatrix(lookAtMatrix); player.quaternion.slerp(targetQuaternion, 0.15); } } playerVelocityY -= gravity * deltaTime; player.position.y += playerVelocityY * deltaTime; if (player.position.y <= playerGroundY) { player.position.y = playerGroundY; playerVelocityY = 0; isGrounded = true; } else { isGrounded = false; } cameraTarget.copy(player.position); cameraTarget.y += playerModelHeight * 0.6; }
-        function updateCarPhysicsAndMovement(deltaTime) { /* ... (Identical) ... */ if (playerState !== 'inCar') return; if (!isBoosting && nitroAmount < maxNitroAmount) { nitroAmount += nitroRechargeRate * deltaTime; nitroAmount = Math.min(nitroAmount, maxNitroAmount); } if (keysPressed.shift && nitroAmount > 0) { isBoosting = true; nitroAmount -= nitroConsumptionRate * deltaTime; nitroAmount = Math.max(nitroAmount, 0); if (nitroAmount === 0) { isBoosting = false; } } else { isBoosting = false; } if (keysPressed.space && carSpeed > carBaseMaxSpeed * 0.3 && !isBoosting) { isDrifting = true; } else { isDrifting = false; } let currentAcceleration = carBaseAcceleration; let currentMaxSpeed = carBaseMaxSpeed; let currentTurnSpeed = carBaseTurnSpeed; if (isBoosting) { currentAcceleration *= nitroAccelerationMultiplier; currentMaxSpeed *= nitroMaxSpeedMultiplier; currentTurnSpeed *= nitroTurnReduction; } let appliedAcceleration = 0; if (keysPressed.w) { appliedAcceleration = currentAcceleration; } else if (keysPressed.s) { if (carSpeed > 0.1) { appliedAcceleration = -carBrakeDeceleration; } else { appliedAcceleration = -carBaseAcceleration; } } else { if (Math.abs(carSpeed) > 0.1) { appliedAcceleration = -Math.sign(carSpeed) * carDeceleration; } else { carSpeed = 0; } } carSpeed += appliedAcceleration * deltaTime; carSpeed = Math.max(carMaxReverseSpeed, Math.min(currentMaxSpeed, carSpeed)); if (!keysPressed.w && !keysPressed.s && Math.abs(carSpeed) < 0.1) { carSpeed = 0; } const moveDistance = carSpeed * deltaTime; const forward = new THREE.Vector3(); car.getWorldDirection(forward); const right = new THREE.Vector3(); right.crossVectors(car.up, forward).normalize(); let turnAngle = 0; if (Math.abs(carSpeed) > 0.1) { let actualTurnRate = currentTurnSpeed * Math.pow(Math.abs(carSpeed / currentMaxSpeed), carTurnSpeedFactor); let turnDirection = 0; if (keysPressed.a) turnDirection = 1; if (keysPressed.d) turnDirection = -1; if (isDrifting && turnDirection !== 0) { actualTurnRate *= driftTurnMultiplier; const slideForce = right.clone().multiplyScalar(carSpeed * 0.1 * -turnDirection * deltaTime); const potentialSlidePos = car.position.clone().add(slideForce); carBoundingBox.setFromObject(car); carBoundingBox.translate(slideForce); let slideCollision = false; for (const envBox of environmentBoundingBoxes) { if (carBoundingBox.intersectsBox(envBox)) { slideCollision = true; break; } } if (!slideCollision) { car.position.add(slideForce); } } turnAngle = actualTurnRate * turnDirection * deltaTime; car.rotation.y += turnAngle; } const potentialMove = forward.clone().multiplyScalar(moveDistance); const potentialPosition = car.position.clone().add(potentialMove); carBoundingBox.setFromObject(car); carBoundingBox.translate(potentialMove); let moveCollision = false; for (const envBox of environmentBoundingBoxes) { if (carBoundingBox.intersectsBox(envBox)) { moveCollision = true; break; } } if (!moveCollision) { car.position.add(potentialMove); } else { carSpeed = 0; } let targetTilt = 0; if (isDrifting && (keysPressed.a || keysPressed.d)) { targetTilt = keysPressed.a ? driftTiltAngle : -driftTiltAngle; } const tiltDelta = targetTilt - currentCarTilt; const tiltStep = Math.sign(tiltDelta) * Math.min(Math.abs(tiltDelta), tiltSpeed * deltaTime); currentCarTilt += tiltStep; if (carBodyMesh) { carBodyMesh.rotation.z = currentCarTilt; } carBoundingBox.setFromObject(car); }
-
-        // MODIFIED: Added improved enemy-enemy collision logic
-        function updateEnemyAI(deltaTime, currentTime) {
-             // 1. Update all enemy bounding boxes first based on current positions
-             enemies.forEach((enemy, index) => {
-                 if (!enemy.userData.isDead) {
-                     // Use a slightly simpler bounding box for enemy-enemy collision check if needed
-                     // For now, using the full object box is fine
-                     enemyBoundingBoxes[index].setFromObject(enemy);
-                 }
-             });
-
-             // 2. Process movement and collision for each enemy
-             enemies.forEach((enemy, index) => {
-                if (enemy.userData.isDead || isPlayerDead) return;
-
-                const targetObject = (playerState === 'inCar') ? car : player;
-                const targetPosition = targetObject.position;
-                const playerCollisionRadius = (playerState === 'inCar') ? carCollisionRadius : enemyCollisionRadius;
-                const distanceToTargetSq = targetPosition.distanceToSquared(enemy.position);
-
-                let moveDirection = new THREE.Vector3(0, 0, 0);
-                let shouldMove = false;
-
-                // --- Movement Calculation ---
-                if (distanceToTargetSq < enemyAggroRadius * enemyAggroRadius) {
-                    if (distanceToTargetSq > playerCollisionRadius * playerCollisionRadius * 1.1) {
-                        moveDirection.subVectors(targetPosition, enemy.position);
-                        moveDirection.y = 0;
-                        moveDirection.normalize();
-                        shouldMove = true;
-                    }
-                    // --- Player Collision Damage ---
-                    if (distanceToTargetSq < playerCollisionRadius * playerCollisionRadius) {
-                        if (currentTime > enemy.userData.lastDamageTime + enemyDamageCooldown) {
-                            applyDamage(player, enemyCollisionDamage, enemy.userData.id);
-                            enemy.userData.lastDamageTime = currentTime;
-                            flashObject(player, 0xff0000);
-                            updateHpLabels();
-                        }
+        function createRoadGrid() { /* Same as before */
+            const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8 });
+            const markingMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+            const markingGeometry = new THREE.BoxGeometry(0.2, 0.02, 2);
+            const markingSpacing = 5;
+            for (let i = 0; i <= roadSegments; i++) {
+                const positionOffset = -worldSize / 2 + i * roadSpacing;
+                const vRoadGeometry = new THREE.PlaneGeometry(roadWidth, worldSize);
+                const vRoad = new THREE.Mesh(vRoadGeometry, roadMaterial);
+                vRoad.rotation.x = -Math.PI / 2;
+                vRoad.position.set(positionOffset, 0.01, 0);
+                vRoad.receiveShadow = true;
+                scene.add(vRoad);
+                const hRoadGeometry = new THREE.PlaneGeometry(worldSize, roadWidth);
+                const hRoad = new THREE.Mesh(hRoadGeometry, roadMaterial);
+                hRoad.rotation.x = -Math.PI / 2;
+                hRoad.position.set(0, 0.01, positionOffset);
+                hRoad.receiveShadow = true;
+                scene.add(hRoad);
+                if (i > 0 && i < roadSegments) {
+                    for (let z = -worldSize / 2 + markingSpacing / 2; z < worldSize / 2; z += markingSpacing) {
+                        const vMarking = new THREE.Mesh(markingGeometry, markingMaterial);
+                        vMarking.position.set(positionOffset, 0.02, z);
+                        vMarking.receiveShadow = true;
+                        scene.add(vMarking);
                     }
                 }
-
-                // --- Apply Movement (with Improved Enemy Collision Check) ---
-                if (shouldMove) {
-                    const enemyMoveDistance = enemyMoveSpeed * deltaTime;
-                    const potentialMove = moveDirection.clone().multiplyScalar(enemyMoveDistance);
-                    const potentialPosition = enemy.position.clone().add(potentialMove);
-
-                    const potentialEnemyBox = new THREE.Box3().copy(enemyBoundingBoxes[index]);
-                    potentialEnemyBox.translate(potentialMove);
-
-                    let collisionPreventsMove = false;
-                    // Check against *other* living enemies' *current* bounding boxes
-                    for (let otherIndex = 0; otherIndex < enemies.length; otherIndex++) {
-                        if (index === otherIndex || enemies[otherIndex].userData.isDead) continue;
-
-                        if (potentialEnemyBox.intersectsBox(enemyBoundingBoxes[otherIndex])) {
-                            // --- Collision Resolution ---
-                            // Check if moving *towards* the collided enemy
-                            const vectorToOther = new THREE.Vector3().subVectors(enemies[otherIndex].position, enemy.position);
-                            vectorToOther.y = 0; // Ignore vertical difference
-                            vectorToOther.normalize();
-
-                            // If the dot product is positive (> threshold), we are moving towards the other enemy. Prevent move.
-                            if (moveDirection.dot(vectorToOther) > 0.1) {
-                                collisionPreventsMove = true;
-                                break; // Stop checking once a blocking collision is found
-                            }
-                            // Otherwise, allow potential sliding (don't set collisionPreventsMove)
-                        }
+                if (i > 0 && i < roadSegments) {
+                    for (let x = -worldSize / 2 + markingSpacing / 2; x < worldSize / 2; x += markingSpacing) {
+                        const hMarking = new THREE.Mesh(markingGeometry, markingMaterial);
+                        hMarking.rotation.y = Math.PI / 2;
+                        hMarking.position.set(x, 0.02, positionOffset);
+                        hMarking.receiveShadow = true;
+                        scene.add(hMarking);
                     }
-
-                    // Only move if no blocking collision was detected
-                    if (!collisionPreventsMove) {
-                        enemy.position.add(potentialMove);
-                        // Update the actual bounding box after moving
-                        enemyBoundingBoxes[index].setFromObject(enemy);
-
-                        // Enemy Rotation (face movement direction)
-                        const targetQuaternion = new THREE.Quaternion();
-                        const lookAtMatrix = new THREE.Matrix4();
-                        const targetLookAtPos = enemy.position.clone().add(moveDirection);
-                        targetLookAtPos.y = enemy.position.y;
-                        lookAtMatrix.lookAt(enemy.position, targetLookAtPos, enemy.up);
-                        targetQuaternion.setFromRotationMatrix(lookAtMatrix);
-                        enemy.quaternion.slerp(targetQuaternion, 0.1);
-                    }
-                    // else: Do nothing if collision detected (prevents moving into other enemy)
                 }
+            }
+        }
+
+        function setupEnvironment() { /* Same as before */
+            const treeCount = 100; const buildingCount = 20; const halfWorld = worldSize / 2; const halfRoadWidth = roadWidth / 2; const blockInnerSize = roadSpacing - roadWidth; environmentBoundingBoxes = []; environmentObjects = [];
+            function isOnRoad(x, z) {
+                for (let i = 0; i <= roadSegments; i++) {
+                    const roadCenter = -halfWorld + i * roadSpacing;
+                    if (Math.abs(x - roadCenter) < halfRoadWidth || Math.abs(z - roadCenter) < halfRoadWidth) return true;
+                } return false;
+            }
+            for (let i = 0; i < treeCount; i++) {
+                let placed = false;
+                while (!placed) {
+                    const blockX = Math.floor(Math.random() * roadSegments); const blockZ = Math.floor(Math.random() * roadSegments);
+                    const blockCenterX = -halfWorld + blockX * roadSpacing + roadSpacing / 2; const blockCenterZ = -halfWorld + blockZ * roadSpacing + roadSpacing / 2;
+                    const x = blockCenterX + (Math.random() - 0.5) * blockInnerSize; const z = blockCenterZ + (Math.random() - 0.5) * blockInnerSize;
+                    if (!isOnRoad(x, z)) { const tree = createTree(new THREE.Vector3(x, 0, z)); scene.add(tree); environmentObjects.push(tree); placed = true; }
+                }
+            }
+            for (let i = 0; i < buildingCount; i++) {
+                let placed = false;
+                while (!placed) {
+                    const blockX = Math.floor(Math.random() * roadSegments); const blockZ = Math.floor(Math.random() * roadSegments);
+                    const blockCenterX = -halfWorld + blockX * roadSpacing + roadSpacing / 2; const blockCenterZ = -halfWorld + blockZ * roadSpacing + roadSpacing / 2;
+                    const x = blockCenterX + (Math.random() - 0.5) * blockInnerSize; const z = blockCenterZ + (Math.random() - 0.5) * blockInnerSize;
+                    if (!isOnRoad(x, z)) {
+                        const size = new THREE.Vector3(THREE.MathUtils.randFloat(5, 15), THREE.MathUtils.randFloat(8, 25), THREE.MathUtils.randFloat(5, 15));
+                        const building = createBuilding(new THREE.Vector3(x, size.y / 2, z), size);
+                        scene.add(building); environmentObjects.push(building);
+                        const box = new THREE.Box3().setFromObject(building); box.expandByScalar(0.1); environmentBoundingBoxes.push(box); placed = true;
+                    }
+                }
+            }
+        }
+
+        function createTree(position) {
+            const trunkHeight = THREE.MathUtils.randFloat(3, 6); const trunkRadius = trunkHeight * 0.1;
+            const foliageHeight = trunkHeight * THREE.MathUtils.randFloat(1.5, 2.5); const foliageRadius = trunkHeight * THREE.MathUtils.randFloat(0.6, 1.0);
+            const trunkGeo = new THREE.CylinderGeometry(trunkRadius * 0.7, trunkRadius, trunkHeight, 8);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeo, trunkMat); trunk.castShadow = true; trunk.receiveShadow = true;
+            const foliageGeo = new THREE.ConeGeometry(foliageRadius, foliageHeight, 12);
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+            const foliage = new THREE.Mesh(foliageGeo, foliageMat); foliage.castShadow = true; foliage.receiveShadow = true;
+            const treeGroup = new THREE.Group(); treeGroup.add(trunk); treeGroup.add(foliage);
+            treeGroup.position.copy(position); trunk.position.set(0, trunkHeight / 2, 0); foliage.position.set(0, trunkHeight + foliageHeight * 0.4, 0);
+            return treeGroup;
+        }
+
+        function createBuilding(position, size) {
+            const buildingGeo = new THREE.BoxGeometry(size.x, size.y, size.z);
+            const greyShade = THREE.MathUtils.randFloat(0.3, 0.7);
+            const buildingMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(greyShade, greyShade, greyShade), roughness: 0.8 });
+            const building = new THREE.Mesh(buildingGeo, buildingMat);
+            building.position.copy(position); building.castShadow = true; building.receiveShadow = true;
+            return building;
+        }
+
+        function setupCar() {
+            car = new THREE.Group(); car.position.set(5, 0.5, 5); car.rotation.y = -Math.PI / 4;
+            const bodyGeometry = new THREE.BoxGeometry(2, 1, 4);
+            const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.5, metalness: 0.3 });
+            carBodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial); carBodyMesh.castShadow = true; carBodyMesh.receiveShadow = true;
+            car.add(carBodyMesh);
+            const cabinGeometry = new THREE.BoxGeometry(1.8, 0.8, 2);
+            const cabinMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.6, metalness: 0.2 });
+            const carCabin = new THREE.Mesh(cabinGeometry, cabinMaterial); carCabin.position.set(0, 0.9, -0.5); carCabin.castShadow = true; carCabin.receiveShadow = true; carBodyMesh.add(carCabin);
+            const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.5, 16);
+            const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+            const wheelPositions = [{ x: 1.1, y: -0.1, z: 1.3 }, { x: -1.1, y: -0.1, z: 1.3 }, { x: 1.1, y: -0.1, z: -1.3 }, { x: -1.1, y: -0.1, z: -1.3 }];
+            wheelPositions.forEach(pos => { const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial); wheel.position.set(pos.x, pos.y, pos.z); wheel.rotation.z = Math.PI / 2; wheel.castShadow = true; car.add(wheel); });
+            scene.add(car); carBoundingBox.setFromObject(car);
+        }
+
+        // --- NEW: Plane Setup (From Flight Sim) ---
+        function setupPlane() {
+            plane = new THREE.Group();
+
+            // Materials
+            const redMat = new THREE.MeshStandardMaterial({ color: 0xd9534f, flatShading: true });
+            const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf7f7f7, flatShading: true });
+            const greyMat = new THREE.MeshStandardMaterial({ color: 0x333333, flatShading: true });
+            const glassMat = new THREE.MeshStandardMaterial({ color: 0x87CEEB, opacity: 0.7, transparent: true });
+
+            // Fuselage
+            const fuselageGeo = new THREE.BoxGeometry(1.5, 1.5, 8);
+            const posAttr = fuselageGeo.attributes.position;
+            for (let i = 0; i < posAttr.count; i++) {
+                const z = posAttr.getZ(i);
+                if (z < -2) { // Taper front
+                    const scale = 0.7;
+                    posAttr.setX(i, posAttr.getX(i) * scale);
+                    posAttr.setY(i, posAttr.getY(i) * scale);
+                }
+            }
+            fuselageGeo.computeVertexNormals();
+            const fuselage = new THREE.Mesh(fuselageGeo, whiteMat);
+            fuselage.castShadow = true; fuselage.receiveShadow = true;
+            plane.add(fuselage);
+
+            // Cockpit
+            const cockpit = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 2.5), glassMat);
+            cockpit.position.set(0, 0.8, -1);
+            plane.add(cockpit);
+
+            // Wings
+            const wing = new THREE.Mesh(new THREE.BoxGeometry(12, 0.2, 3), redMat);
+            wing.position.set(0, 0, 0.5); wing.castShadow = true;
+            plane.add(wing);
+
+            // Tails
+            const tailV = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.5, 2), redMat);
+            tailV.position.set(0, 1, 3.5); tailV.castShadow = true;
+            plane.add(tailV);
+            const tailH = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 1.5), redMat);
+            tailH.position.set(0, 0.5, 3.5); tailH.castShadow = true;
+            plane.add(tailH);
+
+            // Propeller
+            const spinner = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), redMat);
+            spinner.position.set(0, 0, -4.1);
+            plane.add(spinner);
+            propeller = new THREE.Mesh(new THREE.BoxGeometry(5, 0.1, 0.3), greyMat);
+            propeller.position.set(0, 0, -4.1);
+            plane.add(propeller);
+
+            // Initial Position (Parked near car)
+            plane.position.set(15, 2, 5);
+            plane.rotation.y = -Math.PI / 2;
+            scene.add(plane);
+        }
+
+        function createPlayerModel() {
+            const playerGroup = new THREE.Group();
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+            const torsoMat = new THREE.MeshStandardMaterial({ color: 0x0000ff });
+            const limbMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), headMat); head.castShadow = true;
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.4), torsoMat); torso.castShadow = true;
+            const limbGeo = new THREE.BoxGeometry(0.25, 0.8, 0.25);
+            const leftLeg = new THREE.Mesh(limbGeo, limbMat); leftLeg.castShadow = true;
+            const rightLeg = new THREE.Mesh(limbGeo, limbMat); rightLeg.castShadow = true;
+            head.position.set(0, 1.45, 0); torso.position.set(0, 0.8, 0);
+            leftLeg.position.set(-0.225, 0.4, 0); rightLeg.position.set(0.225, 0.4, 0);
+            playerGroup.add(head, torso, leftLeg, rightLeg);
+            return playerGroup;
+        }
+
+        function setupEnemies() {
+            const enemyPositions = [{ x: 10, y: 0, z: -8 }, { x: -12, y: 0, z: -15 }, { x: 15, y: 0, z: 5 }, { x: -8, y: 0, z: 18 }, { x: 20, y: 0, z: -20 }];
+            const enemyMaxHP = 50;
+            enemyBoundingBoxes = []; enemies = [];
+            enemyPositions.forEach((pos, index) => {
+                const enemy = createEnemy(pos, enemyMaxHP, index);
+                scene.add(enemy); enemies.push(enemy);
+                enemyBoundingBoxes.push(new THREE.Box3().setFromObject(enemy));
             });
         }
 
-        function setCameraMode(mode) { /* ... (Identical) ... */ if (mode === 'inCar') { const targetCameraPosition = new THREE.Vector3(); targetCameraPosition.copy(carCameraOffset); targetCameraPosition.applyQuaternion(car.quaternion); targetCameraPosition.add(car.position); camera.position.copy(targetCameraPosition); currentCameraFOV = baseCameraFOV; camera.fov = currentCameraFOV; camera.updateProjectionMatrix(); updateCarCamera(); } else { cameraTarget.copy(player.position); cameraTarget.y += playerModelHeight * 0.6; updateRpgCameraPosition(); currentCameraFOV = baseCameraFOV; camera.fov = currentCameraFOV; camera.updateProjectionMatrix(); camera.lookAt(cameraTarget); } }
-        function updateCamera(deltaTime) { /* ... (Identical) ... */ if (playerState === 'inCar') { updateCarCamera(deltaTime); } else { updateRpgCamera(deltaTime); } }
-        function updateRpgCamera(deltaTime) { /* ... (Identical) ... */ cameraTarget.copy(player.position); cameraTarget.y += playerModelHeight * 0.6; updateRpgCameraPosition(); camera.lookAt(cameraTarget); }
-        function updateRpgCameraPosition() { /* ... (Identical) ... */ const x = cameraTarget.x + rpgCameraRadius * Math.sin(rpgCameraPhi) * Math.sin(rpgCameraTheta); const y = cameraTarget.y + rpgCameraRadius * Math.cos(rpgCameraPhi); const z = cameraTarget.z + rpgCameraRadius * Math.sin(rpgCameraPhi) * Math.cos(rpgCameraTheta); camera.position.set(x, y, z); }
-        function updateCarCamera(deltaTime = 0) { /* ... (Identical) ... */ let targetFOV = isBoosting ? boostCameraFOV : baseCameraFOV; const fovDelta = targetFOV - currentCameraFOV; const fovStep = Math.sign(fovDelta) * Math.min(Math.abs(fovDelta), fovChangeSpeed * (deltaTime > 0 ? deltaTime : 0.016)); currentCameraFOV += fovStep; if (camera.fov !== currentCameraFOV) { camera.fov = currentCameraFOV; camera.updateProjectionMatrix(); } const targetCameraPosition = new THREE.Vector3(); targetCameraPosition.copy(carCameraOffset); targetCameraPosition.applyQuaternion(car.quaternion); targetCameraPosition.add(car.position); camera.position.lerp(targetCameraPosition, 0.1); const lookAtTarget = new THREE.Vector3(); const forward = new THREE.Vector3(); car.getWorldDirection(forward); lookAtTarget.copy(car.position).addScaledVector(forward, 5.0); lookAtTarget.y += 1.0; camera.lookAt(lookAtTarget); }
-        function setTarget(target) { /* ... (Identical) ... */ if (currentTarget && currentTarget !== target) { if (!currentTarget.userData.isDead) { currentTarget.traverse(child => { if(child.isMesh && currentTarget.userData.baseMaterials[child.uuid]) child.material = currentTarget.userData.baseMaterials[child.uuid]; }); } else { currentTarget.traverse(child => { if(child.isMesh && child.material.emissive) child.material.emissive.setHex(0x000000); }); } } currentTarget = target; if (currentTarget) { currentTarget.traverse(child => { if(child.isMesh && child.material.emissive) child.material.emissive.setHex(targetHighlightColor); }); logCombatMessage(`Targeted ${currentTarget.userData.id}.`); } }
-        function useAbility(abilityNumber) { /* ... (Identical) ... */ if (playerState !== 'onFoot' || isPlayerDead) return; const currentTime = performance.now(); if (currentTime < globalCooldownEndTime) { logCombatMessage("Ability on cooldown."); return; } let message = ""; let heal = 0; let requiresTarget = (abilityNumber === 1 || abilityNumber === 3 || abilityNumber === 4); let abilityUsedSuccessfully = false; if (requiresTarget) { if (!currentTarget) { logCombatMessage("No target selected."); return; } if (currentTarget.userData.isDead) { logCombatMessage("Target is already defeated."); return; } if (abilityNumber === 1 || abilityNumber === 3) { const distanceSq = player.position.distanceToSquared(currentTarget.position); if (distanceSq > attackRange * attackRange) { logCombatMessage(`${currentTarget.userData.id} is out of range.`); return; } } } switch (abilityNumber) { case 1: const d1 = 10; message = `Attacked ${currentTarget.userData.id} for ${d1} damage.`; applyDamage(currentTarget, d1); flashObject(currentTarget, 0xffff00); abilityUsedSuccessfully = true; break; case 2: message = "Used Defend! Immune for 5 seconds."; isPlayerImmune = true; playerImmunityEndTime = currentTime + immunityDuration; showImmunityVisual(true); flashObject(player, 0xeeeeee); abilityUsedSuccessfully = true; break; case 3: const d3 = 15; message = `Used Fireball on ${currentTarget.userData.id} for ${d3} damage.`; applyDamage(currentTarget, d3); flashObject(currentTarget, 0xff8c00); abilityUsedSuccessfully = true; break; case 4: message = `Used Frost Nova on ${currentTarget.userData.id}!`; createFrostAoeVisual(currentTarget.position); let enemiesHitCount = 0; enemies.forEach(enemy => { if (!enemy.userData.isDead) { const distanceSq = currentTarget.position.distanceToSquared(enemy.position); if (distanceSq < frostNovaRadius * frostNovaRadius) { applyDamage(enemy, frostNovaDamage, "Frost Nova"); flashObject(enemy, 0x00ffff); enemiesHitCount++; } } }); message += enemiesHitCount > 0 ? ` Hit ${enemiesHitCount} enemies for ${frostNovaDamage} damage each.` : " (Missed - No enemies in range)"; abilityUsedSuccessfully = true; break; case 5: heal = 20; const actualHeal = applyHeal(player, heal); if (actualHeal > 0 || playerCurrentHP < playerMaxHP) { message = `Used Heal! Restored ${actualHeal} HP.`; flashObject(player, 0x90ee90); abilityUsedSuccessfully = true; } else { message = "Used Heal, but already at full health!"; } break; default: console.warn("Unknown ability number:", abilityNumber); return; } if (abilityUsedSuccessfully) { globalCooldownEndTime = currentTime + globalCooldownDuration; } logCombatMessage(message); updateHpLabels(); }
-        function applyDamage(target, amount, sourceId = "Ability") { /* ... (Identical) ... */ if (!target) return 0; if (target === player) { if (isPlayerDead) return 0; if (isPlayerImmune) { logCombatMessage(`Immune to ${amount} damage from ${sourceId}!`); return 0; } playerCurrentHP -= amount; playerCurrentHP = Math.max(0, playerCurrentHP); console.log(`Player took ${amount} damage from ${sourceId}. HP: ${playerCurrentHP}/${playerMaxHP}`); logCombatMessage(`Took ${amount} damage from ${sourceId}.`); } else if (target.userData) { if (target.userData.isDead) return 0; target.userData.currentHP -= amount; target.userData.currentHP = Math.max(0, target.userData.currentHP); console.log(`${target.userData.id} HP: ${target.userData.currentHP}/${target.userData.maxHP}`); if (target.userData.currentHP <= 0) { handleEnemyDeath(target); } } else { console.warn("applyDamage called on invalid target:", target); return 0; } return amount; }
-        function applyHeal(target, amount) { /* ... (Identical) ... */ if (!target || isPlayerDead) return 0; let healedAmount = 0; if (target === player) { const hpBefore = playerCurrentHP; playerCurrentHP += amount; playerCurrentHP = Math.min(playerMaxHP, playerCurrentHP); healedAmount = playerCurrentHP - hpBefore; console.log(`Player HP: ${playerCurrentHP}/${playerMaxHP}`); } return healedAmount; }
-        function handleEnemyDeath(enemy) { /* ... (Identical) ... */ if (!enemy || enemy.userData.isDead) return; console.log(`${enemy.userData.id} Defeated!`); enemy.userData.isDead = true; enemy.traverse((child) => { if (child.isMesh) { child.material = new THREE.MeshStandardMaterial({ color: 0x808080 }); } }); logCombatMessage(`${enemy.userData.id} defeated!`); if (currentTarget === enemy) { setTarget(null); } updateHpLabels(); }
-        function handlePlayerDeath() { /* ... (Identical) ... */ if (isPlayerDead) return; console.log("Player Defeated!"); isPlayerDead = true; player.traverse(child => { if(child.isMesh) child.material.color.set(0x808080); }); if (gameOverScreen) { gameOverScreen.style.display = 'flex'; } renderer.domElement.style.cursor = 'default'; setTarget(null); showImmunityVisual(false); if (playerState === 'inCar') { exitCar(); } }
-        function checkPlayerHealth() { /* ... (Identical) ... */ if (playerCurrentHP <= 0 && !isPlayerDead) { handlePlayerDeath(); } }
-        function flashObject(object, colorHex) { /* ... (Identical) ... */ if (!object) return; if (object === player) { if (isPlayerDead) return; player.traverse(child => { if(child.isMesh && child.material.color) { const originalColor = child.material.color.getHex(); child.material.color.setHex(colorHex); setTimeout(() => { if(child.material) child.material.color.setHex(originalColor); }, 150); } }); return; } if (object.userData && object.userData.baseMaterials) { if (object.userData.isDead) return; const baseMaterials = object.userData.baseMaterials; const isCurrentTarget = (object === currentTarget); object.traverse((child) => { if (child.isMesh && baseMaterials[child.uuid]) { const baseMaterial = baseMaterials[child.uuid]; const flashMaterial = baseMaterial.clone(); flashMaterial.emissive.setHex(colorHex); child.material = flashMaterial; setTimeout(() => { if (object && object.userData && !object.userData.isDead && child.material) { if (isCurrentTarget) { const highlightedMaterial = baseMaterial.clone(); highlightedMaterial.emissive.setHex(targetHighlightColor); child.material = highlightedMaterial; } else { child.material = baseMaterial; } } }, 150); } }); } }
-        function createFrostAoeVisual(centerPosition) { /* ... (Identical) ... */ const geometry = new THREE.RingGeometry(frostNovaRadius - 0.2, frostNovaRadius, 32); const material = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.6 }); const ring = new THREE.Mesh(geometry, material); ring.position.set(centerPosition.x, 0.05, centerPosition.z); ring.rotation.x = -Math.PI / 2; scene.add(ring); activeVisualEffects.push(ring); setTimeout(() => { scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); const index = activeVisualEffects.indexOf(ring); if (index > -1) { activeVisualEffects.splice(index, 1); } }, 500); }
-        function showImmunityVisual(show) { /* ... (Identical) ... */ if (show) { if (!immunityVisual) { const geometry = new THREE.SphereGeometry(playerModelWidth * 0.7, 16, 16); const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }); immunityVisual = new THREE.Mesh(geometry, material); immunityVisual.position.y = playerModelHeight / 2; player.add(immunityVisual); } immunityVisual.visible = true; } else { if (immunityVisual) { immunityVisual.visible = false; } } }
-        function checkImmunityExpiration(currentTime) { /* ... (Identical) ... */ if (isPlayerImmune && currentTime >= playerImmunityEndTime) { isPlayerImmune = false; showImmunityVisual(false); logCombatMessage("Immunity wore off."); } }
+        function createEnemy(position, maxHP, index) {
+            // Wolf-like placeholder
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 1.4), new THREE.MeshStandardMaterial({ color: 0x665a48 }));
+            body.position.y = 0.6; group.add(body);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0x665a48 }));
+            head.position.set(0, 1.0, 0.8); group.add(head);
+            group.position.copy(position); group.castShadow = true;
 
-        // --- UI Update Functions --- (Identical)
-        function logCombatMessage(message) { /* ... */ if (combatLogElement) { const messageElement = document.createElement('p'); messageElement.textContent = message; combatLogElement.appendChild(messageElement); const maxMessages = 10; while (combatLogElement.children.length > maxMessages) { combatLogElement.removeChild(combatLogElement.firstChild); } combatLogElement.scrollTop = combatLogElement.scrollHeight; } else { console.warn("Combat log element not found."); } }
-        function updateHpLabels() { /* ... */ if (player && player.userData.hpLabel) { player.userData.hpLabel.textContent = `HP: ${playerCurrentHP} / ${playerMaxHP}`; player.userData.hpLabel.style.color = playerCurrentHP <= 0 ? '#808080' : (playerCurrentHP / playerMaxHP < 0.3 ? '#ff4444' : 'white'); } enemies.forEach(enemy => { if (enemy && enemy.userData && enemy.userData.hpLabel) { const data = enemy.userData; data.hpLabel.textContent = `${data.id} HP: ${data.currentHP} / ${data.maxHP}`; data.hpLabel.style.color = data.isDead ? '#808080' : 'white'; } }); }
-        function positionHpLabels() { /* ... */ const objectsToLabel = [player, ...enemies]; objectsToLabel.forEach(obj => { if (!obj || !obj.userData || !obj.userData.hpLabel) return; const label = obj.userData.hpLabel; const hpOffsetY = obj.userData.hpOffsetY || 1.5; const labelPos = new THREE.Vector3(); labelPos.copy(obj.position); labelPos.y += hpOffsetY; const screenPos = labelPos.project(camera); const x = (screenPos.x * 0.5 + 0.5) * renderer.domElement.clientWidth; const y = (-screenPos.y * 0.5 + 0.5) * renderer.domElement.clientHeight; if (screenPos.z > 1) { label.style.display = 'none'; } else { label.style.display = 'block'; label.style.left = `${x}px`; label.style.top = `${y}px`; } }); }
-        function updateCooldownVisual(currentTime) { /* ... */ const isOnCooldown = currentTime < globalCooldownEndTime; abilityButtons.forEach(button => { if (isOnCooldown) { button.classList.add('on-cooldown'); } else { button.classList.remove('on-cooldown'); } }); }
-        function updateDrivingUI() { /* ... */ if (playerState !== 'inCar') return; if (speedometerElement) { speedometerElement.innerText = `Speed: ${carSpeed.toFixed(1)}`; } if (nitroBarElement) { const nitroPercent = (nitroAmount / maxNitroAmount) * 100; nitroBarElement.style.width = `${nitroPercent}%`; } }
-        function updateInteractionPrompt() { /* ... */ if (playerState === 'onFoot' && player && car && !isPlayerDead) { if (player.position.distanceTo(car.position) < interactionRadius) { interactionPromptElement.style.display = 'block'; interactionPromptElement.innerText = 'Press [E] to Enter Car'; } else { interactionPromptElement.style.display = 'none'; } } else if (playerState === 'inCar') { interactionPromptElement.style.display = 'block'; interactionPromptElement.innerText = 'Press [E] to Exit Car'; } else { interactionPromptElement.style.display = 'none'; } }
+            const label = document.createElement('div'); label.className = 'hp-label'; document.body.appendChild(label);
+            group.userData = { id: `Wolf ${index}`, hpLabel: label, hpOffsetY: 1.2, maxHP, currentHP: maxHP, isDead: false, baseMaterials: {}, lastDamageTime: 0 };
+            group.traverse(c => { if (c.isMesh) { group.userData.baseMaterials[c.uuid] = c.material; c.castShadow = true; } });
+            return group;
+        }
 
+        // --- Event Listeners ---
+        function setupEventListeners() {
+            window.addEventListener("resize", () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+            window.addEventListener("keydown", onKeyDown);
+            window.addEventListener("keyup", onKeyUp);
+            renderer.domElement.addEventListener("mousedown", onMouseDown);
+            window.addEventListener("mousemove", onMouseMove);
+            window.addEventListener("mouseup", onMouseUp);
+            abilityButtons.forEach((btn, i) => btn.addEventListener('click', () => useAbility(i + 1)));
+        }
 
-        // --- Animation Loop ---
+        function onKeyDown(event) {
+            const k = event.key.toLowerCase();
+            if (k === 'shift') keysPressed.shift = true;
+            else if (event.code === 'Space') keysPressed.space = true;
+            else if (k === 'e') { keysPressed.e = true; handleInteraction(); }
+            else if (k in keysPressed) keysPressed[k] = true;
+
+            if (playerState === 'onFoot' && !isPlayerDead) {
+                if (['1', '2', '3', '4', '5'].includes(k)) useAbility(parseInt(k));
+                if (event.code === 'Space' && isGrounded) { playerVelocityY = jumpStrength; isGrounded = false; }
+            }
+        }
+
+        function onKeyUp(event) {
+            const k = event.key.toLowerCase();
+            if (k === 'shift') keysPressed.shift = false;
+            else if (event.code === 'Space') keysPressed.space = false;
+            else if (k === 'e') keysPressed.e = false;
+            else if (k in keysPressed) keysPressed[k] = false;
+        }
+
+        function onMouseDown(event) {
+            if (playerState === 'onFoot' && !isPlayerDead) {
+                mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+                mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(enemies, true);
+                if (intersects.length > 0) {
+                    let g = intersects[0].object; while (g.parent !== scene) g = g.parent;
+                    if (g.userData && !g.userData.isDead) setTarget(g);
+                }
+            }
+            if (!isPlayerDead && event.button === 0) {
+                isDragging = true; previousMousePosition.x = event.clientX; previousMousePosition.y = event.clientY;
+                renderer.domElement.style.cursor = 'grabbing';
+            }
+        }
+
+        function onMouseMove(event) {
+            if (isDragging) {
+                const deltaX = event.clientX - previousMousePosition.x;
+                const deltaY = event.clientY - previousMousePosition.y;
+                if (playerState === 'onFoot') {
+                    rpgCameraTheta -= deltaX * rpgCameraSensitivity;
+                    rpgCameraPhi = Math.max(0.1, Math.min(Math.PI - 0.1, rpgCameraPhi - deltaY * rpgCameraSensitivity));
+                }
+                previousMousePosition.x = event.clientX; previousMousePosition.y = event.clientY;
+            }
+        }
+        function onMouseUp() { isDragging = false; renderer.domElement.style.cursor = 'crosshair'; }
+
+        // --- Interaction System ---
+        function handleInteraction() {
+            if (isPlayerDead) return;
+
+            if (playerState === 'onFoot') {
+                const distCar = player.position.distanceTo(car.position);
+                const distPlane = player.position.distanceTo(plane.position);
+
+                if (distPlane < interactionRadius) {
+                    enterPlane();
+                } else if (distCar < interactionRadius) {
+                    enterCar();
+                }
+            } else if (playerState === 'inCar') {
+                exitCar();
+            } else if (playerState === 'inPlane') {
+                exitPlane();
+            }
+        }
+
+        function enterCar() {
+            playerState = 'inCar'; player.visible = false;
+            carSpeed = 0; isDrifting = false; isBoosting = false;
+            if (carBodyMesh) carBodyMesh.rotation.z = 0;
+            setCameraMode('inCar'); updateUIState(); setTarget(null);
+        }
+
+        function exitCar() {
+            playerState = 'onFoot';
+            const offset = new THREE.Vector3(2, 0, 0).applyQuaternion(car.quaternion);
+            player.position.copy(car.position).add(offset); player.position.y = playerGroundY;
+            player.visible = true; isGrounded = true; playerVelocityY = 0;
+            setCameraMode('onFoot'); updateUIState();
+        }
+
+        function enterPlane() {
+            playerState = 'inPlane'; player.visible = false;
+            planeSpeed = 0; isBoosting = false;
+            setCameraMode('inPlane'); updateUIState(); setTarget(null);
+        }
+
+        function exitPlane() {
+            // Prevent exit if flying high
+            if (plane.position.y > 5) {
+                logCombatMessage("Too high to exit!");
+                return;
+            }
+            playerState = 'onFoot';
+            const offset = new THREE.Vector3(2, 0, 0).applyQuaternion(plane.quaternion);
+            player.position.copy(plane.position).add(offset);
+            player.position.y = playerGroundY;
+            player.visible = true; isGrounded = true;
+            // Level the plane out on exit
+            plane.rotation.z = 0; plane.rotation.x = 0;
+            setCameraMode('onFoot'); updateUIState();
+        }
+
+        function updateUIState() {
+            const isVehicle = (playerState === 'inCar' || playerState === 'inPlane');
+            speedometerElement.style.display = isVehicle ? 'block' : 'none';
+            nitroUiElement.style.display = isVehicle ? 'block' : 'none';
+            flightControlsInfo.style.display = (playerState === 'inPlane') ? 'block' : 'none';
+            abilityBarElement.style.display = isVehicle ? 'none' : 'flex';
+            combatLogElement.style.display = isVehicle ? 'none' : 'flex';
+        }
+
+        // --- Logic Updates ---
         function animate() {
             requestAnimationFrame(animate);
             const deltaTime = clock.getDelta();
             const currentTime = performance.now();
 
-            // --- Update Logic based on State ---
-            if (playerState === 'onFoot') {
-                updatePlayerMovementAndPhysics(deltaTime);
-            } else { // 'inCar'
-                updateCarPhysicsAndMovement(deltaTime);
+            if (playerState === 'onFoot') updatePlayerPhysics(deltaTime);
+            else if (playerState === 'inCar') updateCarPhysics(deltaTime);
+            else if (playerState === 'inPlane') updatePlanePhysics(deltaTime);
+
+            updateEnemyAI(deltaTime, currentTime);
+            updateCamera(deltaTime);
+
+            // UI
+            if (playerState === 'inPlane') speedometerElement.innerText = `Airspeed: ${Math.round(planeSpeed)}`;
+            else if (playerState === 'inCar') speedometerElement.innerText = `Speed: ${Math.round(carSpeed)}`;
+
+            // Nitro UI
+            if (playerState !== 'onFoot') {
+                const p = (nitroAmount / maxNitroAmount) * 100;
+                nitroBarElement.style.width = `${p}%`;
             }
 
-            // --- Shared Logic ---
-            updateEnemyAI(deltaTime, currentTime); // Includes enemy-enemy collision
-            updateCamera(deltaTime);
-            checkPlayerHealth();
-            checkImmunityExpiration(currentTime);
-
-            // --- UI Updates ---
-            positionHpLabels();
-            updateCooldownVisual(currentTime);
-            updateDrivingUI();
             updateInteractionPrompt();
-
-            // Render
+            updateHpLabels();
             renderer.render(scene, camera);
         }
 
-        // --- Start ---
-        init();
-        if (renderer && renderer.domElement) {
-           renderer.domElement.style.cursor = 'crosshair';
+        function updatePlayerPhysics(dt) {
+            if (isPlayerDead) return;
+            const moveDir = new THREE.Vector3(0, 0, 0);
+            if (keysPressed.w) moveDir.z = -1; if (keysPressed.s) moveDir.z = 1;
+            if (keysPressed.a) moveDir.x = -1; if (keysPressed.d) moveDir.x = 1;
+
+            if (moveDir.lengthSq() > 0) {
+                moveDir.normalize();
+                const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
+                const camLeft = new THREE.Vector3().crossVectors(camera.up, camDir).normalize();
+                const finalMove = new THREE.Vector3().addScaledVector(camDir, -moveDir.z).addScaledVector(camLeft, -moveDir.x).normalize();
+
+                let moveAmt = moveSpeed * dt;
+                const nextPos = player.position.clone().addScaledVector(finalMove, moveAmt);
+                playerBoundingBox.setFromCenterAndSize(nextPos.setY(playerModelHeight / 2), new THREE.Vector3(playerModelWidth, playerModelHeight, playerModelWidth));
+
+                if (!environmentBoundingBoxes.some(b => playerBoundingBox.intersectsBox(b))) {
+                    player.position.addScaledVector(finalMove, moveAmt);
+                    const qt = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(player.position, player.position.clone().add(finalMove), player.up));
+                    player.quaternion.slerp(qt, 0.15);
+                }
+            }
+            playerVelocityY -= gravity * dt; player.position.y += playerVelocityY * dt;
+            if (player.position.y <= playerGroundY) { player.position.y = playerGroundY; playerVelocityY = 0; isGrounded = true; } else isGrounded = false;
         }
 
+        function updateCarPhysics(dt) {
+            // Nitro Logic
+            if (!isBoosting && nitroAmount < maxNitroAmount) nitroAmount = Math.min(maxNitroAmount, nitroAmount + nitroRechargeRate * dt);
+            if (keysPressed.shift && nitroAmount > 0) { isBoosting = true; nitroAmount = Math.max(0, nitroAmount - nitroConsumptionRate * dt); }
+            else isBoosting = false;
+
+            // Drift
+            isDrifting = keysPressed.space && carSpeed > 30 && !isBoosting;
+
+            // Acceleration
+            let acc = carBaseAcceleration; let maxS = carBaseMaxSpeed; let turnS = carBaseTurnSpeed;
+            if (isBoosting) { acc *= nitroAccelerationMultiplier; maxS *= nitroMaxSpeedMultiplier; turnS *= nitroTurnReduction; }
+
+            if (keysPressed.w) carSpeed += acc * dt;
+            else if (keysPressed.s) carSpeed -= (carSpeed > 1 ? carBrakeDeceleration : carBaseAcceleration) * dt;
+            else carSpeed -= Math.sign(carSpeed) * carDeceleration * dt;
+
+            if (Math.abs(carSpeed) < 1 && !keysPressed.w && !keysPressed.s) carSpeed = 0;
+            carSpeed = Math.max(carMaxReverseSpeed, Math.min(maxS, carSpeed));
+
+            // Turning
+            if (Math.abs(carSpeed) > 1) {
+                let turnDir = (keysPressed.a ? 1 : 0) + (keysPressed.d ? -1 : 0);
+                car.rotation.y += turnS * turnDir * dt * (isDrifting ? driftTurnMultiplier : 1);
+
+                // Visual Tilt
+                const targetTilt = isDrifting ? (keysPressed.a ? driftTiltAngle : -driftTiltAngle) : 0;
+                currentCarTilt += (targetTilt - currentCarTilt) * Math.min(1, tiltSpeed * dt);
+                carBodyMesh.rotation.z = currentCarTilt;
+            }
+
+            // Movement
+            const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(car.quaternion);
+            const moveVec = fwd.multiplyScalar(carSpeed * dt);
+
+            carBoundingBox.setFromObject(car).translate(moveVec);
+            if (!environmentBoundingBoxes.some(b => carBoundingBox.intersectsBox(b))) {
+                car.position.add(moveVec);
+            } else {
+                carSpeed = -carSpeed * 0.5; // Bounce
+            }
+        }
+
+        // --- NEW: Plane Physics (Ported from Flight Sim) ---
+        function updatePlanePhysics(dt) {
+            // 1. Speed Logic
+            let targetSpeed = planeBaseSpeed;
+
+            // Turbo (Shift)
+            if (keysPressed.shift && nitroAmount > 0) {
+                targetSpeed = planeMaxSpeed;
+                isBoosting = true;
+                nitroAmount = Math.max(0, nitroAmount - nitroConsumptionRate * dt);
+            } else {
+                isBoosting = false;
+                if (nitroAmount < maxNitroAmount) nitroAmount += nitroRechargeRate * dt;
+            }
+
+            // Brake/Slow (Space)
+            if (keysPressed.space) targetSpeed = planeMinSpeed;
+
+            // Smooth acceleration
+            planeSpeed += (targetSpeed - planeSpeed) * 2.0 * dt;
+
+            // 2. Rotation (Pitch & Roll)
+            const pitchSpeed = 1.5 * dt;
+            const rollSpeed = 2.0 * dt;
+
+            // Pitch (W = Down, S = Up) - Flight controls
+            if (keysPressed.w) plane.rotateX(pitchSpeed);
+            if (keysPressed.s) plane.rotateX(-pitchSpeed);
+
+            // Roll (A = Left, D = Right)
+            if (keysPressed.a) {
+                plane.rotateZ(rollSpeed);
+                plane.rotateY(0.5 * dt); // Yaw into turn
+            }
+            if (keysPressed.d) {
+                plane.rotateZ(-rollSpeed);
+                plane.rotateY(-0.5 * dt);
+            }
+
+            // 3. Movement (Always move forward along local Z negative)
+            plane.translateZ(-planeSpeed * dt);
+
+            // 4. Propeller Animation
+            if (propeller) propeller.rotation.z += 10 + (planeSpeed * 0.1);
+
+            // 5. Ground Collision
+            if (plane.position.y < 2) {
+                plane.position.y = 2;
+                // Level out slightly on ground hit
+                plane.rotation.x *= 0.9;
+                plane.rotation.z *= 0.9;
+            }
+        }
+
+        function updateEnemyAI(dt, time) {
+            // Update boxes
+            enemies.forEach((e, i) => { if (!e.userData.isDead) enemyBoundingBoxes[i].setFromObject(e); });
+
+            const targetObj = (playerState === 'inCar') ? car : (playerState === 'inPlane' ? plane : player);
+            // If in plane and high up, enemies lose aggro effectively
+            if (playerState === 'inPlane' && plane.position.y > 10) return;
+
+            const targetPos = targetObj.position;
+            const colRad = (playerState === 'onFoot') ? enemyCollisionRadius : vehicleCollisionRadius;
+
+            enemies.forEach((enemy, i) => {
+                if (enemy.userData.isDead || isPlayerDead) return;
+
+                const distSq = targetPos.distanceToSquared(enemy.position);
+
+                // Move if close enough but not colliding
+                if (distSq < enemyAggroRadius ** 2) {
+                    if (distSq > colRad ** 2 * 1.1) {
+                        const dir = new THREE.Vector3().subVectors(targetPos, enemy.position);
+                        dir.y = 0; dir.normalize();
+
+                        const moveAmt = enemyMoveSpeed * dt;
+                        const potentialPos = enemy.position.clone().addScaledVector(dir, moveAmt);
+                        const potentialBox = enemyBoundingBoxes[i].clone().translate(dir.clone().multiplyScalar(moveAmt));
+
+                        // Avoid other enemies
+                        let blocked = false;
+                        for (let j = 0; j < enemies.length; j++) {
+                            if (i !== j && !enemies[j].userData.isDead && potentialBox.intersectsBox(enemyBoundingBoxes[j])) {
+                                // Check if moving towards them
+                                const toOther = new THREE.Vector3().subVectors(enemies[j].position, enemy.position).normalize();
+                                if (dir.dot(toOther) > 0.1) { blocked = true; break; }
+                            }
+                        }
+
+                        if (!blocked) {
+                            enemy.position.addScaledVector(dir, moveAmt);
+                            const qt = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(enemy.position, enemy.position.clone().add(dir), enemy.up));
+                            enemy.quaternion.slerp(qt, 0.1);
+                        }
+                    }
+
+                    // Damage Player
+                    if (distSq < colRad ** 2 && time > enemy.userData.lastDamageTime + enemyDamageCooldown) {
+                        // Don't damage car/plane as easily? For now, same damage logic
+                        applyDamage(player, enemyCollisionDamage, enemy.userData.id);
+                        enemy.userData.lastDamageTime = time;
+                        flashObject(playerState === 'onFoot' ? player : (playerState === 'inCar' ? car : plane), 0xff0000);
+                        updateHpLabels();
+                    }
+                }
+            });
+        }
+
+        function updateCamera(dt) {
+            if (playerState === 'onFoot') {
+                cameraTarget.copy(player.position).y += playerModelHeight * 0.6;
+                const x = cameraTarget.x + rpgCameraRadius * Math.sin(rpgCameraPhi) * Math.sin(rpgCameraTheta);
+                const y = cameraTarget.y + rpgCameraRadius * Math.cos(rpgCameraPhi);
+                const z = cameraTarget.z + rpgCameraRadius * Math.sin(rpgCameraPhi) * Math.cos(rpgCameraTheta);
+                camera.position.set(x, y, z);
+                camera.lookAt(cameraTarget);
+                currentCameraFOV = baseCameraFOV;
+            } else if (playerState === 'inCar') {
+                // Car Camera (Rigid Follow with FOV zoom)
+                let targetFOV = isBoosting ? boostCameraFOV : baseCameraFOV;
+                currentCameraFOV += (targetFOV - currentCameraFOV) * Math.min(1, fovChangeSpeed * dt);
+                camera.fov = currentCameraFOV; camera.updateProjectionMatrix();
+
+                const targetPos = new THREE.Vector3().copy(carCameraOffset).applyQuaternion(car.quaternion).add(car.position);
+                camera.position.lerp(targetPos, 0.1);
+                const lookAtPos = car.position.clone().addScaledVector(new THREE.Vector3(0, 0, 1).applyQuaternion(car.quaternion), 5).setY(car.position.y + 1);
+                camera.lookAt(lookAtPos);
+            } else if (playerState === 'inPlane') {
+                // Plane Camera (Loose Follow - from Flight Sim)
+                const idealOffset = new THREE.Vector3(0, 6, 18).applyMatrix4(plane.matrixWorld);
+                const idealLook = new THREE.Vector3(0, 0, -20).applyMatrix4(plane.matrixWorld);
+
+                camera.position.lerp(idealOffset, 0.05); // Softer lerp for flying
+                camera.lookAt(idealLook);
+
+                let targetFOV = isBoosting ? 90 : 75;
+                camera.fov = THREE.MathUtils.lerp(camera.fov, targetFOV, 0.05);
+                camera.updateProjectionMatrix();
+            }
+        }
+
+        function setCameraMode(mode) {
+            if (mode === 'inCar') {
+                camera.position.copy(car.position).add(new THREE.Vector3(0, 10, -10));
+            } else if (mode === 'inPlane') {
+                camera.position.copy(plane.position).add(new THREE.Vector3(0, 10, 20));
+            } else {
+                camera.fov = baseCameraFOV; camera.updateProjectionMatrix();
+            }
+        }
+
+        function updateInteractionPrompt() {
+            interactionPromptElement.style.display = 'none';
+            if (isPlayerDead) return;
+
+            if (playerState === 'onFoot') {
+                const dCar = player.position.distanceTo(car.position);
+                const dPlane = player.position.distanceTo(plane.position);
+                if (dCar < interactionRadius) {
+                    interactionPromptElement.style.display = 'block';
+                    interactionPromptElement.innerText = 'Press [E] to Drive Car';
+                } else if (dPlane < interactionRadius) {
+                    interactionPromptElement.style.display = 'block';
+                    interactionPromptElement.innerText = 'Press [E] to Fly Plane';
+                }
+            } else if (playerState === 'inCar') {
+                interactionPromptElement.style.display = 'block';
+                interactionPromptElement.innerText = 'Press [E] to Exit Car';
+            } else if (playerState === 'inPlane') {
+                // Only show exit prompt if near ground
+                if (plane.position.y < 5) {
+                    interactionPromptElement.style.display = 'block';
+                    interactionPromptElement.innerText = 'Press [E] to Exit Plane';
+                }
+            }
+        }
+
+        // --- Combat Utils ---
+        function setTarget(t) {
+            if (currentTarget && currentTarget !== t) {
+                if (!currentTarget.userData.isDead) currentTarget.traverse(c => { if (c.isMesh && currentTarget.userData.baseMaterials[c.uuid]) c.material = currentTarget.userData.baseMaterials[c.uuid]; });
+            }
+            currentTarget = t;
+            if (currentTarget) {
+                currentTarget.traverse(c => { if (c.isMesh && c.material.emissive) c.material.emissive.setHex(targetHighlightColor); });
+                logCombatMessage(`Targeted ${currentTarget.userData.id}`);
+            }
+        }
+
+        function useAbility(id) {
+            if (playerState !== 'onFoot' || isPlayerDead) return;
+            if (performance.now() < globalCooldownEndTime) { logCombatMessage("Cooldown..."); return; }
+
+            const t = currentTarget;
+            if ([1, 3, 4].includes(id) && (!t || t.userData.isDead)) { logCombatMessage("No Valid Target"); return; }
+            if ([1, 3].includes(id) && player.position.distanceTo(t.position) > attackRange) { logCombatMessage("Out of Range"); return; }
+
+            let msg = "";
+            if (id === 1) { applyDamage(t, 10); flashObject(t, 0xffff00); msg = "Melee Attack (10)"; }
+            else if (id === 2) { isPlayerImmune = true; playerImmunityEndTime = performance.now() + immunityDuration; showImmunityVisual(true); msg = "Defend (Immune 5s)"; }
+            else if (id === 3) { applyDamage(t, 15); flashObject(t, 0xff8c00); msg = "Fireball (15)"; }
+            else if (id === 4) {
+                createFrostAoe(t.position);
+                enemies.forEach(e => { if (!e.userData.isDead && e.position.distanceTo(t.position) < frostNovaRadius) { applyDamage(e, 30); flashObject(e, 0x00ffff); } });
+                msg = "Frost Nova (AOE 30)";
+            }
+            else if (id === 5) { let h = Math.min(20, playerMaxHP - playerCurrentHP); playerCurrentHP += h; flashObject(player, 0x00ff00); msg = `Heal (+${h})`; }
+
+            logCombatMessage(msg); updateHpLabels();
+            globalCooldownEndTime = performance.now() + globalCooldownDuration;
+            updateCooldownVisual(performance.now());
+        }
+
+        function applyDamage(t, amt, src = "Hit") {
+            if (!t || isPlayerDead) return;
+            if (t === player) {
+                if (isPlayerImmune) return;
+                playerCurrentHP = Math.max(0, playerCurrentHP - amt);
+                if (playerCurrentHP <= 0) handlePlayerDeath();
+            } else {
+                t.userData.currentHP = Math.max(0, t.userData.currentHP - amt);
+                if (t.userData.currentHP <= 0) handleEnemyDeath(t);
+            }
+        }
+
+        function handleEnemyDeath(e) {
+            e.userData.isDead = true;
+            e.traverse(c => { if (c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0x555555 }); });
+            if (currentTarget === e) setTarget(null);
+            logCombatMessage(`${e.userData.id} Defeated`);
+        }
+
+        function handlePlayerDeath() {
+            isPlayerDead = true;
+            gameOverScreen.style.display = 'flex';
+            player.traverse(c => { if (c.isMesh) c.material.color.set(0x555555); });
+            if (playerState !== 'onFoot') { if (playerState === 'inCar') exitCar(); else exitPlane(); }
+        }
+
+        // --- Visuals ---
+        function flashObject(obj, color) {
+            if (!obj) return;
+            const restore = (o, mat) => { setTimeout(() => { if (o && o.material) o.material = mat; }, 150); };
+            obj.traverse(c => {
+                if (c.isMesh && c.material) {
+                    const clone = c.material.clone(); clone.emissive.setHex(color);
+                    const orig = c.material; c.material = clone; restore(c, orig);
+                }
+            });
+        }
+
+        function createFrostAoe(pos) {
+            const mesh = new THREE.Mesh(new THREE.RingGeometry(0.1, frostNovaRadius, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+            mesh.rotation.x = -Math.PI / 2; mesh.position.copy(pos).setY(0.1);
+            scene.add(mesh); setTimeout(() => { scene.remove(mesh); }, 500);
+        }
+
+        function showImmunityVisual(show) {
+            if (show) {
+                if (!immunityVisual) { immunityVisual = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 })); player.add(immunityVisual); }
+                immunityVisual.visible = true;
+            } else if (immunityVisual) immunityVisual.visible = false;
+        }
+
+        function updateHpLabels() {
+            if (player && player.userData.hpLabel) player.userData.hpLabel.textContent = `HP: ${playerCurrentHP}/${playerMaxHP}`;
+            enemies.forEach(e => {
+                if (e.userData.hpLabel) {
+                    e.userData.hpLabel.textContent = `${e.userData.id}: ${e.userData.currentHP}`;
+                    const pos = e.position.clone().setY(e.position.y + e.userData.hpOffsetY).project(camera);
+                    if (pos.z < 1) {
+                        e.userData.hpLabel.style.left = `${(pos.x * .5 + .5) * window.innerWidth}px`;
+                        e.userData.hpLabel.style.top = `${(-pos.y * .5 + .5) * window.innerHeight}px`;
+                        e.userData.hpLabel.style.display = 'block';
+                    } else e.userData.hpLabel.style.display = 'none';
+                }
+            });
+            if (player.userData.hpLabel) { // Player label
+                const pos = player.position.clone().setY(player.position.y + 2.2).project(camera);
+                const lbl = player.userData.hpLabel;
+                if (pos.z < 1 && player.visible) {
+                    lbl.style.left = `${(pos.x * .5 + .5) * window.innerWidth}px`;
+                    lbl.style.top = `${(-pos.y * .5 + .5) * window.innerHeight}px`;
+                    lbl.style.display = 'block';
+                } else lbl.style.display = 'none';
+            }
+        }
+
+        function updateCooldownVisual(t) {
+            const cd = t < globalCooldownEndTime;
+            abilityButtons.forEach(b => cd ? b.classList.add('on-cooldown') : b.classList.remove('on-cooldown'));
+            if (isPlayerImmune && t > playerImmunityEndTime) { isPlayerImmune = false; showImmunityVisual(false); }
+        }
+
+        function logCombatMessage(msg) {
+            const p = document.createElement('p'); p.innerText = msg;
+            combatLogElement.prepend(p);
+            if (combatLogElement.children.length > 6) combatLogElement.lastChild.remove();
+        }
+
+        init();
     </script>
 </body>
+
 </html>
