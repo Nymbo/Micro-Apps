@@ -927,9 +927,21 @@
         }
 
         function updateCarPhysics(dt) {
-            if (!isBoosting && nitroAmount < maxNitroAmount) nitroAmount = Math.min(maxNitroAmount, nitroAmount + nitroRechargeRate * dt);
-            if (keysPressed.shift && nitroAmount > 0) { isBoosting = true; nitroAmount = Math.max(0, nitroAmount - nitroConsumptionRate * dt); }
-            else isBoosting = false;
+            // --- FIX: Prevents stuttering at 0 nitro by never recharging while the shift key is held ---
+
+            // Only recharge if we are NOT trying to boost (shift not held) AND we are below max
+            if (!keysPressed.shift && nitroAmount < maxNitroAmount) {
+                nitroAmount = Math.min(maxNitroAmount, nitroAmount + nitroRechargeRate * dt);
+            }
+
+            // Only boost if key is held AND we actually have fuel
+            // This prevents the frame-by-frame toggle between 0 and 0.001 nitro
+            if (keysPressed.shift && nitroAmount > 0) {
+                isBoosting = true;
+                nitroAmount = Math.max(0, nitroAmount - nitroConsumptionRate * dt);
+            } else {
+                isBoosting = false;
+            }
 
             isDrifting = keysPressed.space && carSpeed > 30 && !isBoosting;
             let acc = carBaseAcceleration; let maxS = carBaseMaxSpeed; let turnS = carBaseTurnSpeed;
@@ -964,8 +976,20 @@
 
         function updatePlanePhysics(dt) {
             let targetSpeed = planeBaseSpeed;
-            if (keysPressed.shift && nitroAmount > 0) { targetSpeed = planeMaxSpeed; isBoosting = true; nitroAmount = Math.max(0, nitroAmount - nitroConsumptionRate * dt); }
-            else { isBoosting = false; if (nitroAmount < maxNitroAmount) nitroAmount += nitroRechargeRate * dt; }
+
+            // --- FIX: Same logic for plane. No recharging while holding shift ---
+            if (!keysPressed.shift && nitroAmount < maxNitroAmount) {
+                nitroAmount = Math.min(maxNitroAmount, nitroAmount + nitroRechargeRate * dt);
+            }
+
+            if (keysPressed.shift && nitroAmount > 0) {
+                targetSpeed = planeMaxSpeed;
+                isBoosting = true;
+                nitroAmount = Math.max(0, nitroAmount - nitroConsumptionRate * dt);
+            } else {
+                isBoosting = false;
+            }
+
             if (keysPressed.space) targetSpeed = planeMinSpeed;
 
             planeSpeed += (targetSpeed - planeSpeed) * 2.0 * dt;
