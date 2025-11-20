@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>iframe sandbox</title>
   <style>
     * {
@@ -86,20 +88,33 @@
     }
 
     label {
+      -webkit-user-select: none;
       user-select: none;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+      white-space: nowrap;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="editor">
-      <h3>iframe sandbox</h3>
-      <textarea id="codeEditor"></textarea>
+      <h3 id="editor-heading">iframe sandbox</h3>
+      <label class="sr-only" for="codeEditor">Edit iframe HTML</label>
+      <textarea id="codeEditor" aria-labelledby="editor-heading"></textarea>
       <button id="updatePreview">Update Preview</button>
     </div>
     
     <div class="preview">
-      <iframe id="preview"></iframe>
+      <iframe id="preview" title="Sandbox preview"></iframe>
       Sandbox controls
       <div class="controls" id="sandboxControls"></div>
     </div>

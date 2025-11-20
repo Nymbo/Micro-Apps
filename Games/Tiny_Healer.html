@@ -25,6 +25,7 @@
             --class-rogue: #FFF569;
             --class-mage: #40C7EB;
             --class-healer: #F58CBA;
+            --class-warlock: #9482C9;
             --mana-color: #0070DE;
         }
 
@@ -32,8 +33,8 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            user-select: none;
             -webkit-user-select: none;
+            user-select: none;
         }
 
         body {
@@ -69,6 +70,12 @@
             color: var(--primary-color);
             margin-bottom: 20px;
             text-shadow: 0 0 20px rgba(240, 192, 80, 0.3);
+        }
+
+        .tagline {
+            color: #aaa;
+            margin-bottom: 30px;
+            font-size: 18px;
         }
 
         #start-button {
@@ -174,6 +181,26 @@
 
         .unit-hp {
             font-size: 14px;
+        }
+
+        .unit-frame[data-role="tank"] .health-fill {
+            background-color: var(--class-tank);
+        }
+
+        .unit-frame[data-role="rogue"] .health-fill {
+            background-color: var(--class-rogue);
+        }
+
+        .unit-frame[data-role="mage"] .health-fill {
+            background-color: var(--class-mage);
+        }
+
+        .unit-frame[data-role="healer"] .health-fill {
+            background-color: var(--class-healer);
+        }
+
+        .unit-frame[data-role="warlock"] .health-fill {
+            background-color: var(--class-warlock);
         }
 
         /* Buffs/Debuffs on Frame */
@@ -362,6 +389,30 @@
             text-shadow: 1px 1px 0 #000;
         }
 
+        .spell-icon {
+            color: inherit;
+        }
+
+        .spell-btn.flash-heal .spell-icon {
+            color: #f0e68c;
+        }
+
+        .spell-btn.greater-heal .spell-icon {
+            color: #32cd32;
+        }
+
+        .spell-btn.renew .spell-icon {
+            color: #98fb98;
+        }
+
+        .spell-btn.chain-heal .spell-icon {
+            color: #f0c050;
+        }
+
+        .spell-btn.circle-of-healing .spell-icon {
+            color: #87ceeb;
+        }
+
         .mana-cost {
             position: absolute;
             bottom: 2px;
@@ -512,7 +563,7 @@
     <!-- Welcome Screen -->
     <div id="welcome-screen">
         <h1>Tiny Healer</h1>
-        <p style="color: #aaa; margin-bottom: 30px; font-size: 18px;">Raid Healing Simulator</p>
+        <p class="tagline">Raid Healing Simulator</p>
         <button id="start-button">Enter Raid</button>
     </div>
 
@@ -585,25 +636,25 @@
         };
 
         const SPELLS = [
-            { id: 0, name: "Flash Heal", cost: 4, castTime: 0, heal: 60, icon: "fa-bolt", color: "#f0e68c" },
-            { id: 1, name: "Greater Heal", cost: 6, castTime: 2000, heal: 150, icon: "fa-plus-square", color: "#32cd32" },
-            { id: 2, name: "Renew", cost: 5, castTime: 0, heal: 0, hot: { amount: 15, ticks: 5, interval: 2000 }, icon: "fa-leaf", color: "#98fb98" },
-            { id: 3, name: "Chain Heal", cost: 12, castTime: 1500, heal: 80, targets: 3, icon: "fa-link", color: "#f0c050" },
-            { id: 4, name: "Circle of Healing", cost: 15, castTime: 0, heal: 50, targets: 5, cooldown: 10000, icon: "fa-circle-notch", color: "#87ceeb" }
+            { id: 0, name: "Flash Heal", cost: 4, castTime: 0, heal: 60, icon: "fa-bolt", cssClass: "flash-heal" },
+            { id: 1, name: "Greater Heal", cost: 6, castTime: 2000, heal: 150, icon: "fa-plus-square", cssClass: "greater-heal" },
+            { id: 2, name: "Renew", cost: 5, castTime: 0, heal: 0, hot: { amount: 15, ticks: 5, interval: 2000 }, icon: "fa-leaf", cssClass: "renew" },
+            { id: 3, name: "Chain Heal", cost: 12, castTime: 1500, heal: 80, targets: 3, icon: "fa-link", cssClass: "chain-heal" },
+            { id: 4, name: "Circle of Healing", cost: 15, castTime: 0, heal: 50, targets: 5, cooldown: 10000, icon: "fa-circle-notch", cssClass: "circle-of-healing" }
         ];
 
         // --- Initialization ---
         function initGame() {
             // Create Allies
             STATE.allies = [
-                { name: "Main Tank", class: "tank", hp: 1000, maxHp: 1000, color: "var(--class-tank)", buffs: [], debuffs: [] },
-                { name: "Off Tank", class: "tank", hp: 1000, maxHp: 1000, color: "var(--class-tank)", buffs: [], debuffs: [] },
-                { name: "Rogue 1", class: "rogue", hp: 400, maxHp: 400, color: "var(--class-rogue)", buffs: [], debuffs: [] },
-                { name: "Rogue 2", class: "rogue", hp: 400, maxHp: 400, color: "var(--class-rogue)", buffs: [], debuffs: [] },
-                { name: "Mage 1", class: "mage", hp: 350, maxHp: 350, color: "var(--class-mage)", buffs: [], debuffs: [] },
-                { name: "Mage 2", class: "mage", hp: 350, maxHp: 350, color: "var(--class-mage)", buffs: [], debuffs: [] },
-                { name: "Healer (You)", class: "healer", hp: 350, maxHp: 350, color: "var(--class-healer)", buffs: [], debuffs: [] },
-                { name: "Warlock", class: "mage", hp: 450, maxHp: 450, color: "#9482C9", buffs: [], debuffs: [] },
+                { name: "Main Tank", class: "tank", hp: 1000, maxHp: 1000, buffs: [], debuffs: [] },
+                { name: "Off Tank", class: "tank", hp: 1000, maxHp: 1000, buffs: [], debuffs: [] },
+                { name: "Rogue 1", class: "rogue", hp: 400, maxHp: 400, buffs: [], debuffs: [] },
+                { name: "Rogue 2", class: "rogue", hp: 400, maxHp: 400, buffs: [], debuffs: [] },
+                { name: "Mage 1", class: "mage", hp: 350, maxHp: 350, buffs: [], debuffs: [] },
+                { name: "Mage 2", class: "mage", hp: 350, maxHp: 350, buffs: [], debuffs: [] },
+                { name: "Healer (You)", class: "healer", hp: 350, maxHp: 350, buffs: [], debuffs: [] },
+                { name: "Warlock", class: "warlock", hp: 450, maxHp: 450, buffs: [], debuffs: [] },
             ];
 
             renderRaidFrames();
@@ -630,11 +681,12 @@
             STATE.allies.forEach((ally, index) => {
                 const frame = document.createElement('div');
                 frame.className = 'unit-frame';
+                frame.dataset.role = ally.class;
                 frame.onclick = () => selectAlly(index);
                 frame.id = `frame-${index}`;
 
                 frame.innerHTML = `
-                    <div class="health-fill" style="background-color: ${ally.color}; width: 100%;"></div>
+                    <div class="health-fill"></div>
                     <div class="unit-info">
                         <span class="unit-name">${ally.name}</span>
                         <span class="unit-hp">100%</span>
@@ -652,10 +704,13 @@
             SPELLS.forEach((spell, index) => {
                 const btn = document.createElement('div');
                 btn.className = 'spell-btn';
+                if (spell.cssClass) {
+                    btn.classList.add(spell.cssClass);
+                }
                 btn.id = `spell-btn-${index}`;
                 btn.onclick = () => castSpell(index);
                 btn.innerHTML = `
-                    <i class="fas ${spell.icon}" style="color: ${spell.color}"></i>
+                    <i class="fas ${spell.icon} spell-icon"></i>
                     <span class="key-bind">${index + 1}</span>
                     <span class="mana-cost">${spell.cost}</span>
                     <div class="spell-cd-overlay"></div>

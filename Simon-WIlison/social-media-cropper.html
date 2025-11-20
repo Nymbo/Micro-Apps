@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Social Media Card Cropper</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <style>
@@ -88,6 +90,11 @@
         .aspect-controls {
             margin-bottom: 15px;
         }
+        .aspect-option {
+            margin-right: 10px;
+            display: block;
+            margin-top: 8px;
+        }
         .zoom-controls {
             display: flex;
             align-items: center;
@@ -112,6 +119,7 @@
             width: 50px;
             text-align: center;
             font-weight: 500;
+            margin-left: 10px;
         }
         .color-picker {
             display: flex;
@@ -144,6 +152,23 @@
         label {
             font-weight: 500;
         }
+        .reset-controls {
+            margin-top: 15px;
+        }
+        .drop-zone-icon {
+            color: #999;
+            margin-bottom: 10px;
+        }
+        .dimensions-info {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        .download-container {
+            text-align: center;
+            margin-top: 15px;
+        }
         @media (max-width: 600px) {
             .controls {
                 padding: 10px;
@@ -164,16 +189,16 @@
                 <div class="option-group">
                     <label>Aspect Ratio:</label>
                     <div class="aspect-controls">
-                        <label style="margin-right: 10px; display: block; margin-top: 8px;">
+                        <label class="aspect-option">
                             <input type="radio" name="aspectRatio" value="2" checked> 2:1 (Twitter/LinkedIn)
                         </label>
-                        <label style="margin-right: 10px; display: block; margin-top: 8px;">
+                        <label class="aspect-option">
                             <input type="radio" name="aspectRatio" value="1.91"> 1.91:1 (Facebook)
                         </label>
-                        <label style="margin-right: 10px; display: block; margin-top: 8px;">
+                        <label class="aspect-option">
                             <input type="radio" name="aspectRatio" value="1.4"> 1.4:1 (Substack)
                         </label>
-                        <label style="display: block; margin-top: 8px;">
+                        <label class="aspect-option">
                             <input type="radio" name="aspectRatio" value="1"> 1:1 (Instagram)
                         </label>
                     </div>
@@ -185,17 +210,17 @@
                         <input type="color" id="backgroundColor" value="#ffffff">
                     </div>
                     
-                    <div style="margin-top: 15px;">
+                    <div class="reset-controls">
                         <button id="resetBtn" class="control-btn">Reset Image</button>
-                        <span id="zoomValue" class="zoom-value" style="margin-left: 10px;">100%</span>
+                        <span id="zoomValue" class="zoom-value">100%</span>
                     </div>
                 </div>
             </div>
         </div>
         
         <div class="drop-zone" id="dropZone">
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="color: #999; margin-bottom: 10px;">
+            <div class="drop-zone-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"></path>
                     <line x1="16" y1="5" x2="22" y2="5"></line>
                     <line x1="19" y1="2" x2="19" y2="8"></line>
@@ -220,8 +245,8 @@
         <div class="preview-container hidden" id="previewContainer">
             <h3>Preview</h3>
             <img id="preview">
-            <div id="dimensionsInfo" style="text-align: center; margin-top: 10px; font-size: 14px; color: #666;"></div>
-            <div style="text-align: center; margin-top: 15px;">
+            <div id="dimensionsInfo" class="dimensions-info"></div>
+            <div class="download-container">
                 <a href="#" id="downloadBtn" class="download-btn">Download Social Media Card</a>
             </div>
         </div>

@@ -79,11 +79,35 @@
             margin: 0.5em 0;
             line-height: 1.4;
         }
+        #prompt-section {
+            margin-top: 2em;
+            padding-top: 2em;
+            border-top: 1px solid #eee;
+            display: none;
+        }
+        #prompt-loading {
+            margin: 1em 0;
+            font-style: italic;
+        }
+        #prompt-copy-btn {
+            margin-top: 1em;
+        }
         iframe {
             width: 100%;
             height: 500px;
             box-sizing: border-box;
             border: 1px solid #ccc;
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+            white-space: nowrap;
         }
         @media (min-width: 768px) {
             #url-input {
@@ -109,7 +133,9 @@
     <h1>Jina Reader</h1>
     <p>An interface for the <a href="https://jina.ai/reader/">Jina Reader API</a>.</p>
     <form id="url-form">
+        <label class="sr-only" for="url-input">Enter URL</label>
         <input type="text" id="url-input" placeholder="Enter URL" required>
+        <label class="sr-only" for="format-select">Select response format</label>
         <select id="format-select">
             <option value="markdown">Markdown</option>
             <option value="html">HTML</option>
@@ -125,14 +151,14 @@
         <iframe id="markdown-rendered" sandbox></iframe>
     </div>
 
-    <div id="prompt-section" style="margin-top: 2em; padding-top: 2em; border-top: 1px solid #eee; display: none;">
+    <div id="prompt-section">
         <h2>Run a prompt with Claude</h2>
         <textarea id="prompt-textarea">Respond in markdown. You summarize the pasted in text. Start with a overall summary in a single paragraph. Then show a bullet pointed list of the most interesting illustrative quotes from the piece. Then a bullet point list of the most unusual ideas. Finally provide a longer summary that covers points not included already</textarea>
         <button id="run-prompt-btn">Run prompt</button>
-        <div id="prompt-loading" style="margin: 1em 0; font-style: italic;">Generating...</div>
+        <div id="prompt-loading">Generating...</div>
         <div id="prompt-result">
             <div id="prompt-rendered"></div>
-            <button id="prompt-copy-btn" class="copy-btn" style="margin-top: 1em;">Copy to clipboard</button>
+            <button id="prompt-copy-btn" class="copy-btn">Copy to clipboard</button>
         </div>
     </div>
 

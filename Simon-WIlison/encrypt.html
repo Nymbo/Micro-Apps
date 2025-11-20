@@ -74,6 +74,11 @@
   .active {
     display: block !important;
   }
+
+  #encrypt-result,
+  #decrypt-result {
+    display: none;
+  }
   
   .error {
     color: #e74c3c;
@@ -153,7 +158,7 @@
       <button type="submit" id="encrypt-button">Encrypt message</button>
     </form>
     
-    <div id="encrypt-result" style="display:none;">
+    <div id="encrypt-result">
       <h3>Encrypted message</h3>
       <div id="encrypted-text" class="url-display"></div>
       <p>Share this link:</p>
@@ -176,7 +181,7 @@
         <button type="submit" id="decrypt-button">Decrypt message</button>
       </form>
       <div id="decrypt-error" class="error"></div>
-      <div id="decrypt-result" style="display:none;"></div>
+      <div id="decrypt-result"></div>
     </div>
   </div>
 

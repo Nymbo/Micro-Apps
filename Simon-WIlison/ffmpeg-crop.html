@@ -126,6 +126,7 @@ video {
   padding: 15px;
   border-radius: 4px;
   word-break: break-all;
+  -webkit-user-select: all;
   user-select: all;
   cursor: text;
   margin-bottom: 20px;
@@ -143,12 +144,25 @@ video {
 .hidden {
   display: none;
 }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  white-space: nowrap;
+}
   </style>
 </head>
 <body>
   <h1>FFmpeg video crop</h1>
   
   <div class="file-input-container">
+    <label class="sr-only" for="videoInput">Upload a video file</label>
     <input type="file" id="videoInput" accept="video/*">
   </div>
   

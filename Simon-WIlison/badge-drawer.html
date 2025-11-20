@@ -56,8 +56,8 @@
     canvas.view { 
       border: 1px dashed #333a57; 
       background: #ffffff; 
+      image-rendering: -webkit-optimize-contrast; 
       image-rendering: pixelated; 
-      image-rendering: crisp-edges; 
       box-shadow: 0 10px 30px rgba(0,0,0,.35);
       touch-action: none; /* Prevent default touch behaviors */
     }
@@ -111,7 +111,6 @@
         padding: 12px;
         min-height: 50vh;
         overflow: auto;
-        -webkit-overflow-scrolling: touch;
       }
       
       .canvasWrap {
@@ -202,7 +201,7 @@
         <label for="w">W×H</label>
         <input id="w" type="number" min="16" value="296" />
         <span class="muted">×</span>
-        <input id="h" type="number" min="16" value="128" />
+        <input id="h" type="number" min="16" value="128" aria-label="Height" />
         <button id="applyWH">Apply</button>
       </div>
       <div class="control">
@@ -248,7 +247,7 @@
       </div>
       <div class="hr"></div>
       <div class="row">
-        <input id="bgFile" type="file" accept="image/*" />
+        <input id="bgFile" type="file" accept="image/*" aria-label="Background image" />
       </div>
       <div class="muted">Optional: load a background image; it will be fitted into the device canvas.</div>
       <div class="hr"></div>

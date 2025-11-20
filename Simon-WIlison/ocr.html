@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>OCR PDFs and images directly in your browser</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script defer data-domain="tools.simonwillison.net" src="https://plausible.io/js/script.js"></script>
@@ -60,6 +61,10 @@ textarea {
   font-size: 14px;
   cursor: pointer;
 }
+
+#fileInput {
+  display: none;
+}
 </style>
 </head>
 <body>
@@ -67,7 +72,7 @@ textarea {
   <p>This tool runs entirely in your browser. No files are uploaded to a server.</p>
   <p>It uses <a href="https://tesseract.projectnaptha.com/">Tesseract.js</a> for OCR and <a href="https://mozilla.github.io/pdf.js/">PDF.js</a> to convert PDFs into images.</p>
   <p><label>Language: <select id="id_language"><option>ENG</option></select></label></p>
-  <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.gif" style="display: none;" />
+  <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.gif" />
   
   <div class="actions">
     <button id="loadExampleButton" type="button" aria-label="Load example PDF">Load example PDF</button>

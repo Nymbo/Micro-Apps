@@ -88,6 +88,9 @@
       gap: 8px;
       flex-wrap: wrap;
     }
+    .btnrow-spaced {
+      margin-top: 10px;
+    }
 
     button {
       appearance: none;
@@ -102,7 +105,11 @@
     button:active { transform: translateY(1px); }
 
     .hint { color: var(--muted); font-size: 0.85rem; }
+    .hint-spaced { margin-top: 10px; }
+    .hint-tight { margin-top: 6px; }
     .toast { font-size: 0.9rem; color: #b3ffbe; display: none; }
+    .label-tight { margin-bottom: 0; }
+    .quote-hidden { display: none; }
   </style>
 </head>
 <body>
@@ -127,19 +134,19 @@
           <span class="toast" id="toast">Copied ✓</span>
         </div>
         <textarea id="output" class="output" spellcheck="false" aria-label="Markdown output" placeholder="Your Markdown will appear here…"></textarea>
-        <div class="btnrow" style="margin-top:10px;">
+        <div class="btnrow btnrow-spaced">
           <button id="copyBtn" type="button">Copy</button>
-          <button id="quoteBtn" type="button" style="display:none;">Quote this</button>
+          <button id="quoteBtn" type="button" class="quote-hidden">Quote this</button>
         </div>
-        <p class="hint" style="margin-top:10px;">Supports <strong>bold</strong>, <em>italic</em>, inline links, lists (including nested), line breaks, and paragraph breaks.</p>
+        <p class="hint hint-spaced">Supports <strong>bold</strong>, <em>italic</em>, inline links, lists (including nested), line breaks, and paragraph breaks.</p>
       </section>
     </div>
 
     <section class="panel">
-      <div class="label" style="margin-bottom:0;">
+      <div class="label label-tight">
         <span>How it works</span>
       </div>
-      <p class="hint" style="margin-top:6px;">When you paste, the app reads the underlying HTML, safely parses it, and maps <code>&lt;strong&gt;</code>/<code>&lt;em&gt;</code>/<code>&lt;a&gt;</code>/<code>&lt;p&gt;</code>/<code>&lt;br&gt;</code> to Markdown.</p>
+      <p class="hint hint-tight">When you paste, the app reads the underlying HTML, safely parses it, and maps <code>&lt;strong&gt;</code>/<code>&lt;em&gt;</code>/<code>&lt;a&gt;</code>/<code>&lt;p&gt;</code>/<code>&lt;br&gt;</code> to Markdown.</p>
     </section>
   </div>
 
@@ -373,11 +380,8 @@
 
     function updateQuoteVisibility(md) {
       if (!quoteBtn) return;
-      if (md && md.trim()) {
-        quoteBtn.style.display = '';
-      } else {
-        quoteBtn.style.display = 'none';
-      }
+      const shouldShow = Boolean(md && md.trim());
+      quoteBtn.classList.toggle('quote-hidden', !shouldShow);
     }
 
     function convert() {

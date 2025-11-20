@@ -201,6 +201,10 @@
       word-wrap: break-word;
     }
 
+    .preview-error {
+      color: red;
+    }
+
     #preview table {
       display: block;
       width: 100%;
@@ -376,13 +380,13 @@
   
   <div id="preview"></div>
   
-  <h3>HTML Output</h3>
+  <h3 id="html-output-heading">HTML Output</h3>
   <button id="copy-button" aria-label="Copy HTML to clipboard">
     <span class="copy-text">Copy HTML</span>
   </button>
   
   <div class="output-container">
-    <textarea id="output" readonly></textarea>
+    <textarea id="output" readonly aria-labelledby="html-output-heading"></textarea>
   </div>
   
   <script type="module">
@@ -414,7 +418,7 @@ button.addEventListener('click', async function() {
     button.disabled = false;
   } catch (error) {
     console.error('Error rendering markdown:', error);
-    preview.innerHTML = `<div style="color: red;">Error rendering markdown: ${error.message}</div>`;
+    preview.innerHTML = `<div class="preview-error">Error rendering markdown: ${error.message}</div>`;
     button.textContent = 'Render';
     button.disabled = false;
   }

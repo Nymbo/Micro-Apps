@@ -45,6 +45,10 @@
             padding: 5px 10px;
             cursor: pointer;
         }
+
+        #file-input {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -53,11 +57,11 @@
     <div id="drop-zone">
         <p>Drag and drop a JPG or PNG image here, or click to select a file</p>
     </div>
-    <input type="file" id="file-input" style="display: none;" accept="image/jpeg, image/png">
+    <input type="file" id="file-input" accept="image/jpeg, image/png">
     <div id="svg-container"></div>
-    <h2>SVG Code:</h2>
+    <h2 id="svg-code-heading">SVG Code:</h2>
     <button id="copy-button">Copy to clipboard</button>
-    <textarea id="svg-code" readonly></textarea>
+    <textarea id="svg-code" readonly aria-labelledby="svg-code-heading"></textarea>
 
     <script type="module">
         import imagetracerjs from 'https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/+esm';
