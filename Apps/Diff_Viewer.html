@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Diff Viewer</title>
+
+    <!-- Tailwind for layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Diff2Html CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/diff2html/3.4.22/diff2html.min.css" />
+
+    <!-- Highlight.js Theme (Dracula-ish for Dark Mode) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css">
+
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap"
+        rel="stylesheet">
+
+    <style>
+        /* Custom scrollbar for that premium feel */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f1115;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #232836;
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b4252;
+        }
+
+        :root {
+            --bg: #0f1115;
+            --panel: #151924;
+            --border: #232836;
+            --text: #e5e7eb;
+            --accent: #5b9cff;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Utility to make textareas look like code editors */
+        .code-input {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            background-color: var(--panel);
+            color: #e5e7eb;
+            border: 1px solid var(--border);
+            resize: none;
+            width: 100%;
+            height: 100%;
+            padding: 12px;
+            outline: none;
+        }
+
+        .code-input:focus {
+            border-color: var(--accent);
+        }
+
+        /* Diff2Html Overrides for Dark Theme integration */
+
+        /* File Header */
+        .d2h-file-header {
+            background-color: #1e2330 !important;
+            border-bottom: 1px solid #232836 !important;
+        }
+
+        .d2h-file-wrapper {
+            border: 1px solid #232836 !important;
+            margin-bottom: 0 !important;
+        }
+
+        /* Code Content */
+        .d2h-code-line-ctn {
+            background-color: #0d1117 !important;
+            color: #c9d1d9 !important;
+        }
+
+        .d2h-code-line {
+            padding: 0 10px !important;
+        }
+
+        /* Line Numbers */
+        .d2h-code-side-linenumber {
+            background-color: #161b22 !important;
+            border-right: 1px solid #232836 !important;
+            color: #6e7681 !important;
+        }
+
+        /* Insertions/Deletions Highlighting */
+        .d2h-ins {
+            background-color: rgba(46, 160, 67, 0.15) !important;
+        }
+
+        .d2h-del {
+            background-color: rgba(248, 81, 73, 0.15) !important;
+        }
+
+        .d2h-code-line del,
+        .d2h-code-line ins {
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        /* Info icons removal for cleaner look */
+        .d2h-file-stats {
+            display: none;
+        }
+
+        /* Main Layout Grid */
+        .app-grid {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            height: 100%;
+        }
+
+        .editor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1px 1fr;
+            /* Left, Divider, Right */
+            gap: 0;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .resizer {
+            background: var(--border);
+            cursor: col-resize;
+            width: 1px;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-grid">
+        <!-- Header / Toolbar -->
+        <header
+            class="bg-[#151924] border-b border-[#232836] p-4 flex items-center justify-between shrink-0 z-20 shadow-md">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-600/10 rounded-lg border border-blue-600/20">
+                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                    </svg>
+                </div>
+                <h1 class="font-bold text-lg tracking-tight text-gray-100">Code Diff Viewer</h1>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <!-- View Mode Toggle -->
+                <div class="flex bg-[#0c0f16] p-1 rounded-lg border border-[#232836]">
+                    <button onclick="setMode('side-by-side')" id="btn-side"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-blue-600 text-white shadow-sm">Split</button>
+                    <button onclick="setMode('line-by-line')" id="btn-line"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">Unified</button>
+                </div>
+
+                <!-- Language Selector -->
+                <label for="lang-select" class="sr-only">Language</label>
+                <select id="lang-select"
+                    class="bg-[#0c0f16] border border-[#232836] text-gray-300 text-xs rounded-lg p-2 focus:border-blue-500 outline-none">
+                    <option value="javascript">JavaScript</option>
+                    <option value="python">Python</option>
+                    <option value="json">JSON</option>
+                    <option value="html">HTML/XML</option>
+                    <option value="css">CSS</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="sql">SQL</option>
+                    <option value="plaintext">Plain Text</option>
+                </select>
+
+                <div class="h-6 w-px bg-[#232836]"></div>
+
+                <button onclick="loadSample()"
+                    class="text-xs font-medium text-gray-400 hover:text-white transition-colors">Load Sample</button>
+                <button onclick="clearAll()"
+                    class="text-xs font-medium text-red-400 hover:text-red-300 transition-colors">Clear</button>
+                <button onclick="compare()"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-blue-900/20 flex items-center gap-2">
+                    <span>Compare</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z">
+                        </path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="relative h-full overflow-hidden">
+
+            <!-- INPUT MODE (Visible by default) -->
+            <div id="input-container" class="editor-grid">
+                <div class="flex flex-col min-w-0">
+                    <div class="bg-[#151924] border-b border-[#232836] px-4 py-2 flex justify-between items-center">
+                        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Original</span>
+                        <span class="text-xs text-gray-600" id="char-count-left">0 chars</span>
+                    </div>
+                    <textarea id="original" class="code-input" placeholder="// Paste original code here..."
+                        spellcheck="false"></textarea>
+                </div>
+
+                <!-- Visual Divider -->
+                <div class="bg-[#232836] w-px h-full"></div>
+
+                <div class="flex flex-col min-w-0">
+                    <div class="bg-[#151924] border-b border-[#232836] px-4 py-2 flex justify-between items-center">
+                        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Modified</span>
+                        <span class="text-xs text-gray-600" id="char-count-right">0 chars</span>
+                    </div>
+                    <textarea id="modified" class="code-input" placeholder="// Paste modified code here..."
+                        spellcheck="false"></textarea>
+                </div>
+            </div>
+
+            <!-- OUTPUT MODE (Hidden by default, overlays inputs) -->
+            <div id="output-container" class="absolute inset-0 bg-[#0f1115] z-10 hidden flex flex-col">
+                <div
+                    class="bg-[#151924] border-b border-[#232836] px-4 py-2 flex justify-between items-center shrink-0">
+                    <span class="text-sm font-medium text-white">Diff Result</span>
+                    <button onclick="toggleEdit()"
+                        class="text-xs bg-[#232836] hover:bg-[#3b4252] text-white px-3 py-1 rounded-md transition-colors border border-gray-700">
+                        Edit Inputs
+                    </button>
+                </div>
+                <div id="diff-output" class="overflow-auto flex-1 p-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LIBRARIES -->
+    <!-- 1. Highlight.js (Required dependency for Diff2Html syntax highlighting) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- 2. jsdiff (Generates the patch data) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+
+    <!-- 3. Diff2Html Bundle (Self-contained UI) -->
+    <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
+
+    <script>
+        // --- STATE ---
+        let viewMode = 'side-by-side'; // or 'line-by-line'
+        let originalEl = document.getElementById('original');
+        let modifiedEl = document.getElementById('modified');
+        let outputContainer = document.getElementById('output-container');
+
+        // --- INIT ---
+        function init() {
+            // Load from localStorage
+            const savedOriginal = localStorage.getItem('diff_original');
+            const savedModified = localStorage.getItem('diff_modified');
+            const savedLang = localStorage.getItem('diff_lang');
+
+            if (savedOriginal) originalEl.value = savedOriginal;
+            if (savedModified) modifiedEl.value = savedModified;
+            if (savedLang) document.getElementById('lang-select').value = savedLang;
+
+            // Update char counts
+            updateCharCounts();
+
+            // Add event listeners for auto-save
+            originalEl.addEventListener('input', () => {
+                localStorage.setItem('diff_original', originalEl.value);
+                updateCharCounts();
+            });
+            modifiedEl.addEventListener('input', () => {
+                localStorage.setItem('diff_modified', modifiedEl.value);
+                updateCharCounts();
+            });
+            document.getElementById('lang-select').addEventListener('change', (e) => {
+                localStorage.setItem('diff_lang', e.target.value);
+            });
+        }
+
+        // --- CORE LOGIC ---
+
+        function setMode(mode) {
+            viewMode = mode;
+
+            // Update buttons
+            const btnSide = document.getElementById('btn-side');
+            const btnLine = document.getElementById('btn-line');
+
+            if (mode === 'side-by-side') {
+                btnSide.className = 'px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-blue-600 text-white shadow-sm';
+                btnLine.className = 'px-3 py-1.5 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all';
+            } else {
+                btnLine.className = 'px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-blue-600 text-white shadow-sm';
+                btnSide.className = 'px-3 py-1.5 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all';
+            }
+
+            // If currently viewing output, re-render
+            if (!outputContainer.classList.contains('hidden')) {
+                compare();
+            }
+        }
+
+        function compare() {
+            const originalText = originalEl.value;
+            const modifiedText = modifiedEl.value;
+            const language = document.getElementById('lang-select').value;
+
+            if (!originalText && !modifiedText) {
+                alert("Please enter some text to compare.");
+                return;
+            }
+
+            // 1. Generate Unified Diff Patch using jsdiff
+            // We use createTwoFilesPatch to create a git-style diff string that diff2html understands
+            const fileName = `code.${language === 'plaintext' ? 'txt' : language}`;
+
+            // Diff comes from the global 'Diff' object provided by jsdiff script
+            const patch = Diff.createTwoFilesPatch(
+                fileName,
+                fileName,
+                originalText,
+                modifiedText,
+                'Original',
+                'Modified'
+            );
+
+            // 2. Configure Diff2HtmlUI
+            const targetElement = document.getElementById('diff-output');
+
+            const configuration = {
+                drawFileList: false,
+                matching: 'lines',
+                outputFormat: viewMode,
+                renderNothingWhenEmpty: false,
+            };
+
+            // Diff2HtmlUI is now globally available from the bundle script
+            const diff2htmlUi = new Diff2HtmlUI(targetElement, patch, configuration);
+
+            // 3. Render
+            diff2htmlUi.draw();
+
+            // 4. Apply Syntax Highlighting (if not plaintext)
+            if (language !== 'plaintext') {
+                diff2htmlUi.highlightCode();
+            }
+
+            // 5. Show Output
+            outputContainer.classList.remove('hidden');
+        }
+
+        function toggleEdit() {
+            outputContainer.classList.add('hidden');
+        }
+
+        function clearAll() {
+            if (confirm("Clear both editors?")) {
+                originalEl.value = '';
+                modifiedEl.value = '';
+                localStorage.removeItem('diff_original');
+                localStorage.removeItem('diff_modified');
+                updateCharCounts();
+                toggleEdit();
+            }
+        }
+
+        function loadSample() {
+            const sampleOrig = `function calculateTotal(items) {
+  let total = 0;
+  for (let i = 0; i < items.length; i++) {
+    total += items[i].price;
+  }
+  return total;
+}`;
+            const sampleMod = `function calculateTotal(items) {
+  return items.reduce((sum, item) => {
+    return sum + item.price;
+  }, 0);
+}`;
+            originalEl.value = sampleOrig;
+            modifiedEl.value = sampleMod;
+            localStorage.setItem('diff_original', sampleOrig);
+            localStorage.setItem('diff_modified', sampleMod);
+            document.getElementById('lang-select').value = 'javascript';
+            updateCharCounts();
+
+            // Auto compare on sample load for instant gratification
+            compare();
+        }
+
+        function updateCharCounts() {
+            document.getElementById('char-count-left').textContent = `${originalEl.value.length} chars`;
+            document.getElementById('char-count-right').textContent = `${modifiedEl.value.length} chars`;
+        }
+
+        // Run init
+        init();
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Tree Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom Scrollbar for that sleek dev feel */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Syntax Highlighting Colors */
+        .json-key {
+            color: #93c5fd;
+        }
+
+        /* Blue-300 */
+        .json-string {
+            color: #86efac;
+        }
+
+        /* Green-300 */
+        .json-number {
+            color: #fdba74;
+        }
+
+        /* Orange-300 */
+        .json-boolean {
+            color: #fca5a5;
+        }
+
+        /* Red-300 */
+        .json-null {
+            color: #cbd5e1;
+        }
+
+        /* Slate-300 */
+
+        /* Tree Guidelines */
+        .tree-line {
+            border-left: 1px dashed #334155;
+        }
+
+        /* Animation for collapse/expand */
+        .rotate-icon {
+            transition: transform 0.2s ease;
+        }
+
+        .rotate-90-down {
+            transform: rotate(90deg);
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-200 h-screen flex flex-col font-mono overflow-hidden">
+
+    <!-- Header -->
+    <header class="h-14 border-b border-slate-800 bg-slate-900 flex items-center justify-between px-4 shrink-0 z-10">
+        <div class="flex items-center gap-2">
+            <i data-lucide="file-json" class="text-blue-400 w-6 h-6"></i>
+            <h1 class="font-bold text-lg tracking-tight">JSON <span class="text-blue-400">Explorer</span></h1>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="loadSample()"
+                class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 transition flex items-center gap-1">
+                <i data-lucide="flask-conical" class="w-3 h-3"></i> Sample
+            </button>
+            <button onclick="resetApp()"
+                class="px-3 py-1.5 text-xs font-medium bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-200 rounded transition flex items-center gap-1">
+                <i data-lucide="trash-2" class="w-3 h-3"></i> Clear
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+
+        <!-- Left Pane: Input -->
+        <section
+            class="flex-1 flex flex-col border-b md:border-b-0 md:border-r border-slate-800 h-1/2 md:h-full min-w-0">
+            <!-- Toolbar -->
+            <div class="h-10 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-3 shrink-0">
+                <span class="text-xs text-slate-400 uppercase font-semibold tracking-wider">Input</span>
+                <div class="flex gap-1">
+                    <button onclick="formatJSON()" title="Prettify"
+                        class="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition">
+                        <i data-lucide="align-left" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="minifyJSON()" title="Minify"
+                        class="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition">
+                        <i data-lucide="minimize" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="copyInput()" title="Copy Raw"
+                        class="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Text Area -->
+            <div class="flex-1 relative">
+                <textarea id="jsonInput" spellcheck="false"
+                    class="w-full h-full bg-slate-950 text-slate-300 p-4 resize-none outline-none text-sm leading-relaxed font-mono focus:bg-slate-900/50 transition"
+                    placeholder="Paste your JSON here..."></textarea>
+            </div>
+            <!-- Status Bar -->
+            <div id="statusBar"
+                class="h-8 bg-slate-900 border-t border-slate-800 flex items-center px-3 text-xs text-slate-500 gap-2">
+                <div id="statusIndicator" class="w-2 h-2 rounded-full bg-slate-600"></div>
+                <span id="statusText">Waiting for input...</span>
+            </div>
+        </section>
+
+        <!-- Right Pane: Tree View -->
+        <section class="flex-1 flex flex-col h-1/2 md:h-full min-w-0 bg-slate-900/30">
+            <!-- Toolbar -->
+            <div class="h-10 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-3 shrink-0">
+                <span class="text-xs text-slate-400 uppercase font-semibold tracking-wider">Tree View</span>
+                <div class="flex gap-1">
+                    <button onclick="expandAll()" title="Expand All"
+                        class="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition">
+                        <i data-lucide="chevrons-up-down" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="collapseAll()" title="Collapse All"
+                        class="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition">
+                        <i data-lucide="chevrons-down-up" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Visualization Area -->
+            <div id="treeOutput" class="flex-1 p-4 overflow-auto text-sm">
+                <div class="h-full flex flex-col items-center justify-center text-slate-600 gap-3 select-none">
+                    <i data-lucide="network" class="w-12 h-12 opacity-20"></i>
+                    <p>Enter valid JSON to explore nodes</p>
+                </div>
+            </div>
+            <!-- Path Viewer -->
+            <div
+                class="h-8 bg-slate-900 border-t border-slate-800 flex items-center px-3 text-xs text-blue-400 overflow-hidden">
+                <span class="text-slate-500 mr-2">Path:</span>
+                <span id="pathDisplay" class="truncate font-mono select-all">root</span>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast"
+        class="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded shadow-lg transform translate-y-20 opacity-0 transition duration-300 flex items-center gap-2 z-50">
+        <i data-lucide="info" class="w-4 h-4"></i>
+        <span id="toastMsg">Notification</span>
+    </div>
+
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // DOM Elements
+        const jsonInput = document.getElementById('jsonInput');
+        const treeOutput = document.getElementById('treeOutput');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const pathDisplay = document.getElementById('pathDisplay');
+
+        let currentJSON = null;
+
+        // Event Listeners
+        jsonInput.addEventListener('input', debounce(handleInput, 300));
+
+        // Debounce Utility
+        function debounce(func, wait) {
+            let timeout;
+            return function (...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        // Handle Input Logic
+        function handleInput() {
+            const raw = jsonInput.value.trim();
+            if (!raw) {
+                setStatus('neutral', 'Waiting for input...');
+                currentJSON = null;
+                // Don't clear tree immediately if empty, just leave it or clear it? Let's clear.
+                if (raw === '') renderWelcome();
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(raw);
+                currentJSON = parsed;
+                setStatus('success', 'Valid JSON');
+                renderTree(parsed);
+            } catch (e) {
+                setStatus('error', `Invalid JSON: ${e.message}`);
+            }
+        }
+
+        // Status Bar Logic
+        function setStatus(type, msg) {
+            statusText.textContent = msg;
+            statusIndicator.className = 'w-2 h-2 rounded-full transition-colors duration-300 ';
+
+            if (type === 'success') {
+                statusIndicator.classList.add('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.6)]');
+                jsonInput.classList.remove('border-red-500');
+            } else if (type === 'error') {
+                statusIndicator.classList.add('bg-red-500', 'shadow-[0_0_8px_rgba(239,68,68,0.6)]');
+            } else {
+                statusIndicator.classList.add('bg-slate-500');
+            }
+        }
+
+        // Render Tree Root
+        function renderTree(data) {
+            treeOutput.innerHTML = ''; // Clear current
+            const rootContainer = document.createElement('div');
+            rootContainer.className = 'font-mono';
+
+            // Depending on root type (Array or Object)
+            const type = getDataType(data);
+            if (type === 'object' || type === 'array') {
+                rootContainer.appendChild(createNode('root', data, type, 'root'));
+            } else {
+                // Primitive root
+                const span = document.createElement('span');
+                span.innerHTML = formatPrimitive(data);
+                rootContainer.appendChild(span);
+            }
+
+            treeOutput.appendChild(rootContainer);
+
+            // Re-init icons for the new arrow nodes
+            lucide.createIcons();
+        }
+
+        // Recursive Node Creator
+        function createNode(key, value, type, path) {
+            const container = document.createElement('div');
+            container.className = 'ml-4 relative';
+
+            // Line guide (visual hierarchy)
+            const line = document.createElement('div');
+            line.className = 'absolute left-[-10px] top-0 bottom-0 w-px border-l border-dashed border-slate-700 opacity-0 hover:opacity-100 transition';
+
+            const header = document.createElement('div');
+            header.className = 'flex items-start gap-1 cursor-pointer hover:bg-slate-800/50 rounded px-1 -ml-1 py-0.5 group select-none';
+
+            // Toggle functionality
+            const isExpandable = (type === 'object' || type === 'array') && Object.keys(value).length > 0;
+
+            let arrowIcon = '';
+            if (isExpandable) {
+                arrowIcon = `<i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 transition-transform transform rotate-90-down mt-0.5"></i>`;
+            } else {
+                arrowIcon = `<span class="w-4 h-4 inline-block"></span>`; // Spacer
+            }
+
+            // Key Display
+            const keyDisplay = key !== 'root' ? `<span class="json-key mr-1">${key}:</span>` : '';
+
+            // Bracket Display
+            let preview = '';
+            let brackets = ['', ''];
+            if (type === 'array') brackets = ['[', ']'];
+            if (type === 'object') brackets = ['{', '}'];
+
+            if (isExpandable) {
+                const size = Object.keys(value).length;
+                const noun = type === 'array' ? 'items' : 'keys';
+                preview = `<span class="text-slate-600 text-xs ml-2 italic hidden group-hover:inline-block"> // ${size} ${noun}</span>`;
+            }
+
+            header.innerHTML = `${arrowIcon} ${keyDisplay} <span class="text-slate-400">${brackets[0]}</span> ${preview}`;
+
+            // Path Interaction
+            header.addEventListener('mouseenter', () => {
+                pathDisplay.textContent = path;
+            });
+            header.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isExpandable) {
+                    const childrenContainer = container.querySelector('.children-container');
+                    const icon = header.querySelector('i'); // Select the lucide icon (svg or i)
+
+                    // We need to find the SVG because lucide replaces <i> with <svg>
+                    const svgIcon = header.querySelector('svg');
+
+                    if (childrenContainer.classList.contains('hidden')) {
+                        childrenContainer.classList.remove('hidden');
+                        if (svgIcon) svgIcon.classList.add('rotate-90-down');
+                        header.querySelector('.text-slate-600')?.classList.add('hidden'); // Hide preview count
+                    } else {
+                        childrenContainer.classList.add('hidden');
+                        if (svgIcon) svgIcon.classList.remove('rotate-90-down');
+                        header.querySelector('.text-slate-600')?.classList.remove('hidden'); // Show preview count
+                    }
+                }
+            });
+
+            container.appendChild(header);
+
+            // Children Generation
+            if (isExpandable) {
+                const childrenDiv = document.createElement('div');
+                childrenDiv.className = 'children-container pl-2 border-l border-slate-800/50 ml-2';
+
+                Object.keys(value).forEach(childKey => {
+                    const childValue = value[childKey];
+                    const childType = getDataType(childValue);
+
+                    // Construct Path
+                    let newPath = path;
+                    if (type === 'array') {
+                        newPath += `[${childKey}]`;
+                    } else {
+                        // Handle keys with spaces or special chars
+                        if (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(childKey)) {
+                            newPath += `.${childKey}`;
+                        } else {
+                            newPath += `["${childKey}"]`;
+                        }
+                    }
+
+                    if (childType === 'object' || childType === 'array') {
+                        childrenDiv.appendChild(createNode(childKey, childValue, childType, newPath));
+                    } else {
+                        // Primitive Leaf Node
+                        const leaf = document.createElement('div');
+                        leaf.className = 'flex items-start ml-6 hover:bg-slate-800/50 rounded px-1 py-0.5 cursor-text group';
+                        leaf.innerHTML = `
+                            <span class="json-key mr-1">${childKey}:</span> 
+                            ${formatPrimitive(childValue)}
+                        `;
+
+                        // Leaf Path Interaction
+                        leaf.addEventListener('mouseenter', () => {
+                            pathDisplay.textContent = newPath;
+                        });
+
+                        // Leaf Copy Interaction
+                        leaf.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            copyToClipboard(String(childValue));
+                        });
+
+                        childrenDiv.appendChild(leaf);
+                    }
+                });
+
+                container.appendChild(childrenDiv);
+            }
+
+            // Closing Bracket
+            if (isExpandable) {
+                const closer = document.createElement('div');
+                closer.className = 'ml-6 text-slate-400';
+                closer.textContent = brackets[1];
+                container.appendChild(closer);
+            } else if (type === 'object' || type === 'array') {
+                // Empty object/array
+                header.innerHTML += `<span class="text-slate-400">${brackets[1]}</span>`;
+            }
+
+            return container;
+        }
+
+        // Utils
+        function getDataType(val) {
+            if (val === null) return 'null';
+            if (Array.isArray(val)) return 'array';
+            return typeof val;
+        }
+
+        function formatPrimitive(val) {
+            const type = getDataType(val);
+            if (type === 'string') return `<span class="json-string">"${escapeHtml(val)}"</span>`;
+            if (type === 'number') return `<span class="json-number">${val}</span>`;
+            if (type === 'boolean') return `<span class="json-boolean">${val}</span>`;
+            if (type === 'null') return `<span class="json-null">null</span>`;
+            return `<span>${val}</span>`;
+        }
+
+        function escapeHtml(text) {
+            if (typeof text !== 'string') return text;
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function renderWelcome() {
+            treeOutput.innerHTML = `
+                <div class="h-full flex flex-col items-center justify-center text-slate-600 gap-3 select-none">
+                    <i data-lucide="network" class="w-12 h-12 opacity-20"></i>
+                    <p>Enter valid JSON to explore nodes</p>
+                </div>
+            `;
+            lucide.createIcons();
+            pathDisplay.textContent = 'root';
+        }
+
+        // Toolbar Functions
+        function formatJSON() {
+            if (!currentJSON) return;
+            jsonInput.value = JSON.stringify(currentJSON, null, 4);
+            handleInput(); // Re-trigger to update status
+        }
+
+        function minifyJSON() {
+            if (!currentJSON) return;
+            jsonInput.value = JSON.stringify(currentJSON);
+            handleInput();
+        }
+
+        function copyInput() {
+            const content = jsonInput.value;
+            if (!content) return;
+            copyToClipboard(content);
+        }
+
+        function expandAll() {
+            document.querySelectorAll('.children-container').forEach(el => el.classList.remove('hidden'));
+            document.querySelectorAll('.rotate-icon').forEach(el => el.classList.add('rotate-90-down'));
+            // Force refresh icons rotation logic visually if needed, usually class manip is enough
+            // Note: The manual SVG rotation class handling in click listener needs to be mirrored here
+            document.querySelectorAll('svg.lucide-chevron-right').forEach(svg => svg.classList.add('rotate-90-down'));
+        }
+
+        function collapseAll() {
+            document.querySelectorAll('.children-container').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('svg.lucide-chevron-right').forEach(svg => svg.classList.remove('rotate-90-down'));
+        }
+
+        function loadSample() {
+            const sample = {
+                "project": "Micro-Apps",
+                "version": 1.0,
+                "active": true,
+                "owner": {
+                    "name": "Devan",
+                    "role": "Programmer",
+                    "location": "PA"
+                },
+                "tags": ["javascript", "html", "tools"],
+                "features": [
+                    { "id": 1, "name": "Parsing", "status": "complete" },
+                    { "id": 2, "name": "Visualizer", "status": "in-progress" }
+                ],
+                "metadata": null
+            };
+            jsonInput.value = JSON.stringify(sample, null, 4);
+            handleInput();
+        }
+
+        function resetApp() {
+            jsonInput.value = '';
+            handleInput();
+            renderWelcome();
+        }
+
+        function copyToClipboard(text) {
+            // Fallback for iframes
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast('Copied to clipboard!');
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                showToast('Failed to copy');
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            toastMsg.textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2000);
+        }
+
+    </script>
+</body>
+
+</html>
