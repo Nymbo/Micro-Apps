@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Repository File Size Analyzer</title>
-    
+
     <!-- This script pulls in Tailwind CSS for styling, making the app look clean and modern. -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- This script includes Chart.js, a powerful library for creating beautiful and responsive charts. -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -20,19 +21,24 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+
         /* Custom style for the file upload area to provide visual feedback on hover. */
         .file-drop-zone:hover {
-            border-color: #2563eb; /* A brighter blue for hover in dark mode */
+            border-color: #2563eb;
+            /* A brighter blue for hover in dark mode */
         }
+
         .max-w-400 {
             max-width: 400px;
         }
+
         .all-files-chart-wrapper {
             height: 600px;
             overflow-y: auto;
         }
     </style>
 </head>
+
 <body class="bg-gray-900 text-gray-300">
 
     <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-7xl">
@@ -40,30 +46,44 @@
         <!-- Header Section -->
         <header class="text-center mb-8">
             <h1 class="text-4xl font-bold text-gray-100">Repository File Size Analyzer</h1>
-            <p class="mt-2 text-lg text-gray-400">Upload your local code repository to visualize file sizes across multiple languages.</p>
+            <p class="mt-2 text-lg text-gray-400">Upload your local code repository to visualize file sizes across
+                multiple languages.</p>
         </header>
 
         <!-- File Upload Section -->
         <div id="upload-section" class="w-full max-w-2xl mx-auto">
             <!-- This label is styled to look like a button/dropzone and is linked to the hidden file input. -->
-            <label for="repoUpload" class="file-drop-zone flex flex-col items-center justify-center w-full h-48 bg-gray-800 border-2 border-gray-600 border-dashed rounded-xl cursor-pointer transition-colors duration-300">
+            <label for="repoUpload"
+                class="file-drop-zone flex flex-col items-center justify-center w-full h-48 bg-gray-800 border-2 border-gray-600 border-dashed rounded-xl cursor-pointer transition-colors duration-300">
                 <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg class="w-10 h-10 mb-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h2l2-2h6l2 2h2a4 4 0 014 4v5a4 4 0 01-4 4H7z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <svg class="w-10 h-10 mb-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h2l2-2h6l2 2h2a4 4 0 014 4v5a4 4 0 01-4 4H7z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
                     <p class="mb-2 text-sm font-semibold text-gray-400">Click to select a folder</p>
                     <p class="text-xs text-gray-500">Your entire repository folder</p>
                 </div>
             </label>
             <!-- The actual file input is hidden. 'webkitdirectory' is the magic attribute that allows folder selection. -->
             <input type="file" id="repoUpload" webkitdirectory multiple class="hidden">
-            <p class="mt-3 text-xs text-gray-500 text-center">Supported languages: Python, TypeScript, JavaScript, HTML, CSS, Markdown, JSON, GLSL, C, C#, C++, Go, Rust.</p>
+            <p class="mt-3 text-xs text-gray-500 text-center">Supported languages: Python, TypeScript, JavaScript, HTML,
+                CSS, Markdown, JSON, GLSL, C, C#, C++, Go, Rust.</p>
         </div>
 
         <!-- Loading Spinner -->
         <div id="loading-spinner" class="text-center my-12 hidden">
-             <div role="status" class="flex justify-center items-center">
-                <svg aria-hidden="true" class="w-8 h-8 text-gray-700 animate-spin fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
-                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0492C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="class="currentFill""/>
+            <div role="status" class="flex justify-center items-center">
+                <svg aria-hidden="true" class="w-8 h-8 text-gray-700 animate-spin fill-blue-600" viewBox="0 0 100 101"
+                    fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+                        fill="currentColor" />
+                    <path
+                        d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0492C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+                        fill="class=" currentFill"" />
                 </svg>
                 <span class="ml-4 text-lg text-gray-400">Analyzing repository...</span>
             </div>
@@ -71,7 +91,15 @@
 
         <!-- Results Section -->
         <div id="results-section" class="hidden space-y-8">
-        
+
+            <!-- Language Filter Toggles -->
+            <div class="bg-gray-800 p-6 rounded-xl shadow">
+                <h3 class="text-sm font-medium text-gray-400 mb-3">Filter by Language</h3>
+                <div id="language-toggles" class="flex flex-wrap gap-2">
+                    <!-- Toggles will be injected here -->
+                </div>
+            </div>
+
             <!-- Summary Stats -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="bg-gray-800 p-6 rounded-xl shadow">
@@ -102,7 +130,7 @@
                 </div>
                 <div class="bg-gray-800 p-6 rounded-xl shadow">
                     <h2 class="text-xl font-bold mb-4 text-gray-100">Size by Language</h2>
-                     <div class="relative h-96 mx-auto max-w-400">
+                    <div class="relative h-96 mx-auto max-w-400">
                         <canvas id="fileSizePieChart"></canvas>
                     </div>
                 </div>
@@ -134,7 +162,7 @@
 
         </div>
 
-         <!-- Error/Message Display -->
+        <!-- Error/Message Display -->
         <div id="message-display" class="text-center mt-8 p-4 bg-red-900/50 text-red-400 rounded-lg hidden"></div>
 
     </div>
@@ -153,6 +181,11 @@
         let dirCountChartInstance = null;
         let dirSizeChartInstance = null;
         let allFilesChartInstance = null; // New chart instance
+
+        // Global state for filtering
+        let allProcessedFiles = [];
+        let activeLanguageFilters = new Set();
+        let ignorePatterns = [];
 
         const EXTENSION_LANGUAGE_PAIRS = [
             { ext: '.d.ts', language: 'TypeScript' },
@@ -212,37 +245,214 @@
             resultsSection.classList.add('hidden');
             messageDisplay.classList.add('hidden');
             uploadSection.classList.add('hidden');
+
+            // Allow UI to update
             await new Promise(resolve => setTimeout(resolve, 50));
 
-            const supportedFiles = Array.from(files)
-                .map(file => {
-                    const match = matchSupportedExtension(file.name);
-                    return match ? { file, match } : null;
-                })
-                .filter(Boolean);
+            const fileArray = Array.from(files);
+
+            // 1. Parse .gitignore files
+            ignorePatterns = [];
+            const gitIgnoreFiles = fileArray.filter(f => f.name === '.gitignore');
+
+            for (const f of gitIgnoreFiles) {
+                try {
+                    const text = await readFileText(f);
+                    // webkitRelativePath looks like "RepoName/path/to/.gitignore"
+                    // We want the directory relative to the repo root.
+                    // The first segment is the repo name, which we can ignore for matching if we treat everything relative to repo root.
+                    // But webkitRelativePath includes the root folder name.
+                    const fullPath = f.webkitRelativePath;
+                    const dir = fullPath.substring(0, fullPath.lastIndexOf('/') + 1); // "RepoName/src/"
+                    ignorePatterns.push(...parseGitIgnore(text, dir));
+                } catch (e) {
+                    console.warn('Failed to read .gitignore', e);
+                }
+            }
+
+            // 2. Filter and process files
+            const supportedFiles = [];
+
+            for (const file of fileArray) {
+                // Skip if ignored
+                if (checkIgnored(file.webkitRelativePath, ignorePatterns)) {
+                    continue;
+                }
+
+                const match = matchSupportedExtension(file.name);
+                if (match) {
+                    supportedFiles.push({ file, match });
+                }
+            }
 
             if (supportedFiles.length === 0) {
-                showMessage(`No supported files found in the selected directory. Supported languages: ${SUPPORTED_LANGUAGES_TEXT}.`);
+                showMessage(`No supported files found (or all were ignored). Supported languages: ${SUPPORTED_LANGUAGES_TEXT}.`);
                 loadingSpinner.classList.add('hidden');
                 uploadSection.classList.remove('hidden');
                 return;
             }
 
-            const fileData = supportedFiles.map(({ file, match }) => ({
+            allProcessedFiles = supportedFiles.map(({ file, match }) => ({
                 path: file.webkitRelativePath,
                 size: file.size,
                 extension: match.ext,
                 language: match.language
             }));
 
-            // Sort by size for all charts that need it
-            fileData.sort((a, b) => b.size - a.size);
-            
-            displayResults(fileData);
+            // Sort by size initially
+            allProcessedFiles.sort((a, b) => b.size - a.size);
+
+            // 3. Initialize Filters
+            const languages = new Set(allProcessedFiles.map(f => f.language));
+            activeLanguageFilters = new Set(languages);
+            renderLanguageToggles(languages);
+
+            // 4. Display
+            applyFilters();
 
             loadingSpinner.classList.add('hidden');
             resultsSection.classList.remove('hidden');
             uploadSection.classList.remove('hidden');
+        }
+
+        function readFileText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        }
+
+        /**
+         * Parses .gitignore content into usable patterns.
+         */
+        function parseGitIgnore(content, baseDir) {
+            return content.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+                .map(pattern => {
+                    // Remove trailing spaces (already done by trim)
+                    // Handle negation
+                    const isNegated = pattern.startsWith('!');
+                    if (isNegated) pattern = pattern.slice(1);
+
+                    return { pattern, baseDir, isNegated };
+                });
+        }
+
+        /**
+         * Checks if a file path matches any ignore pattern.
+         * This is a simplified implementation of gitignore logic.
+         */
+        function checkIgnored(filePath, patterns) {
+            // filePath is like "RepoName/src/foo.js"
+
+            let ignored = false;
+
+            for (const { pattern, baseDir, isNegated } of patterns) {
+                // Only apply pattern if file is within baseDir
+                if (!filePath.startsWith(baseDir)) continue;
+
+                // Relativize path to the gitignore location
+                const relativePath = filePath.slice(baseDir.length);
+
+                if (matchesPattern(relativePath, pattern)) {
+                    ignored = !isNegated;
+                }
+            }
+            return ignored;
+        }
+
+        /**
+         * Simple glob matching.
+         * Supports:
+         * - exact match: "node_modules" matches "node_modules" (file or dir) anywhere? 
+         *   Actually gitignore "node_modules" matches "node_modules" anywhere relative to base.
+         * - /start: "/dist" matches "dist" at root of base.
+         * - end/: "logs/" matches directories named logs.
+         * - *: wildcard.
+         */
+        function matchesPattern(path, pattern) {
+            // Normalize pattern
+            let p = pattern;
+
+            // If pattern ends with /, it only matches directories. 
+            // Since we don't know if 'path' is a dir or file easily here (we have file objects but path is string),
+            // we'll assume if the path contains the pattern as a segment it might match.
+            // For simplicity in this file-only context:
+            // If pattern ends with /, we check if any directory segment in path matches.
+
+            const mustBeDir = p.endsWith('/');
+            if (mustBeDir) p = p.slice(0, -1);
+
+            const anchored = p.startsWith('/');
+            if (anchored) p = p.slice(1);
+
+            // Convert simplified glob to regex
+            // Escape special chars
+            let regexStr = p.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+
+            // Handle * (matches anything except /)
+            regexStr = regexStr.replace(/\*/g, '[^/]*');
+
+            // Handle ** (matches anything including /) - simplistic approach
+            // If user put **, we replaced it with [^/]*[^/]* which is wrong.
+            // Let's fix ** manually if we want to support it, or just stick to simple *
+            // Reverting * change for a moment to handle **
+            // Actually, let's stick to simple * support for now as per plan note.
+
+            // Construct Regex
+            // If anchored, must match start of path.
+            // If not anchored, can match any segment (so we prepend .*/ or check segments).
+
+            let regex;
+            if (anchored) {
+                // Matches "dist" or "dist/..."
+                regex = new RegExp(`^${regexStr}(/|$)`);
+            } else {
+                // Matches "node_modules" or "foo/node_modules"
+                // Must match a full path segment
+                regex = new RegExp(`(^|/)${regexStr}(/|$)`);
+            }
+
+            return regex.test(path);
+        }
+
+        function renderLanguageToggles(languages) {
+            const container = document.getElementById('language-toggles');
+            container.innerHTML = '';
+
+            const sortedLanguages = Array.from(languages).sort();
+
+            sortedLanguages.forEach(lang => {
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-1 rounded-full text-xs font-semibold border transition-colors duration-200 select-none ${activeLanguageFilters.has(lang)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-transparent text-gray-400 border-gray-600 hover:border-gray-400'
+                    }`;
+                btn.textContent = lang;
+                btn.onclick = () => toggleLanguage(lang, btn);
+                container.appendChild(btn);
+            });
+        }
+
+        function toggleLanguage(lang, btn) {
+            if (activeLanguageFilters.has(lang)) {
+                activeLanguageFilters.delete(lang);
+                btn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+                btn.classList.add('bg-transparent', 'text-gray-400', 'border-gray-600');
+            } else {
+                activeLanguageFilters.add(lang);
+                btn.classList.remove('bg-transparent', 'text-gray-400', 'border-gray-600');
+                btn.classList.add('bg-blue-600', 'text-white', 'border-blue-600');
+            }
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const filteredData = allProcessedFiles.filter(f => activeLanguageFilters.has(f.language));
+            displayResults(filteredData);
         }
 
         /**
@@ -256,7 +466,7 @@
             if (dirCountChartInstance) dirCountChartInstance.destroy();
             if (dirSizeChartInstance) dirSizeChartInstance.destroy();
             if (allFilesChartInstance) allFilesChartInstance.destroy(); // Destroy the new chart instance too
-            
+
             // --- 1. Calculate and Display Summary Statistics ---
             displaySummaryStats(fileData);
 
@@ -269,7 +479,7 @@
             // --- 4. Render All Files Chart ---
             renderAllFilesChart(fileData);
         }
-        
+
         /**
          * Calculates and displays the summary stat cards.
          * @param {Array<Object>} fileData - The sorted array of file data.
@@ -335,10 +545,10 @@
                 directoryStats[dir].count++;
                 directoryStats[dir].size += file.size;
             });
-            
+
             const sortedByCount = Object.entries(directoryStats).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.count - a.count).slice(0, 20);
             const sortedBySize = Object.entries(directoryStats).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.size - a.size).slice(0, 20);
-            
+
             renderDirectoryCountChart(sortedByCount.map(d => d.name), sortedByCount.map(d => d.count));
             renderDirectorySizeChart(sortedBySize.map(d => d.name), sortedBySize.map(d => d.size));
         }
@@ -354,7 +564,7 @@
         function createHorizontalBarChart(canvasId, labels, dataset, options = {}) {
             const canvas = document.getElementById(canvasId);
             const ctx = canvas.getContext('2d');
-            
+
             const defaultOptions = {
                 indexAxis: 'y',
                 maintainAspectRatio: false,
@@ -365,14 +575,14 @@
                 },
                 plugins: { legend: { display: false } }
             };
-            
+
             return new Chart(ctx, {
                 type: 'bar',
                 data: { labels, datasets: [dataset] },
                 options: { ...defaultOptions, ...options }
             });
         }
-        
+
         /** This is for the Top 20 chart */
         function renderBarChart(canvasId, labels, fullLabels, data, languages) {
             const dataset = { label: 'File Size', data, backgroundColor: 'rgba(59, 130, 246, 0.7)', borderColor: 'rgba(59, 130, 246, 1)', borderWidth: 1 };
@@ -393,9 +603,9 @@
         }
 
         function renderDirectoryCountChart(labels, data) {
-             const dataset = { label: '# of Files', data, backgroundColor: 'rgba(16, 185, 129, 0.7)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1 };
-             const options = { plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `${context.parsed.x} files` } } } };
-             dirCountChartInstance = createHorizontalBarChart('directoryCountBarChart', labels, dataset, options);
+            const dataset = { label: '# of Files', data, backgroundColor: 'rgba(16, 185, 129, 0.7)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1 };
+            const options = { plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `${context.parsed.x} files` } } } };
+            dirCountChartInstance = createHorizontalBarChart('directoryCountBarChart', labels, dataset, options);
         }
 
         function renderDirectorySizeChart(labels, data) {
@@ -406,7 +616,7 @@
             };
             dirSizeChartInstance = createHorizontalBarChart('directorySizeBarChart', labels, dataset, options);
         }
-        
+
         /**
          * Renders the new chart for ALL files.
          * @param {Array<Object>} fileData - The complete, sorted array of file data.
@@ -414,7 +624,7 @@
         function renderAllFilesChart(fileData) {
             // We reverse the array here because horizontal bar charts show the first item at the top.
             // By reversing, the largest file will be at the top as intended.
-            const reversedData = [...fileData].reverse(); 
+            const reversedData = [...fileData].reverse();
             const labels = reversedData.map(f => f.path.split('/').pop()); // Show only file name on axis
             const fullLabels = reversedData.map(f => f.path); // Show full path in tooltip
             const languages = reversedData.map(f => f.language);
@@ -423,9 +633,9 @@
             // Dynamically calculate chart height to ensure labels are readable
             const canvas = document.getElementById('allFilesChart');
             // Assign a minimum height per bar plus some padding
-            const dynamicHeight = Math.max(600, data.length * 20); 
+            const dynamicHeight = Math.max(600, data.length * 20);
             canvas.style.height = `${dynamicHeight}px`;
-            
+
             const dataset = { label: 'File Size', data, backgroundColor: 'rgba(245, 158, 11, 0.7)', borderColor: 'rgba(245, 158, 11, 1)', borderWidth: 1 };
             const options = {
                 plugins: {
@@ -438,9 +648,9 @@
                         }
                     }
                 },
-                scales: { 
+                scales: {
                     y: { ticks: { autoSkip: false } }, // Ensure all ticks are shown
-                    x: { ticks: { callback: (value) => formatBytes(value) } } 
+                    x: { ticks: { callback: (value) => formatBytes(value) } }
                 }
             };
 
@@ -464,9 +674,9 @@
                     responsive: true,
                     plugins: {
                         legend: { position: 'bottom', labels: { padding: 15, boxWidth: 12, color: 'rgba(255, 255, 255, 0.7)' } },
-                         tooltip: {
+                        tooltip: {
                             callbacks: {
-                                label: function(context) {
+                                label: function (context) {
                                     const label = context.label || '';
                                     const value = context.parsed || 0;
                                     const dataset = context.dataset?.data || [];
@@ -480,7 +690,7 @@
                 }
             });
         }
-        
+
         function formatBytes(bytes, decimals = 2) {
             if (!bytes || bytes === 0) return '0 Bytes';
             const k = 1024;
@@ -498,4 +708,5 @@
     </script>
 
 </body>
+
 </html>
