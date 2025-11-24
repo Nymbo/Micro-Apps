@@ -218,10 +218,11 @@
             { ext: '.cs', language: 'C#' },
             { ext: '.c', language: 'C' },
             { ext: '.go', language: 'Go' },
-            { ext: '.rs', language: 'Rust' }
+            { ext: '.rs', language: 'Rust' },
+            { ext: '.lua', language: 'Lua' }
         ].sort((a, b) => b.ext.length - a.ext.length);
 
-        const SUPPORTED_LANGUAGES_TEXT = 'Python, TypeScript, JavaScript, HTML, CSS, Markdown, JSON, GLSL, C, C#, C++, Go, Rust';
+        const SUPPORTED_LANGUAGES_TEXT = 'Python, TypeScript, JavaScript, HTML, CSS, Markdown, JSON, GLSL, C, C#, C++, Go, Rust, Lua';
 
         function matchSupportedExtension(fileName) {
             const lower = fileName.toLowerCase();
@@ -252,7 +253,14 @@
             const fileArray = Array.from(files);
 
             // 1. Parse .gitignore files
-            ignorePatterns = [];
+            ignorePatterns = [
+                { pattern: 'node_modules', baseDir: '', isNegated: false },
+                { pattern: 'package-lock.json', baseDir: '', isNegated: false },
+                { pattern: '.git', baseDir: '', isNegated: false },
+                { pattern: 'venv', baseDir: '', isNegated: false },
+                { pattern: '.venv', baseDir: '', isNegated: false },
+                { pattern: '__pycache__', baseDir: '', isNegated: false }
+            ];
             const gitIgnoreFiles = fileArray.filter(f => f.name === '.gitignore');
 
             for (const f of gitIgnoreFiles) {

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Web Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; overflow: hidden; background-color: #111827; }
+        .file-drop-zone:hover { border-color: #3b82f6; }
+        #viz-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; background: radial-gradient(circle at center, #1f2937 0%, #111827 100%); }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        .pointer-events-auto { pointer-events: auto; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        .node circle { transition: all 0.3s ease; }
+        .node:hover circle { stroke: #fff; stroke-width: 2px; filter: drop-shadow(0 0 4px rgba(255,255,255,0.5)); }
+        .link { stroke-opacity: 0.2; transition: stroke-opacity 0.3s; }
+    </style>
+</head>
+<body class="text-gray-300">
+
+    <!-- Visualization Container -->
+    <div id="viz-container"></div>
+
+    <!-- UI Layer -->
+    <div id="ui-layer" class="flex flex-col h-full">
+        
+        <!-- Top Bar (Filters) - Hidden initially -->
+        <div id="top-bar" class="w-full bg-gray-900/90 backdrop-blur-md border-b border-gray-700 p-4 pointer-events-auto hidden transition-all duration-500 transform -translate-y-full">
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-xl font-bold text-gray-100 tracking-tight">File Web Viewer</h1>
+                    <div class="text-xs text-gray-500 px-2 py-1 bg-gray-800 rounded border border-gray-700" id="stats-counter">0 files</div>
+                </div>
+                <div class="flex gap-2">
+                    <button id="size-toggle-btn" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded transition-colors">Size: Uniform</button>
+                    <button id="reset-view-btn" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded transition-colors">Reset Camera</button>
+                    <button id="new-upload-btn" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded transition-colors shadow-lg shadow-blue-900/20">New Upload</button>
+                </div>
+            </div>
+            <div class="relative">
+                <div class="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-gray-900/90 to-transparent z-10 pointer-events-none"></div>
+                <div class="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-gray-900/90 to-transparent z-10 pointer-events-none"></div>
+                <div id="filter-container" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto px-2 pb-1">
+                    <!-- Filter buttons go here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Screen (Centered) -->
+        <div id="upload-screen" class="flex-grow flex flex-col items-center justify-center pointer-events-auto p-4 transition-opacity duration-500">
+            <div class="text-center mb-10">
+                <h1 class="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-4">File Web Viewer</h1>
+                <p class="text-xl text-gray-400 max-w-md mx-auto">Visualize your repository structure as an interactive, organic web.</p>
+            </div>
+            
+            <div class="w-full max-w-2xl relative group">
+                <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                <label for="repoUpload" class="relative file-drop-zone flex flex-col items-center justify-center w-full h-64 bg-gray-900 border-2 border-gray-700 border-dashed rounded-2xl cursor-pointer transition-all duration-300 hover:bg-gray-800 hover:border-blue-500">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg class="w-16 h-16 mb-4 text-gray-500 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h2l2-2h6l2 2h2a4 4 0 014 4v5a4 4 0 01-4 4H7z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        <p class="mb-2 text-lg font-semibold text-gray-300">Click to select a folder</p>
+                        <p class="text-sm text-gray-500">Upload your entire repository</p>
+                    </div>
+                </label>
+                <input type="file" id="repoUpload" webkitdirectory multiple class="hidden">
+            </div>
+            
+            <div id="loading-msg" class="mt-8 hidden flex-col items-center">
+                <div class="relative w-16 h-16 mb-4">
+                    <div class="absolute top-0 left-0 w-full h-full border-4 border-blue-500/30 rounded-full"></div>
+                    <div class="absolute top-0 left-0 w-full h-full border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+                </div>
+                <span class="text-lg text-blue-400 font-medium animate-pulse">Parsing files and building web...</span>
+            </div>
+        </div>
+
+        <!-- Stats Overlay (Bottom Left) - Hidden initially -->
+        <div id="stats-overlay" class="absolute bottom-6 left-6 bg-gray-900/80 backdrop-blur-md p-5 rounded-xl border border-gray-700 pointer-events-auto hidden max-w-sm shadow-2xl transition-opacity duration-300 opacity-0 translate-y-4">
+            <div id="node-info-content">
+                <div class="flex items-center gap-3 mb-3">
+                    <div id="info-icon" class="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center text-xl">📂</div>
+                    <div>
+                        <h3 id="info-name" class="font-bold text-gray-100 text-lg leading-tight break-all">root</h3>
+                        <p id="info-type" class="text-xs text-blue-400 font-mono uppercase">Directory</p>
+                    </div>
+                </div>
+                <div class="space-y-1 text-sm text-gray-400">
+                    <div class="flex justify-between"><span class="text-gray-500">Path:</span> <span id="info-path" class="text-gray-300 font-mono text-xs truncate max-w-[200px] block text-right">/</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Size:</span> <span id="info-size" class="text-gray-300">0 B</span></div>
+                    <div id="info-children-row" class="flex justify-between"><span class="text-gray-500">Children:</span> <span id="info-children" class="text-gray-300">0</span></div>
+                </div>
+            </div>
+            <div id="node-info-placeholder" class="text-center py-2 text-gray-500 italic">
+                Hover over a node to see details
+            </div>
+        </div>
+        
+        <!-- Legend (Bottom Right) -->
+        <div id="legend" class="absolute bottom-6 right-6 pointer-events-none hidden transition-opacity duration-500 opacity-0">
+            <div class="flex flex-col items-end gap-2">
+                <div class="flex items-center gap-2 bg-gray-900/60 backdrop-blur px-3 py-1.5 rounded-full border border-gray-700/50">
+                    <span class="text-xs text-gray-300">Directory</span>
+                    <span class="w-3 h-3 rounded-full bg-gray-500"></span>
+                </div>
+                <div class="flex items-center gap-2 bg-gray-900/60 backdrop-blur px-3 py-1.5 rounded-full border border-gray-700/50">
+                    <span class="text-xs text-gray-300">File</span>
+                    <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration & Constants ---
+        const EXTENSION_LANGUAGE_PAIRS = [
+            { ext: '.d.ts', language: 'TypeScript' },
+            { ext: '.tsx', language: 'TypeScript' },
+            { ext: '.ts', language: 'TypeScript' },
+            { ext: '.jsx', language: 'JavaScript' },
+            { ext: '.mjs', language: 'JavaScript' },
+            { ext: '.cjs', language: 'JavaScript' },
+            { ext: '.js', language: 'JavaScript' },
+            { ext: '.py', language: 'Python' },
+            { ext: '.html', language: 'HTML' },
+            { ext: '.htm', language: 'HTML' },
+            { ext: '.css', language: 'CSS' },
+            { ext: '.scss', language: 'CSS' },
+            { ext: '.less', language: 'CSS' },
+            { ext: '.markdown', language: 'Markdown' },
+            { ext: '.md', language: 'Markdown' },
+            { ext: '.json', language: 'JSON' },
+            { ext: '.xml', language: 'XML' },
+            { ext: '.yaml', language: 'YAML' },
+            { ext: '.yml', language: 'YAML' },
+            { ext: '.glsl', language: 'GLSL' },
+            { ext: '.vert', language: 'GLSL' },
+            { ext: '.frag', language: 'GLSL' },
+            { ext: '.c++', language: 'C++' },
+            { ext: '.cpp', language: 'C++' },
+            { ext: '.hpp', language: 'C++' },
+            { ext: '.cs', language: 'C#' },
+            { ext: '.c', language: 'C' },
+            { ext: '.h', language: 'C' },
+            { ext: '.go', language: 'Go' },
+            { ext: '.rs', language: 'Rust' },
+            { ext: '.java', language: 'Java' },
+            { ext: '.php', language: 'PHP' },
+            { ext: '.rb', language: 'Ruby' },
+            { ext: '.sh', language: 'Shell' },
+            { ext: '.bat', language: 'Batch' },
+            { ext: '.txt', language: 'Text' },
+            { ext: '.png', language: 'Image' },
+            { ext: '.jpg', language: 'Image' },
+            { ext: '.jpeg', language: 'Image' },
+            { ext: '.gif', language: 'Image' },
+            { ext: '.svg', language: 'Image' },
+            { ext: '.ico', language: 'Image' },
+            { ext: '.mp3', language: 'Audio' },
+            { ext: '.wav', language: 'Audio' },
+            { ext: '.mp4', language: 'Video' },
+            { ext: '.webm', language: 'Video' },
+            { ext: '.pdf', language: 'PDF' },
+            { ext: '.zip', language: 'Archive' },
+            { ext: '.tar', language: 'Archive' },
+            { ext: '.gz', language: 'Archive' },
+            { ext: '.cc', language: 'C++' },
+            { ext: '.cxx', language: 'C++' },
+            { ext: '.cp', language: 'C++' },
+            { ext: '.hh', language: 'C++' },
+            { ext: '.hxx', language: 'C++' },
+            { ext: '.vs', language: 'GLSL' },
+            { ext: '.fs', language: 'GLSL' },
+            { ext: '.lua', language: 'Lua' }
+        ].sort((a, b) => b.ext.length - a.ext.length);
+
+        const LANGUAGE_COLORS = {
+            'TypeScript': '#3178c6',
+            'JavaScript': '#f7df1e',
+            'Python': '#3776ab',
+            'HTML': '#e34f26',
+            'CSS': '#563d7c',
+            'Markdown': '#083fa1',
+            'JSON': '#292929',
+            'XML': '#0060ac',
+            'YAML': '#cb171e',
+            'GLSL': '#5586a4',
+            'C++': '#f34b7d',
+            'C#': '#178600',
+            'C': '#555555',
+            'Go': '#00add8',
+            'Rust': '#dea584',
+            'Java': '#b07219',
+            'PHP': '#4F5D95',
+            'Ruby': '#701516',
+            'Shell': '#89e051',
+            'Image': '#ff69b4',
+            'Audio': '#ff4500',
+            'Video': '#8a2be2',
+            'Archive': '#a52a2a',
+            'Lua': '#000080',
+            'Other': '#6b7280'
+        };
+
+        // --- State ---
+        let allFiles = [];
+        let activeLanguages = new Set();
+        let simulation = null;
+        let svg = null;
+        let g = null; // Main group for zoom
+        let zoom = null;
+        let rootNode = null;
+        let useProportionalSize = false;
+
+        // --- DOM Elements ---
+        const repoUploadInput = document.getElementById('repoUpload');
+        const uploadScreen = document.getElementById('upload-screen');
+        const loadingMsg = document.getElementById('loading-msg');
+        const topBar = document.getElementById('top-bar');
+        const filterContainer = document.getElementById('filter-container');
+        const vizContainer = document.getElementById('viz-container');
+        const statsOverlay = document.getElementById('stats-overlay');
+        const legend = document.getElementById('legend');
+        const resetViewBtn = document.getElementById('reset-view-btn');
+        const sizeToggleBtn = document.getElementById('size-toggle-btn');
+        const newUploadBtn = document.getElementById('new-upload-btn');
+        const statsCounter = document.getElementById('stats-counter');
+
+        // --- Event Listeners ---
+        repoUploadInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        
+        newUploadBtn.addEventListener('click', () => {
+            // Reset state
+            if (simulation) simulation.stop();
+            vizContainer.innerHTML = '';
+            topBar.classList.add('-translate-y-full', 'hidden');
+            statsOverlay.classList.add('hidden', 'opacity-0');
+            legend.classList.add('hidden', 'opacity-0');
+            uploadScreen.classList.remove('hidden');
+            setTimeout(() => uploadScreen.classList.remove('opacity-0'), 50);
+            repoUploadInput.value = '';
+        });
+
+        resetViewBtn.addEventListener('click', () => {
+            if (svg && zoom) {
+                svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+            }
+        });
+
+        sizeToggleBtn.addEventListener('click', () => {
+            useProportionalSize = !useProportionalSize;
+            sizeToggleBtn.textContent = useProportionalSize ? 'Size: Proportional' : 'Size: Uniform';
+            sizeToggleBtn.classList.toggle('bg-blue-600', useProportionalSize);
+            sizeToggleBtn.classList.toggle('bg-gray-700', !useProportionalSize);
+            
+            // Update nodes
+            d3.selectAll('.node circle')
+                .transition().duration(500)
+                .attr('r', d => calculateRadius(d));
+                
+            // Update simulation
+            if (simulation) {
+                simulation.force('collide', d3.forceCollide(d => calculateRadius(d) + 2).iterations(2));
+                simulation.alpha(0.3).restart();
+            }
+        });
+
+        // --- File Processing ---
+        async function handleFiles(fileList) {
+            if (!fileList.length) return;
+
+            uploadScreen.querySelector('label').classList.add('hidden');
+            loadingMsg.classList.remove('hidden');
+            loadingMsg.classList.add('flex');
+
+            // Allow UI to update
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const files = Array.from(fileList);
+            
+            // Parse .gitignore if present (simplified)
+            let ignorePatterns = [
+                'node_modules', 'package-lock.json', '.git', 'venv', '.venv', '__pycache__'
+            ];
+            const gitIgnore = files.find(f => f.name === '.gitignore');
+            if (gitIgnore) {
+                try {
+                    const text = await readFileText(gitIgnore);
+                    ignorePatterns = parseGitIgnore(text);
+                } catch (e) { console.warn('Error reading .gitignore', e); }
+            }
+
+            // Process files
+            allFiles = [];
+            const languagesFound = new Set();
+
+            for (const file of files) {
+                if (checkIgnored(file.webkitRelativePath, ignorePatterns)) continue;
+
+                const lang = detectLanguage(file.name);
+                languagesFound.add(lang);
+
+                allFiles.push({
+                    path: file.webkitRelativePath,
+                    name: file.name,
+                    size: file.size,
+                    language: lang,
+                    type: 'file'
+                });
+            }
+
+            // Initialize filters
+            activeLanguages = new Set(languagesFound);
+            renderFilters(languagesFound);
+
+            // Build and Render Graph
+            updateVisualization();
+
+            // Transition UI
+            uploadScreen.classList.add('opacity-0');
+            setTimeout(() => {
+                uploadScreen.classList.add('hidden');
+                loadingMsg.classList.add('hidden');
+                loadingMsg.classList.remove('flex');
+                uploadScreen.querySelector('label').classList.remove('hidden');
+                
+                topBar.classList.remove('hidden');
+                setTimeout(() => topBar.classList.remove('-translate-y-full'), 50);
+                
+                statsOverlay.classList.remove('hidden');
+                setTimeout(() => statsOverlay.classList.remove('opacity-0', 'translate-y-4'), 500);
+
+                legend.classList.remove('hidden');
+                setTimeout(() => legend.classList.remove('opacity-0'), 500);
+            }, 500);
+        }
+
+        function detectLanguage(filename) {
+            const lower = filename.toLowerCase();
+            const match = EXTENSION_LANGUAGE_PAIRS.find(pair => lower.endsWith(pair.ext));
+            return match ? match.language : 'Other';
+        }
+
+        function readFileText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        }
+
+        function parseGitIgnore(content) {
+            return content.split('\n')
+                .map(l => l.trim())
+                .filter(l => l && !l.startsWith('#'));
+        }
+
+        function checkIgnored(path, patterns) {
+            // Very basic check - checks if any segment matches a pattern
+            // Real gitignore logic is complex, this is a "good enough" approximation for visualization
+            return patterns.some(p => {
+                const cleanP = p.replace(/\/$/, ''); // remove trailing slash
+                return path.includes(cleanP);
+            });
+        }
+
+        // --- Graph Building ---
+        function buildGraphData(files) {
+            const nodes = [];
+            const links = [];
+            const nodeMap = new Map();
+
+            // Helper to get or create a directory node
+            function getOrCreateDir(path, name) {
+                if (nodeMap.has(path)) return nodeMap.get(path);
+
+                const node = {
+                    id: path,
+                    name: name,
+                    type: 'directory',
+                    size: 0, // Will accumulate
+                    childrenCount: 0,
+                    path: path
+                };
+                nodes.push(node);
+                nodeMap.set(path, node);
+                return node;
+            }
+
+            // Create Root
+            const rootName = files[0].path.split('/')[0];
+            rootNode = getOrCreateDir(rootName, rootName);
+
+            files.forEach(file => {
+                if (!activeLanguages.has(file.language)) return;
+
+                const parts = file.path.split('/');
+                let currentPath = parts[0];
+                let parentNode = nodeMap.get(currentPath);
+
+                // Traverse directories
+                for (let i = 1; i < parts.length - 1; i++) {
+                    const dirName = parts[i];
+                    currentPath += '/' + dirName;
+                    
+                    let dirNode = nodeMap.get(currentPath);
+                    if (!dirNode) {
+                        dirNode = getOrCreateDir(currentPath, dirName);
+                        links.push({ source: parentNode.id, target: dirNode.id });
+                        parentNode.childrenCount++;
+                    }
+                    parentNode = dirNode;
+                }
+
+                // Create File Node
+                const fileName = parts[parts.length - 1];
+                const fileNode = {
+                    id: file.path,
+                    name: fileName,
+                    type: 'file',
+                    size: file.size,
+                    language: file.language,
+                    path: file.path
+                };
+                nodes.push(fileNode);
+                links.push({ source: parentNode.id, target: fileNode.id });
+                parentNode.childrenCount++;
+                
+                // Propagate size up (simple accumulation)
+                // Note: This doesn't propagate all the way up in this single pass if dirs are created out of order,
+                // but for visualization size of dir usually just means "contains stuff".
+                parentNode.size += file.size;
+            });
+
+            return { nodes, links };
+        }
+
+        // --- Visualization ---
+        function calculateRadius(d) {
+            if (d.type === 'directory') {
+                return Math.min(10 + Math.sqrt(d.childrenCount || 0) * 2, 40);
+            }
+            if (useProportionalSize) {
+                // Log scale for file size
+                return Math.max(4, Math.min(40, Math.log2(d.size + 1) * 1.5));
+            }
+            return 5; // Uniform size
+        }
+
+        function updateVisualization() {
+            const data = buildGraphData(allFiles);
+            statsCounter.textContent = `${data.nodes.filter(n => n.type === 'file').length} files`;
+            
+            // Clear existing
+            vizContainer.innerHTML = '';
+            if (simulation) simulation.stop();
+
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            // Zoom behavior
+            zoom = d3.zoom()
+                .scaleExtent([0.1, 8])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+
+            svg = d3.select('#viz-container').append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .attr('viewBox', [0, 0, width, height])
+                .call(zoom)
+                .on('dblclick.zoom', null); // Disable double click zoom
+
+            g = svg.append('g');
+
+            // Simulation Setup
+            simulation = d3.forceSimulation(data.nodes)
+                .force('link', d3.forceLink(data.links).id(d => d.id).distance(d => d.target.type === 'directory' ? 100 : 50))
+                .force('charge', d3.forceManyBody().strength(d => d.type === 'directory' ? -500 : -100))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collide', d3.forceCollide(d => calculateRadius(d) + 2).iterations(2));
+
+            // Render Links
+            const link = g.append('g')
+                .attr('stroke', '#4b5563')
+                .selectAll('line')
+                .data(data.links)
+                .join('line')
+                .attr('class', 'link')
+                .attr('stroke-width', d => d.target.type === 'directory' ? 1.5 : 0.5);
+
+            // Render Nodes
+            const node = g.append('g')
+                .selectAll('g')
+                .data(data.nodes)
+                .join('g')
+                .attr('class', 'node')
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            // Node Circles
+            node.append('circle')
+                .attr('r', d => calculateRadius(d))
+                .attr('fill', d => {
+                    if (d.type === 'directory') return '#4b5563'; // Gray for folders
+                    return LANGUAGE_COLORS[d.language] || LANGUAGE_COLORS['Other'];
+                })
+                .attr('stroke', '#1f2937')
+                .attr('stroke-width', 1.5);
+
+            // Interactions
+            node.on('mouseover', (event, d) => {
+                // Highlight
+                d3.select(event.currentTarget).select('circle').attr('stroke', '#fff').attr('stroke-width', 3);
+                
+                // Update Stats
+                document.getElementById('node-info-placeholder').classList.add('hidden');
+                document.getElementById('node-info-content').classList.remove('hidden');
+                
+                document.getElementById('info-name').textContent = d.name;
+                document.getElementById('info-type').textContent = d.type === 'directory' ? 'Directory' : d.language + ' File';
+                document.getElementById('info-path').textContent = d.path;
+                document.getElementById('info-size').textContent = formatBytes(d.size);
+                
+                const childrenRow = document.getElementById('info-children-row');
+                if (d.type === 'directory') {
+                    childrenRow.classList.remove('hidden');
+                    document.getElementById('info-children').textContent = d.childrenCount || 0;
+                    document.getElementById('info-icon').textContent = '📂';
+                    document.getElementById('info-icon').className = 'w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center text-xl text-gray-300';
+                } else {
+                    childrenRow.classList.add('hidden');
+                    document.getElementById('info-icon').textContent = '📄';
+                    const color = LANGUAGE_COLORS[d.language] || LANGUAGE_COLORS['Other'];
+                    document.getElementById('info-icon').style.backgroundColor = color + '40'; // 25% opacity
+                    document.getElementById('info-icon').style.color = color;
+                }
+            })
+            .on('mouseout', (event, d) => {
+                d3.select(event.currentTarget).select('circle').attr('stroke', '#1f2937').attr('stroke-width', 1.5);
+            });
+
+            // Simulation Tick
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node
+                    .attr('transform', d => `translate(${d.x},${d.y})`);
+            });
+
+            // Initial Zoom to fit (optional, but good for UX)
+            // setTimeout(() => {
+            //     const bounds = g.node().getBBox();
+            //     const fullWidth = width;
+            //     const fullHeight = height;
+            //     const midX = bounds.x + bounds.width / 2;
+            //     const midY = bounds.y + bounds.height / 2;
+            //     if (bounds.width === 0 || bounds.height === 0) return; // Empty graph
+            //     const scale = 0.85 / Math.max(bounds.width / fullWidth, bounds.height / fullHeight);
+            //     const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
+            //     svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+            // }, 1000);
+        }
+
+        // --- Drag Functions ---
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        // --- UI & Helpers ---
+        function renderFilters(languages) {
+            filterContainer.innerHTML = '';
+            const sorted = Array.from(languages).sort();
+            
+            sorted.forEach(lang => {
+                const btn = document.createElement('button');
+                const color = LANGUAGE_COLORS[lang] || LANGUAGE_COLORS['Other'];
+                const isActive = activeLanguages.has(lang);
+                
+                btn.className = `flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 select-none ${
+                    isActive 
+                    ? 'bg-gray-800 text-white border-gray-600 shadow-sm' 
+                    : 'bg-transparent text-gray-500 border-gray-800 opacity-60 hover:opacity-100'
+                }`;
+                
+                // Dot indicator
+                const dot = document.createElement('span');
+                dot.className = 'w-2 h-2 rounded-full';
+                dot.style.backgroundColor = color;
+                
+                btn.appendChild(dot);
+                btn.appendChild(document.createTextNode(lang));
+                
+                btn.onclick = () => {
+                    if (activeLanguages.has(lang)) {
+                        activeLanguages.delete(lang);
+                        btn.classList.remove('bg-gray-800', 'text-white', 'border-gray-600', 'shadow-sm');
+                        btn.classList.add('bg-transparent', 'text-gray-500', 'border-gray-800', 'opacity-60');
+                    } else {
+                        activeLanguages.add(lang);
+                        btn.classList.remove('bg-transparent', 'text-gray-500', 'border-gray-800', 'opacity-60');
+                        btn.classList.add('bg-gray-800', 'text-white', 'border-gray-600', 'shadow-sm');
+                    }
+                    updateVisualization();
+                };
+                
+                filterContainer.appendChild(btn);
+            });
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (svg) {
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                svg.attr('width', w).attr('height', h).attr('viewBox', [0, 0, w, h]);
+                if (simulation) {
+                    simulation.force('center', d3.forceCenter(w / 2, h / 2));
+                    simulation.alpha(0.3).restart();
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
